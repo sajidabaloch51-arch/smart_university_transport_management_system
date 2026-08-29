@@ -3,12 +3,7 @@ class UserModel {
   final String name;
   final String email;
   final String phone;
-  final String role;
-  final String universityId;
-  final String profilePhotoUrl;
-  final String assignedRouteId;
-  final String regNumber;
-  final String fcmToken;
+  final String role; // student, driver, admin
   final bool isActive;
 
   UserModel({
@@ -17,43 +12,24 @@ class UserModel {
     required this.email,
     required this.phone,
     required this.role,
-    required this.universityId,
-    this.profilePhotoUrl = '',
-    this.assignedRouteId = '',
-    this.regNumber = '',
-    this.fcmToken = '',
     this.isActive = true,
   });
 
-  factory UserModel.fromMap(Map<String, dynamic> map) {
-    return UserModel(
-      uid: map['uid'] ?? '',
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      phone: map['phone'] ?? '',
-      role: map['role'] ?? '',
-      universityId: map['universityId'] ?? '',
-      profilePhotoUrl: map['profilePhotoUrl'] ?? '',
-      assignedRouteId: map['assignedRouteId'] ?? '',
-      regNumber: map['regNumber'] ?? '',
-      fcmToken: map['fcmToken'] ?? '',
-      isActive: map['isActive'] ?? true,
-    );
-  }
+  Map<String, dynamic> toMap() => {
+    'uid': uid,
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'role': role,
+    'isActive': isActive,
+  };
 
-  Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'name': name,
-      'email': email,
-      'phone': phone,
-      'role': role,
-      'universityId': universityId,
-      'profilePhotoUrl': profilePhotoUrl,
-      'assignedRouteId': assignedRouteId,
-      'regNumber': regNumber,
-      'fcmToken': fcmToken,
-      'isActive': isActive,
-    };
-  }
+  factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
+    uid: map['uid'] ?? '',
+    name: map['name'] ?? '',
+    email: map['email'] ?? '',
+    phone: map['phone'] ?? '',
+    role: map['role'] ?? 'student',
+    isActive: map['isActive'] ?? true,
+  );
 }

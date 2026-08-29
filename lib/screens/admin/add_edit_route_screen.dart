@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/route_model.dart';
-import '../../services/firestore_service.dart';
+import '../../widgets/custom_textfield.dart';
+import '../../widgets/custom_button.dart';
 
 class AddEditRouteScreen extends StatefulWidget {
   final RouteModel? route;
@@ -11,17 +12,14 @@ class AddEditRouteScreen extends StatefulWidget {
 }
 
 class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _firestoreService = FirestoreService();
-  
   late TextEditingController _nameController;
   late TextEditingController _numberController;
   late TextEditingController _startController;
   late TextEditingController _endController;
-  late TextEditingController _distanceController;
-  late TextEditingController _durationController;
-  
-  List<RouteStop> _stops = [];
+  late TextEditingController _distController;
+  late TextEditingController _durController;
+
+  List<TextEditingController> _stopControllers = [];
 
   @override
   void initState() {
@@ -30,107 +28,93 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
     _numberController = TextEditingController(text: widget.route?.routeNumber ?? '');
     _startController = TextEditingController(text: widget.route?.startPoint ?? '');
     _endController = TextEditingController(text: widget.route?.endPoint ?? '');
-    _distanceController = TextEditingController(text: widget.route?.totalDistance ?? '');
-    _durationController = TextEditingController(text: widget.route?.estimatedDuration ?? '');
-    _stops = widget.route?.stops ?? [];
+    _distController = TextEditingController(text: widget.route?.totalDistance ?? '');
+    _durController = TextEditingController(text: widget.route?.estimatedDuration ?? '');
+    
+    if (widget.route != null) {
+      _stopControllers = widget.route!.stops.map((s) => TextEditingController(text: s.stopName)).toList();
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _numberController.dispose();
+    _startController.dispose();
+    _endController.dispose();
+    _distController.dispose();
+    _durController.dispose();
+    for (var controller in _stopControllers) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   void _addStop() {
-    setState(() {
-      _stops.add(RouteStop(stopName: '', lat: 0, lng: 0, order: _stops.length + 1));
-    });
-  }
-
-  void _saveRoute() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final newRoute = RouteModel(
-      id: widget.route?.id ?? '',
-      universityId: 'uog', // Default for now
-      routeName: _nameController.text,
-      routeNumber: _numberController.text,
-      startPoint: _startController.text,
-      endPoint: _endController.text,
-      stops: _stops,
-      totalDistance: _distanceController.text,
-      estimatedDuration: _durationController.text,
-    );
-
-    await _firestoreService.addRoute(newRoute);
-    if (mounted) Navigator.pop(context);
+    setState(() => _stopControllers.add(TextEditingController()));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.route == null ? 'Add Route' : 'Edit Route')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextFormField(
-              controller: _numberController,
-              decoration: const InputDecoration(labelText: 'Route Number (e.g., A)'),
-              validator: (v) => v!.isEmpty ? 'Required' : null,
-            ),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Route Name'),
-              validator: (v) => v!.isEmpty ? 'Required' : null,
+            CustomTextField(controller: _numberController, labelText: 'Route Number (e.g., A)'),
+            CustomTextField(controller: _nameController, labelText: 'Route Name'),
+            Row(
+              children: [
+                Expanded(child: CustomTextField(controller: _startController, labelText: 'Start Point')),
+                const SizedBox(width: 16),
+                Expanded(child: CustomTextField(controller: _endController, labelText: 'End Point')),
+              ],
             ),
             Row(
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _startController,
-                    decoration: const InputDecoration(labelText: 'Start Point'),
-                  ),
-                ),
+                Expanded(child: CustomTextField(controller: _distController, labelText: 'Distance (km)')),
                 const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _endController,
-                    decoration: const InputDecoration(labelText: 'End Point'),
-                  ),
-                ),
+                Expanded(child: CustomTextField(controller: _durController, labelText: 'Duration (min)')),
               ],
             ),
-            const SizedBox(height: 20),
-            const Text('Stops', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ..._stops.asMap().entries.map((entry) {
-              int idx = entry.key;
-              return ListTile(
-                title: TextFormField(
-                  initialValue: _stops[idx].stopName,
-                  decoration: InputDecoration(labelText: 'Stop ${idx + 1} Name'),
-                  onChanged: (v) => _stops[idx] = RouteStop(
-                    stopName: v,
-                    lat: _stops[idx].lat,
-                    lng: _stops[idx].lng,
-                    order: _stops[idx].order,
-                  ),
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => setState(() => _stops.removeAt(idx)),
+            const Divider(height: 40),
+            const Text('Stops List', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            ...List.generate(_stopControllers.length, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    CircleAvatar(radius: 12, child: Text('${index + 1}', style: const TextStyle(fontSize: 10))),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _stopControllers[index],
+                        decoration: InputDecoration(
+                          hintText: 'Enter stop name',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle, color: Colors.red),
+                      onPressed: () => setState(() => _stopControllers.removeAt(index)),
+                    ),
+                  ],
                 ),
               );
             }),
             TextButton.icon(
-              onPressed: _addStop,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Stop'),
+              onPressed: _addStop, 
+              icon: const Icon(Icons.add_location_alt), 
+              label: const Text('ADD STOP')
             ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _saveRoute,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003366),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('SAVE ROUTE'),
+            const SizedBox(height: 40),
+            CustomButton(
+              text: widget.route == null ? 'SAVE ROUTE' : 'UPDATE ROUTE', 
+              onPressed: () => Navigator.pop(context)
             ),
           ],
         ),

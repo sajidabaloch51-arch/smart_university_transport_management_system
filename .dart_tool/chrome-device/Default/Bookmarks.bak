@@ -1,0 +1,95 @@
+{
+   "checksum": "59ea0e6eab9c35f61a46dd8f0d434d1b",
+   "roots": {
+      "bookmark_bar": {
+         "children": [  ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Favorites bar",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13349471075414947",
+            "date_last_used": "0",
+            "guid": "5b8770d4-a284-4646-a8b2-1a406171226d",
+            "id": "7",
+            "name": "CLASS",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://classroom.google.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13349555951283786",
+            "date_last_used": "0",
+            "guid": "4cdb06b0-266b-4b6a-94b0-54fa35740165",
+            "id": "8",
+            "name": "AI App - AI Chatbot",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://chat.aiapp.org/",
+            "visit_count": 0
+         }, {
+            "date_added": "13349557356863644",
+            "date_last_used": "0",
+            "guid": "43a9a5f8-59c6-41fe-95c9-a59397098333",
+            "id": "9",
+            "name": "PowerPoint | Microsoft 365",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://www.office.com/launch/PowerPoint/?auth=1&from=PwaFreeSignup&wa=wsignin1.0",
+            "visit_count": 0
+         }, {
+            "date_added": "13349557450198121",
+            "date_last_used": "0",
+            "guid": "b41991d8-1ee7-4f9a-98b4-c4ae8b2fc22f",
+            "id": "10",
+            "name": "Excel | Microsoft 365",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://www.office.com/launch/Excel/?auth=1&from=PwaFreeSignup&wa=wsignin1.0",
+            "visit_count": 0
+         } ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "13349557450198121",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "workspaces_v2": {
+         "children": [  ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "75aa6670-344f-549d-b742-660f029506ab",
+         "id": "5",
+         "name": "Workspaces",
+         "source": "unknown",
+         "type": "folder"
+      }
+   },
+   "sync_metadata": "CjEKDgiIgQISCDE1/T2ZAQAAEgAqGE9ZV0pxYlMvclphNzdGVDVoYkViZUE9PUgDoAYHEo4BCAMSiQEKHG5qZ0R1ODhlQ3J2WHA4NnBEN2ZIR2NxRnA4OD0SJDZhZDRiMjlmLTQwM2QtNTIyYy04YTNiLTM1ODZhODVlMTYzMBgAIAAoADCdy9ns0DE4o9XZ7NAxQKPV2ezQMUoceXpOQjAxY241NEE3Y1JVMHVUKy9QZ21UdFVvPVoAZQAAAADCPgJgABKOAQgFEokBChx3UkJyWkwrNlBBOWF2S2dqTlA3SlhETGNmdnM9EiQxZDU5MjJkNS0xOWM5LTViMjUtYWQ4NC0yNDRkY2RjZmNlZjMYACAAKAAwsOr075MzOMPt9O+TM0DD7fTvkzNKHG5teDY1c1FEdnhJOFRnRWV2K0ErbnR0b1NuND1aAGUAAAAAwj4CYAASjgEIARKJAQoceXhKLzZmdmtlY3I3a3A1RVF6QjR0V0xwZGJFPRIkZmFhYjA3MjktODc4Ni01MzUxLWE2OGMtZThiMDFiZDU2NzdjGAAgACgAMJfL2ezQMTjk09ns0DFA5NPZ7NAxShxhUkNXTGdoRjliNUlucUtJRHZ1Si9qdlFrRmM9WgBlAAAAAMI+AmAAEq0BCAoSqAEKHC81YTdFclY1VUJrWU85eWlIaW1UUTVlMnVQdz0SJGI0MTk5MWQ4LTFlZTctNGY5YS05OGI0LWM0YWU4YjJmYzIyZhgAIAAoADCKvePs0DE4/8Pj7NAxQP/D4+zQMUocSlZpd0dtNWlFcDlZaHVJUDNPUXZLcHlRTFhjPVofIh3uSC9VK0htanByeG54UG5KWng5Si9LN21XcDE0PWXGl/fqwj4CYAUSjgEIAhKJAQocWWNTVG9udkVTUHdxQ3M0TDJjclZodjY4TDk4PRIkODYxMjg3YjUtZGE5MC01MzY4LThjMDYtMTE0NDc0YmQxMzlhGAAgACgAMJjL2ezQMTiQ1Nns0DFAkNTZ7NAxShxvUFZraHdCUmJWNjVLQ1dSMitJT05IV29PdTg9WgBlAAAAAMI+AmAAEqwBCAcSpwEKHFZTbHQ4QXZWdnY4U1JwRWZ3SW85SmVxTDFGYz0SJDViODc3MGQ0LWEyODQtNDY0Ni1hOGIyLTFhNDA2MTcxMjI2ZBgAIAAoADCIvePs0DE4qsPj7NAxQKrD4+zQMUocZmd1L0ltT1F3c0dsWG1oV051Rzg3eEh3ckZJPVoeIhx2S1JVU3VWVGdQdk1aNlZNQW5GeHlvMitVT2M9ZQRHWPnCPgJgBRKtAQgJEqgBChw3MG9vMU5Zb3lFQTNhd2Z6UWpvWVRQQzlvZGs9EiQ0M2E5YTVmOC01OWM2LTQxZmUtOTVjOS1hNTkzOTcwOTgzMzMYACAAKAAwib3j7NAxONfD4+zQMUDXw+Ps0DFKHFY1dGM1aitpQnMyRHRjeFVqL0c4a1RGT2F1ND1aHyId3XU2cFE0S1oxLytCNTZqMVJpcWR1OVpneE9yTT1lxpf36sI+AmAFEq0BCAgSqAEKHDVVT3M0Z0t6QjVoQW5QUVBaODRaYmt3bi9tMD0SJDRjZGIwNmIwLTI2NmItNGI2YS05NGIwLTU0ZmEzNTc0MDE2NRgAIAAoADCHvePs0DE4gcPj7NAxQIHD4+zQMUocLzE1V1RNZmlydlFnZmQvZjZMSm92dWZDSzhvPVofIh27U3V3Y3A3a2t0UTFnc01vejQyWms5ckUrTlU0PWUw785lwj4CYAUwADgA",
+   "version": 1
+}

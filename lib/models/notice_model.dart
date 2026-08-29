@@ -1,56 +1,53 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum NoticeType { delay, emergency, general }
+
 class NoticeModel {
   final String id;
-  final String universityId;
   final String title;
-  final String body;
-  final String type; // delay, cancellation, general, emergency
-  final String targetRole; // all, student, driver
+  final String description;
+  final DateTime date;
+  final NoticeType type;
   final String postedBy;
-  final bool isActive;
-  final DateTime createdAt;
-  final DateTime expiresAt;
 
   NoticeModel({
     required this.id,
-    required this.universityId,
     required this.title,
-    required this.body,
+    required this.description,
+    required this.date,
     required this.type,
-    required this.targetRole,
     required this.postedBy,
-    this.isActive = true,
-    required this.createdAt,
-    required this.expiresAt,
   });
 
-  factory NoticeModel.fromMap(String id, Map<String, dynamic> map) {
+  factory NoticeModel.fromMap(Map<String, dynamic> map, String docId) {
     return NoticeModel(
-      id: id,
-      universityId: map['universityId'] ?? '',
+      id: docId,
       title: map['title'] ?? '',
-      body: map['body'] ?? '',
-      type: map['type'] ?? 'general',
-      targetRole: map['targetRole'] ?? 'all',
-      postedBy: map['postedBy'] ?? '',
-      isActive: map['isActive'] ?? true,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      expiresAt: (map['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      description: map['description'] ?? '',
+      date: (map['date'] as Timestamp).toDate(),
+      type: _parseNoticeType(map['type']),
+      postedBy: map['postedBy'] ?? 'Admin',
     );
+  }
+
+  static NoticeType _parseNoticeType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'emergency':
+        return NoticeType.emergency;
+      case 'delay':
+        return NoticeType.delay;
+      default:
+        return NoticeType.general;
+    }
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'universityId': universityId,
       'title': title,
-      'body': body,
-      'type': type,
-      'targetRole': targetRole,
+      'description': description,
+      'date': Timestamp.fromDate(date),
+      'type': type.name,
       'postedBy': postedBy,
-      'isActive': isActive,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'expiresAt': Timestamp.fromDate(expiresAt),
     };
   }
 }

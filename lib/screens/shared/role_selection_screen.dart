@@ -10,11 +10,12 @@ class RoleSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 30.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 60),
               const Icon(Icons.directions_bus_rounded, size: 80, color: AppColors.primary),
               const SizedBox(height: 20),
               const Text(
@@ -26,7 +27,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 'Please select your role to continue',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 40),
               _buildRoleCard(
                 context,
                 title: 'Student',
@@ -42,11 +43,15 @@ class RoleSelectionScreen extends StatelessWidget {
                 icon: Icons.drive_eta_rounded,
                 onTap: () => context.push('/login', extra: 'driver'),
               ),
-              const SizedBox(height: 40),
-              TextButton(
-                onPressed: () {}, // Admin contact
-                child: const Text('Are you an Administrator? Contact Support'),
+              const SizedBox(height: 20),
+              _buildRoleCard(
+                context,
+                title: 'Administrator',
+                subtitle: 'Manage system users, routes, buses, and notices.',
+                icon: Icons.admin_panel_settings_rounded,
+                onTap: () => context.push('/login', extra: 'admin'),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

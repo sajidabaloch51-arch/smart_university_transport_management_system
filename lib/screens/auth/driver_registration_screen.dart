@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
+import '../../providers/driver_provider.dart';
+import '../driver/driver_dashboard.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -21,8 +24,22 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
-  bool _isLoading = false;
   String _selectedGender = 'Male';
+
+  void _handleRegister() {
+    if (_formKey.currentState!.validate()) {
+      // Direct Navigation - No waiting
+      Navigator.pushAndRemoveUntil(
+        context, 
+        MaterialPageRoute(builder: (_) => const DriverDashboard()),
+        (route) => false,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Welcome to SUTMS Driver Portal!")),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,12 +119,7 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
               const SizedBox(height: 30),
               CustomButton(
                 text: "REGISTER",
-                isLoading: _isLoading,
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    setState(() => _isLoading = true);
-                  }
-                },
+                onPressed: _handleRegister,
               ),
               const SizedBox(height: 20),
               Row(

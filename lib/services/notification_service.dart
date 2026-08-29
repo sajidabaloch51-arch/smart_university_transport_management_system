@@ -1,43 +1,45 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
-    // Request permission
-    await _fcm.requestPermission();
+    try {
+      await _fcm.requestPermission();
 
-    // Initialize local notifications for foreground
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
-    await _localNotifications.initialize(initSettings);
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await _localNotifications.initialize(initSettings);
 
-    // Listen for messages when app is in foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showLocalNotification(message);
-    });
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        _showLocalNotification(message);
+      });
+    } catch (e) {
+      debugPrint("Notification service initialization failed: $e");
+    }
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
-    const androidDetails = AndroidNotificationDetails(
-      'sutms_channel',
-      'SUTMS Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const notificationDetails = NotificationDetails(android: androidDetails);
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'sutms_admin_channel',
+        'SUTMS Admin Notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+      const notificationDetails = NotificationDetails(android: androidDetails);
 
-    await _localNotifications.show(
-      0,
-      message.notification?.title,
-      message.notification?.body,
-      notificationDetails,
-    );
-  }
-
-  Future<String?> getToken() async {
-    return await _fcm.getToken();
+      await _localNotifications.show(
+        message.hashCode,
+        message.notification?.title,
+        message.notification?.body,
+        notificationDetails,
+      );
+    } catch (e) {
+      debugPrint("Showing local notification failed: $e");
+    }
   }
 }

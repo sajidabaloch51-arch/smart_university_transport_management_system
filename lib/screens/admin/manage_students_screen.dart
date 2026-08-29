@@ -68,7 +68,7 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
               return StudentCard(
                 student: students[index],
                 onView: () {},
-                onEdit: () {},
+                onEdit: () => context.push('/add-edit-student', extra: students[index]),
                 onDelete: () => _confirmDelete(context, students[index].uid),
               );
             },
@@ -76,7 +76,7 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/add-student'),
+        onPressed: () => context.push('/add-edit-student'),
         icon: const Icon(Icons.add),
         label: const Text('Add Student'),
       ),

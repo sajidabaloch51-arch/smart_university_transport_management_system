@@ -16,12 +16,12 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     
     // Using simple fetch logic as a placeholder
-    // In a real app, you'd fetch from 'admins' collection
     _admin = AdminModel(
       uid: uid,
       name: 'System Admin',
       email: 'admin@uog.edu.pk',
       phone: '+92 300 0000000',
+      role: 'admin',
       university: 'University of Gwadar',
       profilePhoto: '',
     );

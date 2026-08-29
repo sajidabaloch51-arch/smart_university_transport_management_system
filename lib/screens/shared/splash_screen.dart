@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../theme/app_colors.dart';
+import '../../constants/strings.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,32 +18,32 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
-      context.go('/login');
+      context.go('/onboarding');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
+      backgroundColor: AppColors.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Image.asset('assets/images/logo.png', width: 150),
-            Icon(Icons.bus_alert, size: 100, color: Color(0xFF003366)),
-            SizedBox(height: 20),
+            Icon(Icons.directions_bus_filled, size: 100, color: Colors.white),
+            SizedBox(height: 24),
             Text(
-              'SUTMS',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF003366),
-              ),
+              AppStrings.appName,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
             ),
-            SizedBox(height: 10),
-            CircularProgressIndicator(),
+            Text(
+              AppStrings.appSubtitle,
+              style: TextStyle(fontSize: 16, color: Colors.white70),
+            ),
+            SizedBox(height: 48),
+            CircularProgressIndicator(color: Colors.white),
           ],
         ),
       ),

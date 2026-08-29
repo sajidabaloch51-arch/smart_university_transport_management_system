@@ -12,7 +12,7 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.backgroundLight,
     fontFamily: 'Poppins',
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 4,
       shadowColor: Colors.black12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -46,7 +46,7 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.backgroundDark,
     fontFamily: 'Poppins',
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       color: AppColors.cardDark,

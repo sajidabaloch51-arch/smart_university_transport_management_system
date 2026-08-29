@@ -1,54 +1,38 @@
 class ScheduleModel {
   final String id;
-  final String universityId;
-  final String routeId;
-  final String busId;
-  final String driverId;
-  final String direction; // toUniversity, fromUniversity
+  final String busNumber;
+  final String routeName;
   final String departureTime;
   final String arrivalTime;
-  final List<String> daysOfWeek;
-  final bool isActive;
+  final List<String> days;
 
   ScheduleModel({
     required this.id,
-    required this.universityId,
-    required this.routeId,
-    required this.busId,
-    required this.driverId,
-    required this.direction,
+    required this.busNumber,
+    required this.routeName,
     required this.departureTime,
     required this.arrivalTime,
-    required this.daysOfWeek,
-    this.isActive = true,
+    required this.days,
   });
 
-  factory ScheduleModel.fromMap(String id, Map<String, dynamic> map) {
+  factory ScheduleModel.fromMap(Map<String, dynamic> map, String docId) {
     return ScheduleModel(
-      id: id,
-      universityId: map['universityId'] ?? '',
-      routeId: map['routeId'] ?? '',
-      busId: map['busId'] ?? '',
-      driverId: map['driverId'] ?? '',
-      direction: map['direction'] ?? '',
+      id: docId,
+      busNumber: map['busNumber'] ?? '',
+      routeName: map['routeName'] ?? '',
       departureTime: map['departureTime'] ?? '',
       arrivalTime: map['arrivalTime'] ?? '',
-      daysOfWeek: List<String>.from(map['daysOfWeek'] ?? []),
-      isActive: map['isActive'] ?? true,
+      days: List<String>.from(map['days'] ?? []),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'universityId': universityId,
-      'routeId': routeId,
-      'busId': busId,
-      'driverId': driverId,
-      'direction': direction,
+      'busNumber': busNumber,
+      'routeName': routeName,
       'departureTime': departureTime,
       'arrivalTime': arrivalTime,
-      'daysOfWeek': daysOfWeek,
-      'isActive': isActive,
+      'days': days,
     };
   }
 }

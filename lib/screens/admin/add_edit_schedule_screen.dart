@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../models/schedule_model.dart';
 import '../../widgets/custom_button.dart';
 
 class AddEditScheduleScreen extends StatefulWidget {
-  const AddEditScheduleScreen({super.key});
+  final ScheduleModel? schedule;
+  const AddEditScheduleScreen({super.key, this.schedule});
 
   @override
   State<AddEditScheduleScreen> createState() => _AddEditScheduleScreenState();
@@ -13,16 +15,27 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
   String? _selectedDriver;
   String? _selectedBus;
   
-  TimeOfDay _departureTime = const TimeOfDay(hour: 7, minute: 30);
-  TimeOfDay _arrivalTime = const TimeOfDay(hour: 8, minute: 0);
+  late TimeOfDay _departureTime;
+  late TimeOfDay _arrivalTime;
 
   final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final Set<String> _selectedDays = {'Mon', 'Tue', 'Wed', 'Thu', 'Fri'};
+  late Set<String> _selectedDays;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRoute = widget.schedule?.routeName;
+    _selectedBus = widget.schedule?.busNumber;
+    
+    _departureTime = const TimeOfDay(hour: 7, minute: 30);
+    _arrivalTime = const TimeOfDay(hour: 8, minute: 0);
+    _selectedDays = widget.schedule?.days.toSet() ?? {'Mon', 'Tue', 'Wed', 'Thu', 'Fri'};
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Timing')),
+      appBar: AppBar(title: Text(widget.schedule == null ? 'Add Timing' : 'Edit Timing')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -66,7 +79,10 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
             ),
             
             const SizedBox(height: 50),
-            CustomButton(text: 'SAVE SCHEDULE', onPressed: () => Navigator.pop(context)),
+            CustomButton(
+              text: widget.schedule == null ? 'SAVE SCHEDULE' : 'UPDATE SCHEDULE', 
+              onPressed: () => Navigator.pop(context)
+            ),
           ],
         ),
       ),
@@ -74,7 +90,13 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
   }
 
   Widget _buildDropdown(String label, List<String> items, Function(String?) onChanged) {
+    String? currentValue;
+    if (label == 'Select Route') currentValue = _selectedRoute;
+    else if (label == 'Select Bus') currentValue = _selectedBus;
+    else if (label == 'Select Driver') currentValue = _selectedDriver;
+
     return DropdownButtonFormField<String>(
+      value: items.contains(currentValue) ? currentValue : null,
       decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
       items: items.map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
       onChanged: onChanged,

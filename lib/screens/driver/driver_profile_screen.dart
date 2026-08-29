@@ -1,78 +1,132 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../providers/driver_provider.dart';
 
 class DriverProfileScreen extends StatelessWidget {
   const DriverProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
-      body: SingleChildScrollView(
-        child: Column(
+    return Consumer<DriverProvider>(
+      builder: (context, provider, child) {
+        final driver = provider.driver;
+        if (driver == null) return const Center(child: Text('Profile error'));
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('My Profile')),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 30),
+                _buildHeader(driver),
+                const SizedBox(height: 40),
+                _buildInfoSection(driver),
+                const SizedBox(height: 40),
+                _buildActions(context),
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader(dynamic driver) {
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.bottomRight,
           children: [
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: const BoxDecoration(
-                color: Color(0xFF003366),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.blue, width: 3),
               ),
-              child: const Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person, size: 60, color: Color(0xFF003366)),
-                  ),
-                  SizedBox(height: 15),
-                  Text(
-                    'Nasir Ali',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  Text(
-                    'ID: DRV-UOG-005',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
+              child: const CircleAvatar(
+                radius: 65,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 80, color: Colors.blue),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  _buildProfileItem(Icons.email, 'Email', 'nasir.ali@uog.edu.pk'),
-                  _buildProfileItem(Icons.phone, 'Phone', '+92 300 1234567'),
-                  _buildProfileItem(Icons.directions_bus, 'Assigned Bus', 'UOG-001'),
-                  _buildProfileItem(Icons.route, 'Assigned Route', 'Route A'),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    onPressed: () => context.go('/login'),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('LOGOUT'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
-                  ),
-                ],
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.blue,
+              child: IconButton(
+                icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                onPressed: () {},
               ),
             ),
           ],
         ),
+        const SizedBox(height: 20),
+        Text(driver.name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        Text('Employee ID: ${driver.driverId}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+      ],
+    );
+  }
+
+  Widget _buildInfoSection(dynamic driver) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          _infoTile(Icons.email_outlined, 'Email Address', driver.email),
+          _infoTile(Icons.phone_outlined, 'Phone Number', driver.phone),
+          _infoTile(Icons.directions_bus_outlined, 'Assigned Bus', driver.assignedBusNumber),
+          _infoTile(Icons.route_outlined, 'Assigned Route', driver.assignedRouteName),
+        ],
       ),
     );
   }
 
-  Widget _buildProfileItem(IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFF003366)),
-      title: Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-      subtitle: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+  Widget _infoTile(IconData icon, String label, String val) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.blue, size: 22),
+          const SizedBox(width: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Column(
+        children: [
+          ElevatedButton(
+            onPressed: () => context.push('/edit-driver-profile'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 55),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+            child: const Text('Edit Profile Information'),
+          ),
+          const SizedBox(height: 15),
+          TextButton(
+            onPressed: () => context.go('/login'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('LOGOUT ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 }

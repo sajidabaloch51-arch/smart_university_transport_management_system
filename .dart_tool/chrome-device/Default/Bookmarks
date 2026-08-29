@@ -1,0 +1,68 @@
+{
+   "checksum": "c13471b5642fd66f37957c5ea2201914",
+   "roots": {
+      "bookmark_bar": {
+         "children": [  ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13349471075414947",
+            "date_last_used": "0",
+            "guid": "5b8770d4-a284-4646-a8b2-1a406171226d",
+            "id": "7",
+            "name": "CLASS",
+            "type": "url",
+            "url": "https://classroom.google.com/"
+         }, {
+            "date_added": "13349555951283786",
+            "date_last_used": "0",
+            "guid": "4cdb06b0-266b-4b6a-94b0-54fa35740165",
+            "id": "8",
+            "name": "AI App - AI Chatbot",
+            "type": "url",
+            "url": "https://chat.aiapp.org/"
+         }, {
+            "date_added": "13349557356863644",
+            "date_last_used": "0",
+            "guid": "43a9a5f8-59c6-41fe-95c9-a59397098333",
+            "id": "9",
+            "name": "PowerPoint | Microsoft 365",
+            "type": "url",
+            "url": "https://www.office.com/launch/PowerPoint/?auth=1&from=PwaFreeSignup&wa=wsignin1.0"
+         }, {
+            "date_added": "13349557450198121",
+            "date_last_used": "0",
+            "guid": "b41991d8-1ee7-4f9a-98b4-c4ae8b2fc22f",
+            "id": "10",
+            "name": "Excel | Microsoft 365",
+            "type": "url",
+            "url": "https://www.office.com/launch/Excel/?auth=1&from=PwaFreeSignup&wa=wsignin1.0"
+         } ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "13349557450198121",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13422012611724012",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile bookmarks",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

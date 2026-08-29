@@ -1,57 +1,100 @@
 import 'package:flutter/material.dart';
-import '../config/app_theme.dart';
+import 'package:intl/intl.dart';
+import '../models/notice_model.dart';
 
 class NoticeCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final String date;
-  final String type;
-  final VoidCallback onTap;
+  final NoticeModel notice;
+  final VoidCallback onReadMore;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const NoticeCard({
-    super.key,
-    required this.title,
-    required this.description,
-    required this.date,
-    required this.type,
-    required this.onTap,
+    super.key, 
+    required this.notice, 
+    required this.onReadMore,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color typeColor = AppTheme.primaryColor;
-    if (type.toLowerCase() == 'emergency') typeColor = AppTheme.errorColor;
-    if (type.toLowerCase() == 'delay') typeColor = Colors.orange;
+    Color statusColor = Colors.blue;
+    IconData statusIcon = Icons.info_outline;
+
+    if (notice.type == NoticeType.emergency) {
+      statusColor = Colors.red;
+      statusIcon = Icons.warning_amber_rounded;
+    } else if (notice.type == NoticeType.delay) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.timer_outlined;
+    }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: typeColor.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.notifications, color: typeColor),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: BorderSide(color: statusColor.withOpacity(0.3), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
-            Text(description, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Row(
+              children: [
+                Icon(statusIcon, color: statusColor, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  notice.type.name.toUpperCase(),
+                  style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const Spacer(),
+                Text(
+                  DateFormat('dd MMM').format(notice.date),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              notice.title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              notice.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('By: ${notice.postedBy}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                Row(
+                  children: [
+                    if (onEdit != null)
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18, color: Colors.blue), 
+                        onPressed: onEdit
+                      ),
+                    if (onDelete != null)
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 18, color: Colors.red), 
+                        onPressed: onDelete
+                      ),
+                    TextButton(
+                      onPressed: onReadMore,
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 30)),
+                      child: const Text('Read More'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right, size: 20),
-        onTap: onTap,
       ),
     );
   }

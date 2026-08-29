@@ -36,6 +36,17 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     _passwordController = TextEditingController();
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _regController.dispose();
+    _deptController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   void _saveForm() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -43,13 +54,17 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     
     final student = StudentModel(
       uid: widget.student?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text,
-      regNumber: _regController.text,
-      department: _deptController.text,
-      semester: '1', // Default
       email: _emailController.text,
+      name: _nameController.text,
       phone: _phoneController.text,
-      profileImage: '',
+      role: 'student',
+      regNumber: _regController.text,
+      fatherName: widget.student?.fatherName ?? '',
+      gender: widget.student?.gender ?? '',
+      dob: widget.student?.dob ?? '',
+      department: _deptController.text,
+      semester: widget.student?.semester ?? '1',
+      profileImage: widget.student?.profileImage ?? '',
     );
 
     try {
@@ -100,6 +115,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
               labelText: 'Email Address',
               prefixIcon: Icons.email,
               keyboardType: TextInputType.emailAddress,
+              validator: (v) => v!.isEmpty ? 'Enter email' : null,
             ),
             CustomTextField(
               controller: _phoneController, 
@@ -113,6 +129,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
                 labelText: 'Password',
                 prefixIcon: Icons.lock,
                 isPassword: true,
+                validator: (v) => v!.length < 6 ? 'Password too short' : null,
               ),
             const SizedBox(height: 40),
             CustomButton(

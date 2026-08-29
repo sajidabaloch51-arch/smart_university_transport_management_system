@@ -48,14 +48,18 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              DriverCard(driver: driver),
+              DriverCard(
+                driver: driver,
+                onEdit: () => context.push('/add-edit-driver', extra: driver),
+                onDelete: () {},
+              ),
               // Map additional drivers here
             ],
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/add-driver'),
+        onPressed: () => context.push('/add-edit-driver'),
         icon: const Icon(Icons.person_add),
         label: const Text('Add Driver'),
       ),

@@ -1,10 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_model.dart';
 
-class DriverModel {
-  final String id;
-  final String name;
-  final String email;
-  final String phone;
+class DriverModel extends UserModel {
+  final String driverId; // Employee ID
   final String profileImg;
   final String assignedBusId;
   final String assignedBusNumber;
@@ -14,10 +12,12 @@ class DriverModel {
   final DateTime? lastDutyStart;
 
   DriverModel({
-    required this.id,
-    required this.name,
-    required this.email,
-    required this.phone,
+    required super.uid,
+    required super.name,
+    required super.email,
+    required super.phone,
+    required super.role,
+    required this.driverId,
     required this.profileImg,
     required this.assignedBusId,
     required this.assignedBusNumber,
@@ -29,10 +29,12 @@ class DriverModel {
 
   factory DriverModel.fromMap(Map<String, dynamic> map, String docId) {
     return DriverModel(
-      id: docId,
+      uid: docId,
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       phone: map['phone'] ?? '',
+      role: map['role'] ?? 'driver',
+      driverId: map['driverId'] ?? '',
       profileImg: map['profileImg'] ?? '',
       assignedBusId: map['assignedBusId'] ?? '',
       assignedBusNumber: map['assignedBusNumber'] ?? '',
@@ -45,11 +47,11 @@ class DriverModel {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'email': email,
-      'phone': phone,
+    final map = super.toMap();
+    map.addAll({
+      'driverId': driverId,
       'profileImg': profileImg,
       'assignedBusId': assignedBusId,
       'assignedBusNumber': assignedBusNumber,
@@ -57,6 +59,7 @@ class DriverModel {
       'assignedRouteName': assignedRouteName,
       'isOnDuty': isOnDuty,
       'lastDutyStart': lastDutyStart != null ? Timestamp.fromDate(lastDutyStart!) : null,
-    };
+    });
+    return map;
   }
 }

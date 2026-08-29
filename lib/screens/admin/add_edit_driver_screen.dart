@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../models/driver_model.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 
 class AddEditDriverScreen extends StatefulWidget {
-  const AddEditDriverScreen({super.key});
+  final DriverModel? driver;
+  const AddEditDriverScreen({super.key, this.driver});
 
   @override
   State<AddEditDriverScreen> createState() => _AddEditDriverScreenState();
@@ -11,19 +13,41 @@ class AddEditDriverScreen extends StatefulWidget {
 
 class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _idController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passController = TextEditingController();
+  late TextEditingController _nameController;
+  late TextEditingController _idController;
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+  late TextEditingController _passController;
   
   String? _selectedBus;
   String? _selectedRoute;
 
   @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.driver?.name ?? '');
+    _idController = TextEditingController(text: widget.driver?.driverId ?? '');
+    _emailController = TextEditingController(text: widget.driver?.email ?? '');
+    _phoneController = TextEditingController(text: widget.driver?.phone ?? '');
+    _passController = TextEditingController();
+    _selectedBus = widget.driver?.assignedBusNumber;
+    _selectedRoute = widget.driver?.assignedRouteName;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _idController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add New Driver')),
+      appBar: AppBar(title: Text(widget.driver == null ? 'Add Driver' : 'Edit Driver')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -33,28 +57,36 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
               controller: _nameController, 
               labelText: 'Driver Full Name',
               prefixIcon: Icons.person,
+              validator: (v) => v!.isEmpty ? 'Name required' : null,
             ),
             CustomTextField(
               controller: _idController, 
               labelText: 'Employee ID',
               prefixIcon: Icons.badge,
+              validator: (v) => v!.isEmpty ? 'ID required' : null,
             ),
             CustomTextField(
               controller: _emailController, 
               labelText: 'Email Address',
               prefixIcon: Icons.email,
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) => v!.isEmpty ? 'Email required' : null,
             ),
             CustomTextField(
               controller: _phoneController, 
               labelText: 'Phone Number',
               prefixIcon: Icons.phone,
+              keyboardType: TextInputType.phone,
+              validator: (v) => v!.isEmpty ? 'Phone required' : null,
             ),
-            CustomTextField(
-              controller: _passController, 
-              labelText: 'Account Password',
-              prefixIcon: Icons.lock,
-              isPassword: true,
-            ),
+            if (widget.driver == null)
+              CustomTextField(
+                controller: _passController, 
+                labelText: 'Account Password',
+                prefixIcon: Icons.lock,
+                isPassword: true,
+                validator: (v) => v!.length < 6 ? 'Password too short' : null,
+              ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               value: _selectedBus,
@@ -77,8 +109,12 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
             ),
             const SizedBox(height: 40),
             CustomButton(
-              text: 'SAVE DRIVER', 
-              onPressed: () => Navigator.pop(context),
+              text: widget.driver == null ? 'SAVE DRIVER' : 'UPDATE DRIVER',
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  Navigator.pop(context);
+                }
+              },
             ),
           ],
         ),

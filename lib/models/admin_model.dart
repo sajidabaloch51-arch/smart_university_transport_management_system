@@ -1,16 +1,15 @@
-class AdminModel {
-  final String uid;
-  final String name;
-  final String email;
-  final String phone;
+import 'user_model.dart';
+
+class AdminModel extends UserModel {
   final String university;
   final String profilePhoto;
 
   AdminModel({
-    required this.uid,
-    required this.name,
-    required this.email,
-    required this.phone,
+    required super.uid,
+    required super.name,
+    required super.email,
+    required super.phone,
+    required super.role,
     required this.university,
     required this.profilePhoto,
   });
@@ -21,19 +20,19 @@ class AdminModel {
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       phone: map['phone'] ?? '',
+      role: map['role'] ?? 'admin',
       university: map['university'] ?? '',
       profilePhoto: map['profilePhoto'] ?? '',
     );
   }
 
+  @override
   Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'name': name,
-      'email': email,
-      'phone': phone,
+    final map = super.toMap();
+    map.addAll({
       'university': university,
       'profilePhoto': profilePhoto,
-    };
+    });
+    return map;
   }
 }

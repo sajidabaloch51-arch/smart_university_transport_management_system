@@ -11,65 +11,34 @@ class AdminProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: const BoxDecoration(
-                color: Color(0xFF003366),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
-              ),
-              child: const Column(
+            const SizedBox(height: 32),
+            const Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.admin_panel_settings, size: 60, color: Color(0xFF003366)),
-                  ),
-                  SizedBox(height: 15),
-                  Text(
-                    'Sajida Abdullah',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  Text(
-                    'System Administrator',
-                    style: TextStyle(color: Colors.white70),
-                  ),
+                  CircleAvatar(radius: 60, child: Icon(Icons.person, size: 80)),
+                  CircleAvatar(radius: 18, child: Icon(Icons.edit, size: 16)),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            const Text('Sajida Abdullah', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text('System Administrator', style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 40),
+            _profileTile(Icons.email, 'Email Address', 'admin@uog.edu.pk'),
+            _profileTile(Icons.phone, 'Support Phone', '+92 300 1234567'),
+            _profileTile(Icons.school, 'Institution', 'University of Gwadar'),
+            const SizedBox(height: 40),
             Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  _buildProfileItem(Icons.email, 'Email', 'admin@uog.edu.pk'),
-                  _buildProfileItem(Icons.phone, 'Support Phone', '+92 300 0000000'),
-                  _buildProfileItem(Icons.school, 'University', 'University of Gwadar'),
-                  _buildProfileItem(Icons.security, 'Access Level', 'Super Admin'),
-                  const SizedBox(height: 30),
-                  const Divider(),
-                  const ListTile(
-                    leading: Icon(Icons.settings),
-                    title: Text('System Settings'),
-                    trailing: Icon(Icons.chevron_right),
-                  ),
-                  const ListTile(
-                    leading: Icon(Icons.help_outline),
-                    title: Text('Help & Documentation'),
-                    trailing: Icon(Icons.chevron_right),
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    onPressed: () => context.go('/login'),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('LOGOUT'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
+                  OutlinedButton(onPressed: () {}, child: const Text('CHANGE PASSWORD')),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => context.go('/login'), 
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('LOGOUT ACCOUNT')
                   ),
                 ],
               ),
@@ -80,11 +49,11 @@ class AdminProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileItem(IconData icon, String label, String value) {
+  Widget _profileTile(IconData icon, String label, String value) {
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF003366)),
-      title: Text(label, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-      subtitle: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: Colors.blue, size: 20)),
+      title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 }

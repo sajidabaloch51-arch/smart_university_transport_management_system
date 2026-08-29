@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
+import '../student/student_dashboard.dart';
+import '../driver/driver_dashboard.dart';
+import '../admin/admin_dashboard.dart';
 import 'role_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,8 +15,39 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
+
+  void _handleLogin() async {
+    final email = _emailController.text.trim().toLowerCase();
+    
+    if (email.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter valid credentials')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    
+    // Simulate Login Delay
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      // Automatic Role Routing Logic
+      if (email.contains('admin')) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboard()));
+      } else if (email.contains('driver')) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDashboard()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentDashboard()));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +76,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 48),
               
-              const CustomTextField(
+              CustomTextField(
+                controller: _emailController,
                 labelText: "Email", 
                 prefixIcon: Icons.email_outlined,
               ),
               
-              const CustomTextField(
+              CustomTextField(
+                controller: _passwordController,
                 labelText: "Password", 
                 prefixIcon: Icons.lock_outline,
                 isPassword: true,
@@ -72,21 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
               CustomButton(
                 text: "LOGIN",
                 isLoading: _isLoading,
-                onPressed: () {
-                  setState(() => _isLoading = true);
-                  // Logic to check role and navigate
-                },
-              ),
-              
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.g_mobiledata, size: 30),
-                label: const Text("Sign in with Google"),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                ),
+                onPressed: _handleLogin,
               ),
               
               const SizedBox(height: 32),

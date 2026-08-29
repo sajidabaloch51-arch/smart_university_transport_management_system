@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
-import '../config/app_theme.dart';
+import '../theme/app_colors.dart';
 
 class RouteCard extends StatelessWidget {
-  final String busName;
+  final String routeName;
+  final String busNumber;
   final String startPoint;
   final String endPoint;
-  final String time;
+  final String departureTime;
   final VoidCallback onTap;
 
   const RouteCard({
     super.key,
-    required this.busName,
+    required this.routeName,
+    required this.busNumber,
     required this.startPoint,
     required this.endPoint,
-    required this.time,
+    required this.departureTime,
     required this.onTap,
   });
 
@@ -21,28 +23,27 @@ class RouteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  busName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
+                  routeName,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    busNumber,
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12),
                   ),
                 ),
               ],
@@ -50,13 +51,13 @@ class RouteCard extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.location_on, color: AppTheme.secondaryColor, size: 20),
+                const Icon(Icons.circle, color: AppColors.secondary, size: 12),
                 const SizedBox(width: 8),
-                Text(startPoint, style: const TextStyle(fontSize: 16)),
+                Text(startPoint, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
             const Padding(
-              padding: EdgeInsets.only(left: 9),
+              padding: EdgeInsets.only(left: 5),
               child: SizedBox(
                 height: 20,
                 child: VerticalDivider(thickness: 1, color: Colors.grey),
@@ -64,18 +65,28 @@ class RouteCard extends StatelessWidget {
             ),
             Row(
               children: [
-                const Icon(Icons.location_on, color: AppTheme.primaryColor, size: 20),
+                const Icon(Icons.location_on, color: AppColors.primary, size: 16),
                 const SizedBox(width: 8),
-                Text(endPoint, style: const TextStyle(fontSize: 16)),
+                Text(endPoint, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onTap,
-                child: const Text('View Details'),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(departureTime, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  ],
+                ),
+                TextButton(
+                  onPressed: onTap,
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                  child: const Text('View Details', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
             ),
           ],
         ),
