@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.sutms">
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingVersion,OldTargetApi,UnusedAttribute,RtlEnabled">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -16,7 +17,7 @@
             android:value="PASTE_YOUR_ACTUAL_GOOGLE_KEY_HERE" />
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.sutms.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
