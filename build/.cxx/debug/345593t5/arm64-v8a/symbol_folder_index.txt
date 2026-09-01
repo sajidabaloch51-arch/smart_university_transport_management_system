@@ -1,1 +1,0 @@
-C:\Users\PC\AndroidStudioProjects\smart university transport management system\build\app\intermediates\cxx\debug\345593t5\obj\arm64-v8a

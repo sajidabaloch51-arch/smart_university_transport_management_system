@@ -1,2 +1,0 @@
-C:/Users/PC/AndroidStudioProjects/smart university transport management system/build/.cxx/debug/345593t5/arm64-v8a/CMakeFiles/edit_cache.dir
-C:/Users/PC/AndroidStudioProjects/smart university transport management system/build/.cxx/debug/345593t5/arm64-v8a/CMakeFiles/rebuild_cache.dir
