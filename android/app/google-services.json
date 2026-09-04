@@ -1,0 +1,30 @@
+{
+  "project_info":
+  {
+    "project_number": "100031780267",
+    "project_id": "sutms-uog",
+    "storage_bucket": "sutms-uog.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100031780267:android:5074df095acfc7be296eee",
+        "android_cliqent_info": {
+          "package_name": "com.example.sutms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtouw9raLD-fu9yAotY71sksxSEG-8jTg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

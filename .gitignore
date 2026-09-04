@@ -1,15 +1,74 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks detail configured for the project
+# inside which should be checked-in to version control. However, there are some files that
+# shouldn't be checked-in.
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/settings.json
+
+# Flutter/Dart/Pub-related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+__metadata
+build/
+node_modules/
+package-lock.json
+
+# Android-related
+**/android/app/src/main/res/values/strings.xml
+**/android/key.properties
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/app/google-services.json
+
+# iOS-related
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Pods/
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/.generated/
+**/ios/ServiceDefinitions.json
+**/ios/GoogleService-Info.plist
+
+# Web-related
+lib/generated_plugin_registrant.dart
+
+# Symbolication related
+app.*.symbols
+app.*.map.json
+
+# Obfuscation related
+**/app.*.symbols
+**/app.*.map.json
+
+# Exceptions to above rules
+!**/ios/Runner/ServiceDefinitions.json
+!**/ios/Runner/GoogleService-Info.plist
+!**/android/app/src/main/res/values/strings.xml
