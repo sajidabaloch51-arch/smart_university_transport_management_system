@@ -4,6 +4,7 @@ import '../../providers/driver_provider.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/schedule_card.dart';
 import '../../widgets/notice_card.dart';
+import '../../widgets/dashboard_card.dart';
 import 'driver_route_screen.dart';
 import 'duty_screen.dart';
 import 'driver_notice_screen.dart';
@@ -22,7 +23,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
   @override
   void initState() {
     super.initState();
-    // Ensure driver provider is initialized if it wasn't already
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<DriverProvider>(context, listen: false);
       if (provider.driver == null) {
@@ -47,11 +47,11 @@ class _DriverDashboardState extends State<DriverDashboard> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.route_outlined), selectedIcon: Icon(Icons.route), label: 'Route'),
-          NavigationDestination(icon: Icon(Icons.work_history_outlined), selectedIcon: Icon(Icons.work_history), label: 'Duty'),
-          NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'Notices'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.route_outlined), label: 'Route'),
+          NavigationDestination(icon: Icon(Icons.work_history_outlined), label: 'Duty'),
+          NavigationDestination(icon: Icon(Icons.notifications_outlined), label: 'Notices'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
     );
@@ -63,76 +63,66 @@ class DashboardSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryBlue = Color(0xFF1565C0);
+
     return Consumer<DriverProvider>(
       builder: (context, provider, child) {
         if (provider.isLoading && provider.driver == null) {
-          return const Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text("Setting up your dashboard..."),
-                ],
-              ),
-            ),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         if (provider.driver == null) {
-          return const Center(child: Text("Error loading driver data. Tap refresh."));
+          return const Center(child: Text("Error loading data."));
         }
 
         return Scaffold(
+          backgroundColor: const Color(0xFFF5F7FA),
           appBar: AppBar(
-            title: const Text('Driver Dashboard'),
+            title: const Text('Driver Portal', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            backgroundColor: primaryBlue,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
             actions: [
-              IconButton(icon: const Icon(Icons.refresh), onPressed: () => provider.init(provider.driver!.uid)),
+              IconButton(icon: const Icon(Icons.refresh, color: Colors.white), onPressed: () => provider.init(provider.driver!.uid)),
             ],
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Hello,', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                Text(provider.driver!.name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
+                const Text('Hello,', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                Text(provider.driver!.name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: primaryBlue)),
+                const SizedBox(height: 24),
                 
                 DriverCard(driver: provider.driver!),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 
-                const SectionHeader(title: "Today's Schedule"),
+                _sectionTitle("Today's Duty"),
                 if (provider.todaySchedules.isEmpty)
-                  const EmptyStateBox(message: 'No schedules assigned for today.')
+                  _emptyBox('No duty assigned for today.')
                 else
                   ...provider.todaySchedules.map((s) => ScheduleCard(schedule: s)),
                 
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 
-                const SectionHeader(title: "Recent Alerts"),
+                _sectionTitle("Recent Alerts"),
                 if (provider.notices.isEmpty)
-                  const EmptyStateBox(message: 'No active transport alerts.')
+                  _emptyBox('No active notices.')
                 else
                   ...provider.notices.take(2).map((n) => NoticeCard(notice: n, onReadMore: () {})),
                 
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 
-                const SectionHeader(title: "Quick Actions"),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
-                  childAspectRatio: 1.5,
+                _sectionTitle("Quick Tools"),
+                Row(
                   children: [
-                    _ActionBtn(icon: Icons.map, label: 'Open Map', color: Colors.green, onTap: () {}),
-                    _ActionBtn(icon: Icons.support_agent, label: 'Help Desk', color: Colors.orange, onTap: () {}),
+                    Expanded(child: _toolBtn('Open Map', Icons.map, primaryBlue)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _toolBtn('Help Desk', Icons.support_agent, primaryBlue)),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
               ],
             ),
           ),
@@ -140,82 +130,31 @@ class DashboardSummary extends StatelessWidget {
       },
     );
   }
-}
 
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+  Widget _toolBtn(String title, IconData icon, Color color) {
+    return AspectRatio(
+      aspectRatio: 1.4,
+      child: DashboardCard(title: title, value: '', icon: icon, color: color, onTap: () {}),
     );
   }
-}
 
-class EmptyStateBox extends StatelessWidget {
-  final String message;
-  const EmptyStateBox({super.key, required this.message});
-  @override
-  Widget build(BuildContext context) {
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+    );
+  }
+
+  Widget _emptyBox(String message) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
-      child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _ActionBtn({required this.icon, required this.label, required this.color, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shadowColor: color.withOpacity(0.2),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.85), color],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.white, size: 28),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label, 
-                style: const TextStyle(
-                  color: Colors.white, 
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black12),
       ),
+      child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
     );
   }
 }

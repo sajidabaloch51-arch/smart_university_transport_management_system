@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../constants/strings.dart';
 import '../../widgets/custom_button.dart';
@@ -21,8 +22,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _rememberMe = false;
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final email = _emailController.text.toLowerCase();
     
     if (email.isEmpty || _passwordController.text.isEmpty) {
@@ -32,10 +34,22 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Immediate Navigation Logic
+    final prefs = await SharedPreferences.getInstance();
+
+    // Determine target role based on email or provided role
     String targetRole = widget.role ?? 'student';
     if (email.contains('driver')) targetRole = 'driver';
     if (email.contains('admin')) targetRole = 'admin';
+
+    if (_rememberMe) {
+      await prefs.setBool('remember_me', true);
+      await prefs.setString('user_email', email);
+      await prefs.setString('user_role', targetRole);
+    } else {
+      await prefs.setBool('remember_me', false);
+      await prefs.remove('user_email');
+      await prefs.remove('user_role');
+    }
 
     if (targetRole == 'driver') {
       context.read<DriverProvider>().init('driver_123'); // Load data in bg
@@ -95,12 +109,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 isPassword: true,
               ),
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => context.push('/forgot-password'),
-                  child: const Text('Forgot Password?'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (value) => setState(() => _rememberMe = value ?? false),
+                        activeColor: AppColors.primary,
+                      ),
+                      const Text('Remember Me', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/forgot-password'),
+                    child: const Text('Forgot Password?', style: TextStyle(fontSize: 14)),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
               CustomButton(

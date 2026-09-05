@@ -8,6 +8,7 @@ class StudentModel extends UserModel {
   final String department;
   final String semester;
   final String profileImage;
+  final String routeAddress;
 
   StudentModel({
     required super.uid,
@@ -22,6 +23,7 @@ class StudentModel extends UserModel {
     required this.department,
     required this.semester,
     required this.profileImage,
+    required this.routeAddress,
   });
 
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -38,6 +40,7 @@ class StudentModel extends UserModel {
       department: map['department'] ?? '',
       semester: map['semester'] ?? '',
       profileImage: map['profileImage'] ?? map['profilePhoto'] ?? '',
+      routeAddress: map['routeAddress'] ?? '',
     );
   }
 
@@ -52,6 +55,7 @@ class StudentModel extends UserModel {
       'department': department,
       'semester': semester,
       'profileImage': profileImage,
+      'routeAddress': routeAddress,
     });
     return map;
   }

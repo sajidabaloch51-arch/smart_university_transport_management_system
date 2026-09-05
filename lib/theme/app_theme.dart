@@ -13,7 +13,7 @@ class AppTheme {
         error: AppColors.error,
       ),
       scaffoldBackgroundColor: AppColors.background,
-      // fontFamily: 'Poppins', // Removed for now to avoid rendering issues if font is missing
+      // fontFamily: 'Google Sans',
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,

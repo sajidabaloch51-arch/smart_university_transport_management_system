@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -8,126 +7,107 @@ class AdminDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const Color primaryBlue = Color(0xFF1565C0);
+    const Color backgroundColor = Color(0xFFF5F7FA);
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
+        title: const Text("Admin Dashboard", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: primaryBlue,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             onPressed: () => context.go('/login'),
-            icon: const Icon(Icons.logout_rounded),
+            icon: const Icon(Icons.logout_rounded, color: Colors.white),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Welcome, Administrator",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+              "System Control",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: primaryBlue),
             ),
-            const Text("System Management & Control", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 30),
+            const Text("Management & System Reports", style: TextStyle(color: Colors.black54, fontSize: 14)),
+            const SizedBox(height: 32),
             
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 15,
-              mainAxisSpacing: 15,
-              childAspectRatio: 1.5,
+            // Safe Row/Column structure
+            Row(
               children: [
-                DashboardCard(
-                  title: 'Manage Students', 
-                  value: '', 
-                  icon: Icons.school_outlined, 
-                  color: Colors.blue,
-                  onTap: () => context.push('/manage-students'),
-                ),
-                DashboardCard(
-                  title: 'Manage Drivers', 
-                  value: '', 
-                  icon: Icons.person_pin_outlined, 
-                  color: Colors.green,
-                  onTap: () => context.push('/manage-drivers'),
-                ),
-                DashboardCard(
-                  title: 'Manage Buses', 
-                  value: '', 
-                  icon: Icons.directions_bus_outlined, 
-                  color: Colors.purple,
-                  onTap: () => context.push('/manage-buses'),
-                ),
-                DashboardCard(
-                  title: 'Manage Routes', 
-                  value: '', 
-                  icon: Icons.route_outlined, 
-                  color: Colors.orange,
-                  onTap: () => context.push('/manage-routes'),
-                ),
-                DashboardCard(
-                  title: 'Manage Schedules', 
-                  value: '', 
-                  icon: Icons.schedule_outlined, 
-                  color: Colors.indigo,
-                  onTap: () => context.push('/manage-schedules'),
-                ),
-                DashboardCard(
-                  title: 'View Live Tracking', 
-                  value: '', 
-                  icon: Icons.map_outlined, 
-                  color: Colors.teal,
-                  onTap: () => context.push('/live-tracking'),
-                ),
-                DashboardCard(
-                  title: 'Transport Notices', 
-                  value: '', 
-                  icon: Icons.notification_add_outlined, 
-                  color: Colors.redAccent,
-                  onTap: () => context.push('/manage-notices'),
-                ),
-                DashboardCard(
-                  title: 'System Reports', 
-                  value: '', 
-                  icon: Icons.analytics_outlined, 
-                  color: Colors.blueGrey,
-                  onTap: () => context.push('/system-reports'),
-                ),
+                Expanded(child: _buildItem(context, 'Students', Icons.school, '/manage-students')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildItem(context, 'Drivers', Icons.person_pin, '/manage-drivers')),
               ],
             ),
-            const SizedBox(height: 20),
-            _buildActionTile(
-              title: "View Feedback Board",
-              icon: Icons.feedback_outlined,
-              color: Colors.amber.shade900,
-              onTap: () => context.push('/view-feedback'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildItem(context, 'Buses', Icons.directions_bus, '/manage-buses')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildItem(context, 'Routes', Icons.route, '/manage-routes')),
+              ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildItem(context, 'Schedules', Icons.schedule, '/manage-schedules')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildItem(context, 'Live Maps', Icons.map, '/live-tracking')),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildItem(context, 'Notice Hub', Icons.notification_add, '/manage-notices')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildItem(context, 'Analytics', Icons.analytics, '/system-reports')),
+              ],
+            ),
+            
+            const SizedBox(height: 32),
+            
+            _buildActionTile(context, "Feedback Board", Icons.feedback_outlined, () => context.push('/view-feedback')),
             const SizedBox(height: 12),
-            _buildActionTile(
-              title: "Logout System",
-              icon: Icons.power_settings_new_rounded,
-              color: Colors.redAccent,
-              onTap: () => context.go('/login'),
-            ),
+            _buildActionTile(context, "Logout System", Icons.power_settings_new_rounded, () => context.go('/login')),
+            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionTile({required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+  Widget _buildItem(BuildContext context, String title, IconData icon, String route) {
+    return AspectRatio(
+      aspectRatio: 1.4,
+      child: DashboardCard(
+        title: title, 
+        value: '', 
+        icon: icon, 
+        color: const Color(0xFF1565C0),
+        onTap: () => context.push(route),
+      ),
+    );
+  }
+
+  Widget _buildActionTile(BuildContext context, String title, IconData icon, VoidCallback onTap) {
     return Card(
       elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15), 
-        side: BorderSide(color: color.withOpacity(0.2))
+        borderRadius: BorderRadius.circular(16), 
+        side: BorderSide(color: const Color(0xFF1565C0).withOpacity(0.1))
       ),
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: color),
-        title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        trailing: const Icon(Icons.chevron_right),
+        leading: Icon(icon, color: const Color(0xFF1565C0)),
+        title: Text(title, style: const TextStyle(color: Color(0xFF1565C0), fontWeight: FontWeight.bold)),
+        trailing: const Icon(Icons.chevron_right, color: Color(0xFF1565C0)),
       ),
     );
   }

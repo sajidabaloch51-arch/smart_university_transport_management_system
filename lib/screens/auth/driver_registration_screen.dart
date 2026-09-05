@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
-import '../../providers/driver_provider.dart';
 import '../driver/driver_dashboard.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
@@ -19,25 +17,41 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final _idController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _cnicController = TextEditingController();
-  final _licenseController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
-  String _selectedGender = 'Male';
+  bool _isLoading = false;
 
-  void _handleRegister() {
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _idController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      // Direct Navigation - No waiting
-      Navigator.pushAndRemoveUntil(
-        context, 
-        MaterialPageRoute(builder: (_) => const DriverDashboard()),
-        (route) => false,
-      );
+      setState(() => _isLoading = true);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Welcome to SUTMS Driver Portal!")),
-      );
+      // Simulate API call for now (In a real app, use AuthService)
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (_) => const DriverDashboard()),
+          (route) => false,
+        );
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Welcome to SUTMS Driver Portal!")),
+        );
+      }
     }
   }
 
@@ -58,69 +72,62 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+              
               CustomTextField(
                 controller: _nameController,
                 labelText: "Full Name",
                 prefixIcon: Icons.person,
-                validator: (v) => AppValidators.validateRequired(v, "Full Name"),
+                validator: AppValidators.validateFullName,
               ),
+              
               CustomTextField(
                 controller: _idController,
-                labelText: "Driver ID",
+                labelText: "Driver ID / Employee ID",
                 prefixIcon: Icons.badge,
                 validator: (v) => AppValidators.validateRequired(v, "Driver ID"),
               ),
-              DropdownButtonFormField<String>(
-                value: _selectedGender,
-                decoration: const InputDecoration(labelText: "Gender"),
-                items: ["Male", "Female"].map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                onChanged: (v) => setState(() => _selectedGender = v!),
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _cnicController,
-                labelText: "CNIC Number",
-                prefixIcon: Icons.credit_card,
-                validator: (v) => AppValidators.validateRequired(v, "CNIC"),
-              ),
-              CustomTextField(
-                controller: _licenseController,
-                labelText: "License Number",
-                prefixIcon: Icons.drive_eta,
-                validator: (v) => AppValidators.validateRequired(v, "License"),
-              ),
+              
               CustomTextField(
                 controller: _phoneController,
                 labelText: "Phone Number",
                 prefixIcon: Icons.phone,
-                validator: (v) => AppValidators.validateRequired(v, "Phone Number"),
+                keyboardType: TextInputType.phone,
+                validator: AppValidators.validatePhone,
               ),
+              
               CustomTextField(
                 controller: _emailController,
-                labelText: "Gmail Address",
+                labelText: "Email Address",
                 prefixIcon: Icons.email,
                 keyboardType: TextInputType.emailAddress,
                 validator: AppValidators.validateEmail,
               ),
+              
               CustomTextField(
                 controller: _passwordController,
                 labelText: "Password",
                 prefixIcon: Icons.lock,
                 isPassword: true,
+                maxLength: 20,
                 validator: AppValidators.validatePassword,
               ),
+              
               CustomTextField(
                 controller: _confirmPasswordController,
                 labelText: "Confirm Password",
                 prefixIcon: Icons.lock_reset,
                 isPassword: true,
+                maxLength: 20,
                 validator: (v) => AppValidators.validateConfirmPassword(v, _passwordController.text),
               ),
+              
               const SizedBox(height: 30),
               CustomButton(
                 text: "REGISTER",
+                isLoading: _isLoading,
                 onPressed: _handleRegister,
               ),
+              
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

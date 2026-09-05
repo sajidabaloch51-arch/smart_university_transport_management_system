@@ -16,16 +16,13 @@ import 'providers/notice_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  try {
-    // Only attempt initialization if not already initialized
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
-    }
-  } catch (e) {
-    debugPrint("Firebase initialization skipped or failed: $e");
-    // On Web, this often fails if firebase_options.dart is missing.
-    // Our providers are now 'safe' and won't crash the app.
-  }
+  // Start Firebase initialization without blocking the initial frame
+  // We handle the actual wait inside the SplashScreen
+  Firebase.initializeApp().then((app) {
+    debugPrint("Firebase initialized successfully");
+  }).catchError((e) {
+    debugPrint("Background Firebase initialization failed: $e");
+  });
 
   runApp(const SUTMSApp());
 }

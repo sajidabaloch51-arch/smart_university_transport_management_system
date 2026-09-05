@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/student_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -16,6 +17,37 @@ class AuthService {
     } catch (e) {
       print(e.toString());
       return null;
+    }
+  }
+
+  // Register Student
+  Future<User?> registerStudent(StudentModel student, String password) async {
+    try {
+      // Check if registration number already exists
+      final query = await _db
+          .collection('users')
+          .where('regNumber', isEqualTo: student.regNumber)
+          .get();
+          
+      if (query.docs.isNotEmpty) {
+        throw 'Registration Number already exists';
+      }
+
+      UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: student.email,
+        password: password,
+      );
+      
+      if (result.user != null) {
+        // Save additional details to Firestore
+        await _db.collection('users').doc(result.user!.uid).set(
+          student.toMap()..['uid'] = result.user!.uid
+        );
+      }
+      return result.user;
+    } catch (e) {
+      print(e.toString());
+      rethrow;
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/validators/app_validators.dart';
 import '../../models/driver_model.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
@@ -85,7 +86,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
                 labelText: 'Account Password',
                 prefixIcon: Icons.lock,
                 isPassword: true,
-                validator: (v) => v!.length < 6 ? 'Password too short' : null,
+                validator: AppValidators.validatePassword,
               ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(

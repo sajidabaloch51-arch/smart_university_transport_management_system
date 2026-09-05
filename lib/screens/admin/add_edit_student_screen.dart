@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/validators/app_validators.dart';
 import '../../models/student_model.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/custom_textfield.dart';
@@ -21,6 +22,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   late TextEditingController _deptController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
+  late TextEditingController _routeController;
   late TextEditingController _passwordController;
   
   bool _isLoading = false;
@@ -33,6 +35,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     _deptController = TextEditingController(text: widget.student?.department);
     _emailController = TextEditingController(text: widget.student?.email);
     _phoneController = TextEditingController(text: widget.student?.phone);
+    _routeController = TextEditingController(text: widget.student?.routeAddress);
     _passwordController = TextEditingController();
   }
 
@@ -43,6 +46,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     _deptController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _routeController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -65,6 +69,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
       department: _deptController.text,
       semester: widget.student?.semester ?? '1',
       profileImage: widget.student?.profileImage ?? '',
+      routeAddress: _routeController.text,
     );
 
     try {
@@ -123,13 +128,19 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
               prefixIcon: Icons.phone,
               keyboardType: TextInputType.phone,
             ),
+            CustomTextField(
+              controller: _routeController, 
+              labelText: 'Route Address',
+              prefixIcon: Icons.location_on,
+              validator: (v) => v!.isEmpty ? 'Enter route address' : null,
+            ),
             if (widget.student == null)
               CustomTextField(
                 controller: _passwordController, 
                 labelText: 'Password',
                 prefixIcon: Icons.lock,
                 isPassword: true,
-                validator: (v) => v!.length < 6 ? 'Password too short' : null,
+                validator: AppValidators.validatePassword,
               ),
             const SizedBox(height: 40),
             CustomButton(
