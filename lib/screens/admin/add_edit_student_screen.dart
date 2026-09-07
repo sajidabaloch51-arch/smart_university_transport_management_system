@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../models/student_model.dart';
 import '../../providers/student_provider.dart';
 import '../../core/validators/app_validators.dart';
@@ -30,6 +34,28 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   
   String _selectedGender = 'Male';
   bool _isLoading = false;
+
+  Uint8List? _webImage;
+  XFile? _pickedFile;
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      if (kIsWeb) {
+        var f = await image.readAsBytes();
+        setState(() {
+          _webImage = f;
+          _pickedFile = image;
+        });
+      } else {
+        setState(() {
+          _pickedFile = image;
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -68,6 +94,11 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
 
     setState(() => _isLoading = true);
     
+    String profileImageBase64 = widget.student?.profileImage ?? '';
+    if (_webImage != null) {
+      profileImageBase64 = base64Encode(_webImage!);
+    }
+
     final student = StudentModel(
       uid: widget.student?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
       email: _emailController.text.trim(),
@@ -80,8 +111,9 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
       dob: _dobController.text.trim(),
       department: _deptController.text.trim(),
       semester: _semesterController.text.trim(),
-      profileImage: widget.student?.profileImage ?? '',
+      profileImage: profileImageBase64,
       routeAddress: _routeController.text.trim(),
+      verificationStatus: widget.student?.verificationStatus ?? 'approved',
     );
 
     try {
@@ -104,6 +136,21 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ImageProvider<Object>? imageProvider;
+    if (_webImage != null) {
+      imageProvider = MemoryImage(_webImage!);
+    } else if (widget.student?.profileImage != null && widget.student!.profileImage.isNotEmpty) {
+      if (widget.student!.profileImage.startsWith('http')) {
+        imageProvider = NetworkImage(widget.student!.profileImage);
+      } else {
+        try {
+          imageProvider = MemoryImage(base64Decode(widget.student!.profileImage));
+        } catch (e) {
+          debugPrint("Error decoding base64 image: $e");
+        }
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.student == null ? 'Add Student' : 'Edit Student')),
       body: Form(
@@ -111,10 +158,27 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const Center(
-              child: CircleAvatar(
-                radius: 50,
-                child: Icon(Icons.add_a_photo, size: 40),
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey.shade100,
+                      backgroundImage: imageProvider,
+                      child: imageProvider == null
+                          ? const Icon(Icons.add_a_photo, size: 40, color: Colors.grey)
+                          : null,
+                    ),
+                    const CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.blue,
+                      child: Icon(Icons.edit, size: 16, color: Colors.white),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),

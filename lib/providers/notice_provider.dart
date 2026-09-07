@@ -7,9 +7,7 @@ class NoticeProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {
-      debugPrint("Firestore access error: $e");
-    }
+    } catch (e) {}
     return null;
   }
   
@@ -36,21 +34,31 @@ class NoticeProvider extends ChangeNotifier {
   ];
 
   Stream<List<NoticeModel>> streamNotices() {
-    final db = _db;
-    if (db == null) return Stream.value(_mockNotices);
+    try {
+      final db = _db;
+      if (db == null) return Stream.value(_mockNotices);
 
-    return db.collection('notices')
-        .orderBy('date', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
-            .toList());
+      return db.collection('notices')
+          .orderBy('date', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
+              .toList());
+    } catch (e) {
+      debugPrint("Error in streamNotices: $e");
+      return Stream.value(_mockNotices);
+    }
   }
 
   Future<void> addNotice(NoticeModel notice) async {
     final db = _db;
     if (db == null) {
-      _mockNotices.insert(0, notice);
+      final index = _mockNotices.indexWhere((n) => n.id == notice.id);
+      if (index != -1) {
+        _mockNotices[index] = notice;
+      } else {
+        _mockNotices.insert(0, notice);
+      }
       notifyListeners();
       return;
     }

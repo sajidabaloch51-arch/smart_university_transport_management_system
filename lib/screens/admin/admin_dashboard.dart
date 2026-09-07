@@ -113,6 +113,13 @@ class AdminDashboard extends StatelessWidget {
               childAspectRatio: isDesktop ? 2.0 : (isTablet ? 1.8 : 1.7),
               children: [
                 DashboardCard(
+                  title: 'Student Verification', 
+                  value: '', 
+                  icon: Icons.verified_user_outlined, 
+                  color: const Color(0xFF003366), 
+                  onTap: () => context.push('/student-verification'),
+                ),
+                DashboardCard(
                   title: 'Manage Students', 
                   value: '', 
                   icon: Icons.school_outlined, 

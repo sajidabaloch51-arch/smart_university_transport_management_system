@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/driver_provider.dart';
@@ -34,6 +35,19 @@ class DriverProfileScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(dynamic driver) {
+    ImageProvider<Object>? imageProvider;
+    if (driver.profileImg != null && driver.profileImg.isNotEmpty) {
+      if (driver.profileImg.startsWith('http')) {
+        imageProvider = NetworkImage(driver.profileImg);
+      } else {
+        try {
+          imageProvider = MemoryImage(base64Decode(driver.profileImg));
+        } catch (e) {
+          debugPrint("Error decoding base64 image: $e");
+        }
+      }
+    }
+
     return Column(
       children: [
         Stack(
@@ -44,10 +58,11 @@ class DriverProfileScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.blue, width: 3),
               ),
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 65,
                 backgroundColor: Colors.white,
-                child: Icon(Icons.person, size: 80, color: Colors.blue),
+                backgroundImage: imageProvider,
+                child: imageProvider == null ? const Icon(Icons.person, size: 80, color: Colors.blue) : null,
               ),
             ),
             CircleAvatar(

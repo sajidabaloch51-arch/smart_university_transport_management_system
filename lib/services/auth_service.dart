@@ -7,9 +7,7 @@ class AuthService {
   FirebaseAuth? get _auth {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseAuth.instance;
-    } catch (e) {
-      debugPrint("Auth access error: $e");
-    }
+    } catch (e) {}
     return null;
   }
 

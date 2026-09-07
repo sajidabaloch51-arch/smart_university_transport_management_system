@@ -10,10 +10,8 @@ class StudentProvider extends ChangeNotifier {
       if (Firebase.apps.isNotEmpty) {
         return FirebaseFirestore.instance;
       }
-      return null;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) {}
+    return null;
   }
   
   bool _isLoading = false;
@@ -23,14 +21,15 @@ class StudentProvider extends ChangeNotifier {
   final Map<String, StudentModel> _localStudents = {};
 
   Stream<List<StudentModel>> streamStudents() {
-    final db = _db;
-    if (db == null) {
-      return Stream.value(_localStudents.values.toList());
-    }
-
     try {
+      final db = _db;
+      if (db == null) {
+        return Stream.value(_localStudents.values.toList());
+      }
+
       return db.collection('users')
           .where('role', isEqualTo: 'student')
+          .where('verificationStatus', isEqualTo: 'approved')
           .snapshots()
           .map((snapshot) {
             final students = snapshot.docs
@@ -41,8 +40,68 @@ class StudentProvider extends ChangeNotifier {
             return students;
           });
     } catch (e) {
-      debugPrint("Error streaming students: $e");
+      debugPrint("Error in streamStudents: $e");
       return Stream.value(_localStudents.values.toList());
+    }
+  }
+
+  Stream<List<StudentModel>> streamPendingStudents() {
+    try {
+      final db = _db;
+      if (db == null) {
+        return Stream.value(_localStudents.values
+            .where((s) => s.verificationStatus == 'pending')
+            .toList());
+      }
+
+      return db.collection('users')
+          .where('role', isEqualTo: 'student')
+          .where('verificationStatus', isEqualTo: 'pending')
+          .snapshots()
+          .map((snapshot) {
+            final students = snapshot.docs
+              .map((doc) => StudentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+              .toList();
+            for (var s in students) { _localStudents[s.uid] = s; }
+            return students;
+          });
+    } catch (e) {
+      debugPrint("Error in streamPendingStudents: $e");
+      return Stream.value(_localStudents.values
+          .where((s) => s.verificationStatus == 'pending')
+          .toList());
+    }
+  }
+
+  Future<void> verifyStudent(String uid, String status) async {
+    try {
+      if (_localStudents.containsKey(uid)) {
+        final current = _localStudents[uid]!;
+        _localStudents[uid] = StudentModel(
+          uid: current.uid,
+          name: current.name,
+          email: current.email,
+          phone: current.phone,
+          role: current.role,
+          regNumber: current.regNumber,
+          fatherName: current.fatherName,
+          gender: current.gender,
+          dob: current.dob,
+          department: current.department,
+          semester: current.semester,
+          profileImage: current.profileImage,
+          routeAddress: current.routeAddress,
+          verificationStatus: status,
+        );
+        notifyListeners();
+      }
+
+      final db = _db;
+      if (db != null) {
+        await db.collection('users').doc(uid).update({'verificationStatus': status});
+      }
+    } catch (e) {
+      debugPrint("Error verifying student: $e");
     }
   }
 

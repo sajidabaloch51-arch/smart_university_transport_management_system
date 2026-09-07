@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
@@ -27,6 +32,28 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   
   bool _termsAccepted = false;
   bool _isLoading = false;
+  
+  Uint8List? _webImage;
+  XFile? _pickedFile;
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      if (kIsWeb) {
+        var f = await image.readAsBytes();
+        setState(() {
+          _webImage = f;
+          _pickedFile = image;
+        });
+      } else {
+        setState(() {
+          _pickedFile = image;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -51,6 +78,11 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
       setState(() => _isLoading = true);
       
+      String profileImageBase64 = '';
+      if (_webImage != null) {
+        profileImageBase64 = base64Encode(_webImage!);
+      }
+
       final student = StudentModel(
         uid: _emailController.text.trim().split('@')[0] + "_id",
         name: _nameController.text.trim(),
@@ -63,8 +95,9 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         dob: '',
         department: 'BS IT',
         semester: '1',
-        profileImage: '',
+        profileImage: profileImageBase64,
         routeAddress: _addressController.text.trim(),
+        verificationStatus: 'pending',
       );
 
       try {
@@ -102,8 +135,25 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ImageProvider<Object>? imageProvider;
+    if (_webImage != null) {
+      imageProvider = MemoryImage(_webImage!);
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Student Registration")),
+      appBar: AppBar(
+        title: const Text("Student Registration"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/role-selection');
+            }
+          },
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -111,14 +161,37 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Center(
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Color(0xFFE3F2FD),
-                  child: Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF1565C0)),
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFFE3F2FD),
+                        backgroundImage: imageProvider,
+                        child: imageProvider == null 
+                            ? const Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF1565C0))
+                            : null,
+                      ),
+                      const CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Color(0xFF1565C0),
+                        child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 10),
+              const Center(
+                child: Text(
+                  "Upload Profile Photo",
+                  style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(height: 22),
               
               CustomTextField(
                 controller: _nameController,

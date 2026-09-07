@@ -23,6 +23,9 @@ class DriverProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   
+  // Local cache for demo mode
+  final Map<String, DriverModel> _localDrivers = {};
+
   StreamSubscription? _positionSubscription;
   Timer? _dutyTimer;
   Duration _dutyDuration = Duration.zero;
@@ -37,23 +40,75 @@ class DriverProvider extends ChangeNotifier {
   String? get error => _error;
   Duration get dutyDuration => _dutyDuration;
 
-  Stream<List<DriverModel>> streamDrivers() {
-    final db = FirebaseFirestore.instance;
-    if (Firebase.apps.isEmpty) return Stream.value([_driver!].whereType<DriverModel>().toList());
+  // Safe getter for FirebaseFirestore
+  FirebaseFirestore? get _db {
+    try {
+      // Check if Firebase is initialized and default app exists
+      if (Firebase.apps.isNotEmpty) {
+        return FirebaseFirestore.instance;
+      }
+    } catch (e) {}
+    return null;
+  }
 
-    return db.collection('users')
-        .where('role', isEqualTo: 'driver')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
-            .toList());
+  Stream<List<DriverModel>> streamDrivers() {
+    try {
+      final db = _db;
+      if (db == null) return Stream.value(_localDrivers.values.toList());
+
+      return db.collection('users')
+          .where('role', isEqualTo: 'driver')
+          .snapshots()
+          .map((snapshot) {
+            final drivers = snapshot.docs
+              .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
+              .toList();
+            // Update local cache
+            for (var d in drivers) { _localDrivers[d.uid] = d; }
+            return drivers;
+          });
+    } catch (e) {
+      debugPrint("Error in streamDrivers: $e");
+      return Stream.value(_localDrivers.values.toList());
+    }
+  }
+
+  Future<void> updateDriver(DriverModel driver) async {
+    try {
+      // Update local cache
+      _localDrivers[driver.uid] = driver;
+      if (_driver?.uid == driver.uid) {
+        _driver = driver;
+      }
+      notifyListeners();
+
+      final db = _db;
+      if (db == null) return;
+
+      _isLoading = true;
+      notifyListeners();
+      await db.collection('users').doc(driver.uid).set(driver.toMap(), SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Error updating driver: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Initialize driver data
   Future<void> init(String driverId) async {
-    // If Firebase isn't ready, load mock data immediately for demo
+    // If we already have this driver in local cache, use it
+    if (_localDrivers.containsKey(driverId)) {
+      _driver = _localDrivers[driverId];
+      _subscribeToRealtimeStreams();
+      notifyListeners();
+      return;
+    }
+
+    // If Firebase isn't ready, load mock data for this ID
     if (Firebase.apps.isEmpty) {
-      _loadMockData();
+      _loadMockData(driverId);
       return;
     }
 
@@ -65,24 +120,25 @@ class DriverProvider extends ChangeNotifier {
       _driver = await _firestoreService.getDriverData(driverId);
       
       if (_driver == null) {
-        _loadMockData();
+        _loadMockData(driverId);
       } else {
+        _localDrivers[driverId] = _driver!;
         _subscribeToRealtimeStreams();
       }
     } catch (e) {
       debugPrint("Firebase error: $e. Loading mock data for demo.");
-      _loadMockData();
+      _loadMockData(driverId);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _loadMockData() {
+  void _loadMockData(String driverId) {
     _driver = DriverModel(
-      uid: 'drv_001',
-      name: 'Nasir Ali',
-      email: 'nasir.ali@uog.edu.pk',
+      uid: driverId,
+      name: driverId.contains('drv') ? 'Nasir Ali' : 'Registered Driver',
+      email: driverId.contains('drv') ? 'nasir.ali@uog.edu.pk' : 'driver@uog.edu.pk',
       phone: '+92 300 1234567',
       role: 'driver',
       driverId: 'ID-2024-005',
@@ -131,6 +187,8 @@ class DriverProvider extends ChangeNotifier {
         postedBy: 'Transport Admin',
       ),
     ];
+
+    _localDrivers[_driver!.uid] = _driver!;
     notifyListeners();
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
@@ -133,6 +134,19 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       );
     }
 
+    ImageProvider? imageProvider;
+    if (_currentStudent!.profileImage.isNotEmpty) {
+      if (_currentStudent!.profileImage.startsWith('http')) {
+        imageProvider = NetworkImage(_currentStudent!.profileImage);
+      } else {
+        try {
+          imageProvider = MemoryImage(base64Decode(_currentStudent!.profileImage));
+        } catch (e) {
+          debugPrint("Error decoding base64 image: $e");
+        }
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Personal Information'),
@@ -150,10 +164,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: const Color(0xFFE3F2FD),
-                    backgroundImage: _currentStudent!.profileImage.isNotEmpty 
-                        ? NetworkImage(_currentStudent!.profileImage) 
-                        : null,
-                    child: _currentStudent!.profileImage.isEmpty 
+                    backgroundImage: imageProvider,
+                    child: imageProvider == null 
                         ? const Icon(Icons.person, size: 50, color: Color(0xFF003366)) 
                         : null,
                   ),

@@ -7,9 +7,7 @@ class RouteProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {
-      debugPrint("Firestore access error: $e");
-    }
+    } catch (e) {}
     return null;
   }
   
@@ -31,20 +29,30 @@ class RouteProvider extends ChangeNotifier {
   ];
 
   Stream<List<RouteModel>> streamRoutes() {
-    final db = _db;
-    if (db == null) return Stream.value(_mockRoutes);
+    try {
+      final db = _db;
+      if (db == null) return Stream.value(_mockRoutes);
 
-    return db.collection('routes')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
-            .toList());
+      return db.collection('routes')
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
+              .toList());
+    } catch (e) {
+      debugPrint("Error in streamRoutes: $e");
+      return Stream.value(_mockRoutes);
+    }
   }
 
   Future<void> addRoute(RouteModel route) async {
     final db = _db;
     if (db == null) {
-      _mockRoutes.add(route);
+      final index = _mockRoutes.indexWhere((r) => r.id == route.id);
+      if (index != -1) {
+        _mockRoutes[index] = route;
+      } else {
+        _mockRoutes.add(route);
+      }
       notifyListeners();
       return;
     }

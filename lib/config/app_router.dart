@@ -52,6 +52,9 @@ import '../models/notice_model.dart';
 import '../screens/auth/student_registration_screen.dart';
 import '../screens/auth/driver_registration_screen.dart';
 
+import '../screens/admin/student_verification_screen.dart';
+import '../screens/admin/verify_student_details_screen.dart';
+
 class AppRouter {
   static final router = GoRouter(
     initialLocation: '/',
@@ -117,6 +120,11 @@ class AppRouter {
 
       // Admin Routes
       GoRoute(path: '/admin-dashboard', builder: (context, state) => const AdminDashboard()),
+      GoRoute(path: '/student-verification', builder: (context, state) => const StudentVerificationScreen()),
+      GoRoute(path: '/verify-details', builder: (context, state) {
+        final student = state.extra as StudentModel;
+        return VerifyStudentDetailsScreen(student: student);
+      }),
       GoRoute(path: '/manage-students', builder: (context, state) => const ManageStudentsScreen()),
       GoRoute(path: '/student-details', builder: (context, state) {
         final student = state.extra as StudentModel?;
