@@ -7,9 +7,7 @@ class ScheduleProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {
-      debugPrint("Firestore access error: $e");
-    }
+    } catch (e) {}
     return null;
   }
   
@@ -21,20 +19,30 @@ class ScheduleProvider extends ChangeNotifier {
   ];
 
   Stream<List<ScheduleModel>> streamSchedules() {
-    final db = _db;
-    if (db == null) return Stream.value(_mockSchedules);
+    try {
+      final db = _db;
+      if (db == null) return Stream.value(_mockSchedules);
 
-    return db.collection('schedules')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ScheduleModel.fromMap(doc.data(), doc.id))
-            .toList());
+      return db.collection('schedules')
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => ScheduleModel.fromMap(doc.data(), doc.id))
+              .toList());
+    } catch (e) {
+      debugPrint("Error in streamSchedules: $e");
+      return Stream.value(_mockSchedules);
+    }
   }
 
   Future<void> addSchedule(ScheduleModel schedule) async {
     final db = _db;
     if (db == null) {
-      _mockSchedules.add(schedule);
+      final index = _mockSchedules.indexWhere((s) => s.id == schedule.id);
+      if (index != -1) {
+        _mockSchedules[index] = schedule;
+      } else {
+        _mockSchedules.add(schedule);
+      }
       notifyListeners();
       return;
     }

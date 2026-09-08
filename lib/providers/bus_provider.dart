@@ -7,9 +7,7 @@ class BusProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {
-      debugPrint("Firestore access error: $e");
-    }
+    } catch (e) {}
     return null;
   }
   
@@ -44,20 +42,30 @@ class BusProvider extends ChangeNotifier {
   ];
 
   Stream<List<BusModel>> streamBuses() {
-    final db = _db;
-    if (db == null) return Stream.value(_mockBuses);
+    try {
+      final db = _db;
+      if (db == null) return Stream.value(_mockBuses);
 
-    return db.collection('buses')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => BusModel.fromMap(doc.data(), doc.id))
-            .toList());
+      return db.collection('buses')
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => BusModel.fromMap(doc.data(), doc.id))
+              .toList());
+    } catch (e) {
+      debugPrint("Error in streamBuses: $e");
+      return Stream.value(_mockBuses);
+    }
   }
 
   Future<void> addBus(BusModel bus) async {
     final db = _db;
     if (db == null) {
-      _mockBuses.add(bus);
+      final index = _mockBuses.indexWhere((b) => b.id == bus.id);
+      if (index != -1) {
+        _mockBuses[index] = bus;
+      } else {
+        _mockBuses.add(bus);
+      }
       notifyListeners();
       return;
     }

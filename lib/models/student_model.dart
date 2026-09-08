@@ -9,6 +9,7 @@ class StudentModel extends UserModel {
   final String semester;
   final String profileImage;
   final String routeAddress;
+  final String verificationStatus; // pending, approved, rejected
 
   StudentModel({
     required super.uid,
@@ -24,6 +25,7 @@ class StudentModel extends UserModel {
     required this.semester,
     required this.profileImage,
     required this.routeAddress,
+    this.verificationStatus = 'pending',
   });
 
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -41,6 +43,7 @@ class StudentModel extends UserModel {
       semester: map['semester'] ?? '',
       profileImage: map['profileImage'] ?? map['profilePhoto'] ?? '',
       routeAddress: map['routeAddress'] ?? '',
+      verificationStatus: map['verificationStatus'] ?? 'pending',
     );
   }
 
@@ -56,6 +59,7 @@ class StudentModel extends UserModel {
       'semester': semester,
       'profileImage': profileImage,
       'routeAddress': routeAddress,
+      'verificationStatus': verificationStatus,
     });
     return map;
   }

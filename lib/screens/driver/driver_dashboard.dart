@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/schedule_card.dart';
 import '../../widgets/notice_card.dart';
@@ -23,10 +24,15 @@ class _DriverDashboardState extends State<DriverDashboard> {
   @override
   void initState() {
     super.initState();
+    // Ensure driver provider is initialized with the logged in user ID
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<DriverProvider>(context, listen: false);
-      if (provider.driver == null) {
-        provider.init('driver_123');
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final driverProvider = Provider.of<DriverProvider>(context, listen: false);
+      
+      if (authProvider.uid != null) {
+        driverProvider.init(authProvider.uid!);
+      } else if (driverProvider.driver == null) {
+        driverProvider.init('driver_123');
       }
     });
   }

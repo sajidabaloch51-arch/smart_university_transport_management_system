@@ -3,12 +3,21 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 
 class NotificationService {
-  FirebaseMessaging get _fcm => FirebaseMessaging.instance;
+  FirebaseMessaging? get _fcm {
+    try {
+      if (Firebase.apps.isNotEmpty) return FirebaseMessaging.instance;
+    } catch (e) {}
+    return null;
+  }
+  
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
+    final fcm = _fcm;
+    if (fcm == null) return;
+
     try {
-      await _fcm.requestPermission();
+      await fcm.requestPermission();
 
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const initSettings = InitializationSettings(android: androidSettings);

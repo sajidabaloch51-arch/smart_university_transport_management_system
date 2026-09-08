@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../models/student_model.dart';
 
 class StudentCard extends StatelessWidget {
@@ -17,6 +18,19 @@ class StudentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget profileImage;
+    if (student.profileImage.isEmpty) {
+      profileImage = const Icon(Icons.person);
+    } else if (student.profileImage.startsWith('http')) {
+      profileImage = ClipOval(child: Image.network(student.profileImage, fit: BoxFit.cover, width: 50, height: 50));
+    } else {
+      try {
+        profileImage = ClipOval(child: Image.memory(base64Decode(student.profileImage), fit: BoxFit.cover, width: 50, height: 50));
+      } catch (e) {
+        profileImage = const Icon(Icons.person);
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -25,9 +39,7 @@ class StudentCard extends StatelessWidget {
         leading: CircleAvatar(
           radius: 25,
           backgroundColor: Colors.blue.shade100,
-          child: student.profileImage.isNotEmpty
-              ? ClipOval(child: Image.network(student.profileImage, fit: BoxFit.cover))
-              : const Icon(Icons.person),
+          child: profileImage,
         ),
         title: Text(student.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(

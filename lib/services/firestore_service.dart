@@ -14,10 +14,8 @@ class FirestoreService {
       if (Firebase.apps.isNotEmpty) {
         return FirebaseFirestore.instance;
       }
-      return null;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) {}
+    return null;
   }
 
   // Helper to handle Firebase calls with a fast timeout for better UX

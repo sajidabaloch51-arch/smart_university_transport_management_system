@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:go_router/go_router.dart';
 import '../../models/student_model.dart';
 import '../../core/constants/app_colors.dart';
 
@@ -9,9 +11,26 @@ class StudentDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget profileImage;
+    if (student.profileImage.isEmpty) {
+      profileImage = const Icon(Icons.person, size: 80, color: AppColors.primary);
+    } else if (student.profileImage.startsWith('http')) {
+      profileImage = ClipOval(child: Image.network(student.profileImage, fit: BoxFit.cover, width: 120, height: 120));
+    } else {
+      try {
+        profileImage = ClipOval(child: Image.memory(base64Decode(student.profileImage), fit: BoxFit.cover, width: 120, height: 120));
+      } catch (e) {
+        profileImage = const Icon(Icons.person, size: 80, color: AppColors.primary);
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Student Details'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -24,9 +43,7 @@ class StudentDetailsScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: student.profileImage.isNotEmpty
-                        ? ClipOval(child: Image.network(student.profileImage, fit: BoxFit.cover, width: 120, height: 120))
-                        : const Icon(Icons.person, size: 80, color: AppColors.primary),
+                    child: profileImage,
                   ),
                   CircleAvatar(
                     radius: 18,

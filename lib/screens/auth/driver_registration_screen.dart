@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
+import '../../models/driver_model.dart';
+import 'package:provider/provider.dart';
+import '../../providers/driver_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -22,6 +30,28 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final _confirmPasswordController = TextEditingController();
   
   bool _isLoading = false;
+  
+  Uint8List? _webImage;
+  XFile? _pickedFile;
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      if (kIsWeb) {
+        var f = await image.readAsBytes();
+        setState(() {
+          _webImage = f;
+          _pickedFile = image;
+        });
+      } else {
+        setState(() {
+          _pickedFile = image;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -39,24 +69,77 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
-      
-      if (mounted) {
-        setState(() => _isLoading = false);
-        context.go('/driver-dashboard');
+      String profileImageBase64 = '';
+      if (_webImage != null) {
+        profileImageBase64 = base64Encode(_webImage!);
+      }
+
+      final driverId = _emailController.text.trim().split('@')[0] + "_id";
+      final driver = DriverModel(
+        uid: driverId,
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        role: 'driver',
+        driverId: _cnicController.text.trim(), // Using CNIC as placeholder ID
+        profileImg: profileImageBase64,
+        assignedBusId: '',
+        assignedBusNumber: 'Not Assigned',
+        assignedRouteId: '',
+        assignedRouteName: 'Not Assigned',
+        isOnDuty: false,
+      );
+
+      try {
+        await Provider.of<DriverProvider>(context, listen: false).updateDriver(driver);
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registration Successful! Welcome Driver.")),
-        );
+        if (mounted) {
+          // Update Auth state
+          context.read<AuthProvider>().setAuthenticated(
+            true, 
+            role: 'driver', 
+            uid: driver.uid
+          );
+
+          setState(() => _isLoading = false);
+          context.go('/driver-dashboard');
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Registration Successful! Welcome Driver.")),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Registration failed: $e")),
+          );
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ImageProvider<Object>? imageProvider;
+    if (_webImage != null) {
+      imageProvider = MemoryImage(_webImage!);
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Driver Registration")),
+      appBar: AppBar(
+        title: const Text("Driver Registration"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/role-selection');
+            }
+          },
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -64,14 +147,37 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Center(
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Color(0xFFE8F5E9),
-                  child: Icon(Icons.drive_eta_rounded, size: 50, color: Colors.green),
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFFE8F5E9),
+                        backgroundImage: imageProvider,
+                        child: imageProvider == null 
+                            ? const Icon(Icons.drive_eta_rounded, size: 50, color: Colors.green)
+                            : null,
+                      ),
+                      const CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.green,
+                        child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 10),
+              const Center(
+                child: Text(
+                  "Upload Driver Photo",
+                  style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(height: 22),
               
               CustomTextField(
                 controller: _nameController,
