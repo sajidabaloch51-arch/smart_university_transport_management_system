@@ -182,7 +182,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 controller: _regController,
                 labelText: 'Registration Number',
                 prefixIcon: Icons.badge_outlined,
-                validator: AppValidators.validateRegistrationNumber,
+                validator: AppValidators.validateRegNo,
               ),
               
               CustomTextField(

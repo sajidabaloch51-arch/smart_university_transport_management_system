@@ -1,4 +1,6 @@
 # Miscellaneous
+.gradle/
+local.properties
 *.class
 *.log
 *.pyc
