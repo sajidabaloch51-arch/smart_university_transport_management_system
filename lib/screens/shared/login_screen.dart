@@ -6,10 +6,11 @@ import '../../theme/app_colors.dart';
 import '../../constants/strings.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../core/validators/app_validators.dart';
 import '../../providers/driver_provider.dart';
-import '../student/student_dashboard.dart';
-import '../driver/driver_dashboard.dart';
-import '../admin/admin_dashboard.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/student_provider.dart';
+import '../../models/student_model.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role;
@@ -20,44 +21,97 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
+  bool _isLoading = false;
 
-  Future<void> _handleLogin() async {
-    final email = _emailController.text.toLowerCase();
-    
-    if (email.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter email and password')),
-      );
-      return;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedEmail();
+  }
 
+  void _loadSavedEmail() async {
     final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _emailController.text = prefs.getString('remembered_email') ?? '';
+      _rememberMe = _emailController.text.isNotEmpty;
+    });
+  }
 
-    // Determine target role based on email or provided role
-    String targetRole = widget.role ?? 'student';
-    if (email.contains('driver')) targetRole = 'driver';
-    if (email.contains('admin')) targetRole = 'admin';
+  void _handleLogin() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      
+      final email = _emailController.text.trim().toLowerCase();
+      
+      // Simulate Login Delay
+      await Future.delayed(const Duration(seconds: 1));
 
-    if (_rememberMe) {
-      await prefs.setBool('remember_me', true);
-      await prefs.setString('user_email', email);
-      await prefs.setString('user_role', targetRole);
-    } else {
-      await prefs.setBool('remember_me', false);
-      await prefs.remove('user_email');
-      await prefs.remove('user_role');
-    }
+      if (mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Use a mock UID for demonstration if real auth isn't connected yet
+        final uid = email.split('@')[0] + "_id";
 
-    if (targetRole == 'driver') {
-      context.read<DriverProvider>().init('driver_123'); // Load data in bg
-      context.go('/driver-dashboard');
-    } else if (targetRole == 'admin') {
-      context.go('/admin-dashboard');
-    } else {
-      context.go('/student-dashboard');
+        // Handle Session Persistence
+        if (_rememberMe) {
+          await prefs.setBool('is_logged_in', true);
+          await prefs.setString('remembered_email', email);
+          await prefs.setString('uid', uid);
+        } else {
+          await prefs.setBool('is_logged_in', false);
+          await prefs.remove('remembered_email');
+          await prefs.remove('uid');
+        }
+
+        // Determine Role
+        String targetRole = widget.role ?? 'student';
+        if (email.contains('admin')) targetRole = 'admin';
+        else if (email.contains('driver')) targetRole = 'driver';
+        
+        await prefs.setString('user_role', targetRole);
+
+        // For demo: if logging in with 'sajida@uog.edu.pk', ensure a mock student exists
+        if (targetRole == 'student') {
+          final studentProvider = context.read<StudentProvider>();
+          final existing = await studentProvider.getStudent(uid);
+          if (existing == null) {
+            await studentProvider.addStudent(StudentModel(
+              uid: uid,
+              name: 'Sajida Abdullah',
+              email: email,
+              phone: '03091088710',
+              role: 'student',
+              regNumber: 'UOG-2022-123',
+              fatherName: 'Abdullah',
+              gender: 'Female',
+              dob: '2000-01-01',
+              department: 'Computer Science',
+              semester: '5',
+              profileImage: '',
+              routeAddress: 'Main Campus GW',
+            ));
+          }
+        }
+
+        // Update AuthProvider
+        context.read<AuthProvider>().setAuthenticated(true, role: targetRole, uid: uid);
+
+        setState(() => _isLoading = false);
+
+        // Navigation
+        if (targetRole == 'driver') {
+          context.read<DriverProvider>().init('driver_123');
+          context.go('/driver-dashboard');
+        } else if (targetRole == 'admin') {
+          context.go('/admin-dashboard');
+        } else {
+          context.go('/student-dashboard');
+        }
+      }
     }
   }
 
@@ -79,72 +133,85 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              const Icon(Icons.bus_alert_rounded, size: 80, color: AppColors.primary),
-              const SizedBox(height: 32),
-              Text(
-                '$roleTitle Login',
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
-                textAlign: TextAlign.center,
-              ),
-              const Text(
-                AppStrings.loginSubtitle,
-                style: TextStyle(color: AppColors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              CustomTextField(
-                controller: _emailController,
-                labelText: 'Email Address',
-                prefixIcon: Icons.email_outlined,
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _passwordController,
-                labelText: 'Password',
-                prefixIcon: Icons.lock_outline,
-                isPassword: true,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _rememberMe,
-                        onChanged: (value) => setState(() => _rememberMe = value ?? false),
-                        activeColor: AppColors.primary,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+                const Icon(Icons.directions_bus_rounded, size: 80, color: AppColors.primary),
+                const SizedBox(height: 32),
+                Text(
+                  '$roleTitle Login',
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  textAlign: TextAlign.center,
+                ),
+                const Text(
+                  AppStrings.loginSubtitle,
+                  style: TextStyle(color: AppColors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 48),
+                CustomTextField(
+                  controller: _emailController,
+                  labelText: 'Email Address',
+                  prefixIcon: Icons.email_outlined,
+                  validator: AppValidators.validateEmail,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  controller: _passwordController,
+                  labelText: 'Password',
+                  prefixIcon: Icons.lock_outline,
+                  isPassword: true,
+                  validator: (v) => AppValidators.validateRequired(v, "Password"),
+                  maxLength: 20,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (value) => setState(() => _rememberMe = value ?? false),
+                      activeColor: AppColors.primary,
+                    ),
+                    const Text('Remember Me', style: TextStyle(fontSize: 14)),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => context.push('/forgot-password'),
+                      child: const Text('Forgot Password?'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                CustomButton(
+                  text: 'LOGIN',
+                  isLoading: _isLoading,
+                  onPressed: _handleLogin,
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account? "),
+                    GestureDetector(
+                      onTap: () {
+                        if (widget.role == 'driver') {
+                          context.push('/driver-registration');
+                        } else {
+                          context.push('/student-registration');
+                        }
+                      },
+                      child: const Text(
+                        "Sign Up", 
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)
                       ),
-                      const Text('Remember Me', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                  TextButton(
-                    onPressed: () => context.push('/forgot-password'),
-                    child: const Text('Forgot Password?', style: TextStyle(fontSize: 14)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              CustomButton(
-                text: 'LOGIN',
-                onPressed: _handleLogin,
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Not a $roleTitle? "),
-                  TextButton(
-                    onPressed: () => context.go('/role-selection'),
-                    child: const Text('Switch Role', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

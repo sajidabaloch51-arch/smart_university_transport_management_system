@@ -1,15 +1,25 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/student_model.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseAuth? get _auth {
+    try {
+      if (Firebase.apps.isNotEmpty) return FirebaseAuth.instance;
+    } catch (e) {
+      debugPrint("Auth access error: $e");
+    }
+    return null;
+  }
 
   // Sign in
   Future<User?> signIn(String email, String password) async {
+    final auth = _auth;
+    if (auth == null) return null;
+
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
+      UserCredential result = await auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -20,44 +30,13 @@ class AuthService {
     }
   }
 
-  // Register Student
-  Future<User?> registerStudent(StudentModel student, String password) async {
-    try {
-      // Check if registration number already exists
-      final query = await _db
-          .collection('users')
-          .where('regNumber', isEqualTo: student.regNumber)
-          .get();
-          
-      if (query.docs.isNotEmpty) {
-        throw 'Registration Number already exists';
-      }
-
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: student.email,
-        password: password,
-      );
-      
-      if (result.user != null) {
-        // Save additional details to Firestore
-        await _db.collection('users').doc(result.user!.uid).set(
-          student.toMap()..['uid'] = result.user!.uid
-        );
-      }
-      return result.user;
-    } catch (e) {
-      print(e.toString());
-      rethrow;
-    }
-  }
-
   // Create User (Admin Action)
   Future<UserCredential?> createUser(String email, String password) async {
+    final auth = _auth;
+    if (auth == null) return null;
+
     try {
-      // Note: In production, creating other users should be done via Firebase Admin SDK (Cloud Functions)
-      // because creating a user automatically signs you in as that user.
-      // For this project, we assume this is handled correctly.
-      return await _auth.createUserWithEmailAndPassword(
+      return await auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -69,9 +48,9 @@ class AuthService {
 
   // Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
+    await _auth?.signOut();
   }
 
   // Current User
-  User? get currentUser => _auth.currentUser;
+  User? get currentUser => _auth?.currentUser;
 }

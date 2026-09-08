@@ -39,6 +39,7 @@ import '../screens/admin/post_notice_screen.dart';
 import '../screens/admin/feedback_screen.dart' as admin_feedback;
 import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/system_reports_screen.dart';
+import '../screens/admin/student_details_screen.dart';
 
 // Models
 import '../models/student_model.dart';
@@ -47,6 +48,9 @@ import '../models/bus_model.dart';
 import '../models/route_model.dart';
 import '../models/schedule_model.dart';
 import '../models/notice_model.dart';
+
+import '../screens/auth/student_registration_screen.dart';
+import '../screens/auth/driver_registration_screen.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -58,6 +62,36 @@ class AppRouter {
       GoRoute(path: '/login', builder: (context, state) => LoginScreen(role: state.extra as String?)),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       
+      // Registration Routes
+      GoRoute(path: '/student-registration', builder: (context, state) => const StudentRegistrationScreen()),
+      GoRoute(path: '/driver-registration', builder: (context, state) => const DriverRegistrationScreen()),
+      
+      // Admin Action Routes
+      GoRoute(path: '/add-edit-student', builder: (context, state) {
+        final student = state.extra is StudentModel ? state.extra as StudentModel : null;
+        return AddEditStudentScreen(student: student);
+      }),
+      GoRoute(path: '/add-edit-driver', builder: (context, state) {
+        final driver = state.extra is DriverModel ? state.extra as DriverModel : null;
+        return AddEditDriverScreen(driver: driver);
+      }),
+      GoRoute(path: '/add-edit-route', builder: (context, state) {
+        final route = state.extra is RouteModel ? state.extra as RouteModel : null;
+        return AddEditRouteScreen(route: route);
+      }),
+      GoRoute(path: '/add-edit-bus', builder: (context, state) {
+        final bus = state.extra is BusModel ? state.extra as BusModel : null;
+        return AddEditBusScreen(bus: bus);
+      }),
+      GoRoute(path: '/add-edit-schedule', builder: (context, state) {
+        final schedule = state.extra is ScheduleModel ? state.extra as ScheduleModel : null;
+        return AddEditScheduleScreen(schedule: schedule);
+      }),
+      GoRoute(path: '/add-edit-notice', builder: (context, state) {
+        final notice = state.extra is NoticeModel ? state.extra as NoticeModel : null;
+        return PostNoticeScreen(notice: notice);
+      }),
+      
       // Student Routes
       GoRoute(path: '/student-dashboard', builder: (context, state) => const StudentDashboard()),
       GoRoute(path: '/student-home', builder: (context, state) => const StudentHomeScreen()),
@@ -66,7 +100,8 @@ class AppRouter {
       GoRoute(path: '/live-tracking', builder: (context, state) => const LiveMapScreen()),
       GoRoute(path: '/notices', builder: (context, state) => const NoticeScreen()),
       GoRoute(path: '/notice-detail', builder: (context, state) {
-        final notice = state.extra as NoticeModel;
+        final notice = state.extra as NoticeModel?;
+        if (notice == null) return const NoticeScreen();
         return NoticeDetailScreen(notice: notice);
       }),
       GoRoute(path: '/feedback', builder: (context, state) => const FeedbackScreen()),
@@ -83,6 +118,11 @@ class AppRouter {
       // Admin Routes
       GoRoute(path: '/admin-dashboard', builder: (context, state) => const AdminDashboard()),
       GoRoute(path: '/manage-students', builder: (context, state) => const ManageStudentsScreen()),
+      GoRoute(path: '/student-details', builder: (context, state) {
+        final student = state.extra as StudentModel?;
+        if (student == null) return const ManageStudentsScreen();
+        return StudentDetailsScreen(student: student);
+      }),
       GoRoute(path: '/add-edit-student', builder: (context, state) => AddEditStudentScreen(student: state.extra as StudentModel?)),
       GoRoute(path: '/manage-drivers', builder: (context, state) => const ManageDriversScreen()),
       GoRoute(path: '/add-edit-driver', builder: (context, state) => AddEditDriverScreen(driver: state.extra as DriverModel?)),

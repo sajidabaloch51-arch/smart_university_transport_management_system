@@ -20,17 +20,17 @@ class DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shadowColor: color.withOpacity(0.3),
+      shadowColor: color.withOpacity(0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.8), color],
+              colors: [color.withOpacity(0.9), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -38,7 +38,7 @@ class DashboardCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 28),
+              Icon(icon, color: Colors.white, size: 24),
               const SizedBox(height: 8),
               if (value.isNotEmpty)
                 Text(
@@ -52,11 +52,12 @@ class DashboardCard extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white, 
                   fontSize: 13, 
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.2,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

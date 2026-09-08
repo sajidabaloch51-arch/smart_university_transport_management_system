@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
-import '../../services/auth_service.dart';
+import '../../providers/student_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/student_model.dart';
 import '../student/student_dashboard.dart';
 
@@ -15,13 +17,11 @@ class StudentRegistrationScreen extends StatefulWidget {
 
 class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _authService = AuthService();
-  
   final _nameController = TextEditingController();
   final _regController = TextEditingController();
-  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _routeController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
   
@@ -32,38 +32,53 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   void dispose() {
     _nameController.dispose();
     _regController.dispose();
-    _emailController.dispose();
     _phoneController.dispose();
-    _routeController.dispose();
+    _addressController.dispose();
+    _emailController.dispose();
     _passController.dispose();
     _confirmPassController.dispose();
     super.dispose();
   }
 
   void _handleRegister() async {
-    if (_formKey.currentState!.validate() && _termsAccepted) {
+    if (_formKey.currentState!.validate()) {
+      if (!_termsAccepted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please accept terms and conditions")),
+        );
+        return;
+      }
+
       setState(() => _isLoading = true);
       
+      final student = StudentModel(
+        uid: _emailController.text.trim().split('@')[0] + "_id",
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        role: 'student',
+        regNumber: _regController.text.trim(),
+        fatherName: '',
+        gender: '',
+        dob: '',
+        department: 'BS IT',
+        semester: '1',
+        profileImage: '',
+        routeAddress: _addressController.text.trim(),
+      );
+
       try {
-        final student = StudentModel(
-          uid: '', 
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          phone: _phoneController.text.trim(),
-          role: 'student',
-          regNumber: _regController.text.trim(),
-          fatherName: 'Not Provided',
-          gender: 'Not Specified',
-          dob: 'Not Specified',
-          department: 'Not Specified',
-          semester: '1',
-          profileImage: '',
-          routeAddress: _routeController.text.trim(),
-        );
-
-        await _authService.registerStudent(student, _passController.text);
-
+        await Provider.of<StudentProvider>(context, listen: false).addStudent(student);
+        
         if (mounted) {
+          // Update Auth state
+          context.read<AuthProvider>().setAuthenticated(
+            true, 
+            role: 'student', 
+            uid: student.uid
+          );
+          
+          setState(() => _isLoading = false);
           Navigator.pushAndRemoveUntil(
             context, 
             MaterialPageRoute(builder: (_) => const StudentDashboard()),
@@ -76,17 +91,12 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         }
       } catch (e) {
         if (mounted) {
+          setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Registration Failed: ${e.toString()}")),
+            SnackBar(content: Text("Registration failed: $e")),
           );
         }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
       }
-    } else if (!_termsAccepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please accept terms and conditions")),
-      );
     }
   }
 
@@ -99,76 +109,70 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Center(
                 child: CircleAvatar(
                   radius: 50,
-                  child: Icon(Icons.add_a_photo, size: 40),
+                  backgroundColor: Color(0xFFE3F2FD),
+                  child: Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF1565C0)),
                 ),
               ),
               const SizedBox(height: 32),
               
-              // 1. Full Name
               CustomTextField(
                 controller: _nameController,
                 labelText: "Full Name", 
-                prefixIcon: Icons.person,
+                prefixIcon: Icons.person_outline,
                 validator: AppValidators.validateFullName,
               ),
               
-              // 2. Registration Number
               CustomTextField(
                 controller: _regController,
                 labelText: "Registration Number", 
-                prefixIcon: Icons.badge,
-                validator: AppValidators.validateRegNo,
+                prefixIcon: Icons.badge_outlined,
+                validator: AppValidators.validateRegistrationNumber,
               ),
               
-              // 3. Phone Number
               CustomTextField(
                 controller: _phoneController,
                 labelText: "Phone Number", 
-                prefixIcon: Icons.phone,
+                prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 validator: AppValidators.validatePhone,
               ),
               
-              // 4. Route Address
               CustomTextField(
-                controller: _routeController,
-                labelText: "Route Address (Pickup Location)", 
-                hintText: "Enter your pickup address (e.g., Street 5, Gwadar)",
-                prefixIcon: Icons.location_on,
+                controller: _addressController,
+                labelText: "Route Address", 
+                prefixIcon: Icons.map_outlined,
                 validator: (v) => AppValidators.validateRequired(v, "Route Address"),
               ),
               
-              // 5. Email Address
               CustomTextField(
                 controller: _emailController,
                 labelText: "Email Address", 
-                prefixIcon: Icons.email,
+                prefixIcon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: AppValidators.validateEmail,
               ),
               
-              // 6. Password
               CustomTextField(
                 controller: _passController,
                 labelText: "Password", 
-                prefixIcon: Icons.lock,
+                prefixIcon: Icons.lock_outline,
                 isPassword: true,
-                maxLength: 20,
                 validator: AppValidators.validatePassword,
+                maxLength: 20,
               ),
               
-              // 7. Confirm Password
               CustomTextField(
                 controller: _confirmPassController,
                 labelText: "Confirm Password", 
-                prefixIcon: Icons.lock_reset,
+                prefixIcon: Icons.lock_reset_outlined,
                 isPassword: true,
-                maxLength: 20,
                 validator: (v) => AppValidators.validateConfirmPassword(v, _passController.text),
+                maxLength: 20,
               ),
               
               CheckboxListTile(
@@ -176,16 +180,17 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                 onChanged: (v) => setState(() => _termsAccepted = v!),
                 title: const Text("I accept terms and conditions", style: TextStyle(fontSize: 12)),
                 controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
               ),
               
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
               CustomButton(
                 text: "REGISTER",
                 isLoading: _isLoading,
                 onPressed: _handleRegister,
               ),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

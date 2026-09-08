@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
+import '../student/student_dashboard.dart';
+import '../admin/admin_dashboard.dart';
+import '../driver/driver_dashboard.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -17,7 +21,29 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _navigateToNext() async {
     await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final String? role = prefs.getString('role');
+
+    if (isLoggedIn && role != null) {
+      Widget destination;
+      switch (role) {
+        case 'admin':
+          destination = const AdminDashboard();
+          break;
+        case 'driver':
+          destination = const DriverDashboard();
+          break;
+        default:
+          destination = const StudentDashboard();
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => destination),
+      );
+    } else {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),

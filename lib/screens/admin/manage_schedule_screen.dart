@@ -33,10 +33,11 @@ class ManageScheduleScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: schedules.length,
             itemBuilder: (context, index) {
+              final schedule = schedules[index];
               return ScheduleCard(
-                schedule: schedules[index],
-                onEdit: () => context.push('/add-edit-schedule', extra: schedules[index]),
-                onDelete: () {},
+                schedule: schedule,
+                onEdit: () => context.push('/add-edit-schedule', extra: schedule),
+                onDelete: () => _confirmDelete(context, scheduleProvider, schedule.id),
               );
             },
           );
@@ -44,8 +45,31 @@ class ManageScheduleScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/add-edit-schedule'),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.more_time),
         label: const Text('Add Schedule'),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ScheduleProvider provider, String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Timing'),
+        content: const Text('Are you sure you want to remove this timing?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              provider.deleteSchedule(id);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Timing deleted'), backgroundColor: Colors.red),
+              );
+            }, 
+            child: const Text('Delete', style: TextStyle(color: Colors.red))
+          ),
+        ],
       ),
     );
   }

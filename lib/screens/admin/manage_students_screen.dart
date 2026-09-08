@@ -65,11 +65,12 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: students.length,
             itemBuilder: (context, index) {
+              final student = students[index];
               return StudentCard(
-                student: students[index],
-                onView: () {},
-                onEdit: () => context.push('/add-edit-student', extra: students[index]),
-                onDelete: () => _confirmDelete(context, students[index].uid),
+                student: student,
+                onView: () => context.push('/student-details', extra: student),
+                onEdit: () => context.push('/add-edit-student', extra: student),
+                onDelete: () => _confirmDelete(context, student.uid, student.name),
               );
             },
           );
@@ -83,18 +84,21 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, String uid) {
+  void _confirmDelete(BuildContext context, String uid, String name) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Student'),
-        content: const Text('Are you sure you want to remove this student?'),
+        content: const Text('Are you sure you want to delete this student? This action cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               Provider.of<StudentProvider>(context, listen: false).deleteStudent(uid);
               Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Student deleted successfully'), backgroundColor: Colors.red),
+              );
             }, 
             child: const Text('Delete', style: TextStyle(color: Colors.red))
           ),

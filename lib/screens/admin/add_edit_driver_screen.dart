@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../core/validators/app_validators.dart';
+import 'package:provider/provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../models/driver_model.dart';
+import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 
@@ -31,8 +33,18 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
     _emailController = TextEditingController(text: widget.driver?.email ?? '');
     _phoneController = TextEditingController(text: widget.driver?.phone ?? '');
     _passController = TextEditingController();
-    _selectedBus = widget.driver?.assignedBusNumber;
-    _selectedRoute = widget.driver?.assignedRouteName;
+    
+    // Safety check for dropdown values
+    const buses = ['UOG-001', 'UOG-002', 'UOG-003'];
+    const routes = ['Route A', 'Route B', 'Route C'];
+    
+    _selectedBus = buses.contains(widget.driver?.assignedBusNumber) 
+        ? widget.driver?.assignedBusNumber 
+        : null;
+        
+    _selectedRoute = routes.contains(widget.driver?.assignedRouteName) 
+        ? widget.driver?.assignedRouteName 
+        : null;
   }
 
   @override
@@ -58,27 +70,27 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
               controller: _nameController, 
               labelText: 'Driver Full Name',
               prefixIcon: Icons.person,
-              validator: (v) => v!.isEmpty ? 'Name required' : null,
+              validator: AppValidators.validateFullName,
             ),
             CustomTextField(
               controller: _idController, 
               labelText: 'Employee ID',
               prefixIcon: Icons.badge,
-              validator: (v) => v!.isEmpty ? 'ID required' : null,
+              validator: (v) => AppValidators.validateRequired(v, 'Employee ID'),
             ),
             CustomTextField(
               controller: _emailController, 
               labelText: 'Email Address',
               prefixIcon: Icons.email,
               keyboardType: TextInputType.emailAddress,
-              validator: (v) => v!.isEmpty ? 'Email required' : null,
+              validator: AppValidators.validateEmail,
             ),
             CustomTextField(
               controller: _phoneController, 
               labelText: 'Phone Number',
               prefixIcon: Icons.phone,
               keyboardType: TextInputType.phone,
-              validator: (v) => v!.isEmpty ? 'Phone required' : null,
+              validator: AppValidators.validatePhone,
             ),
             if (widget.driver == null)
               CustomTextField(
@@ -87,6 +99,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
                 prefixIcon: Icons.lock,
                 isPassword: true,
                 validator: AppValidators.validatePassword,
+                maxLength: 20,
               ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(

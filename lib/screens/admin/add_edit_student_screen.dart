@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/validators/app_validators.dart';
 import '../../models/student_model.dart';
 import '../../providers/student_provider.dart';
+import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 
@@ -20,11 +20,15 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   late TextEditingController _nameController;
   late TextEditingController _regController;
   late TextEditingController _deptController;
+  late TextEditingController _semesterController;
+  late TextEditingController _fatherController;
+  late TextEditingController _dobController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
-  late TextEditingController _routeController;
   late TextEditingController _passwordController;
+  late TextEditingController _routeController;
   
+  String _selectedGender = 'Male';
   bool _isLoading = false;
 
   @override
@@ -33,10 +37,15 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     _nameController = TextEditingController(text: widget.student?.name);
     _regController = TextEditingController(text: widget.student?.regNumber);
     _deptController = TextEditingController(text: widget.student?.department);
+    _semesterController = TextEditingController(text: widget.student?.semester ?? '1');
+    _fatherController = TextEditingController(text: widget.student?.fatherName);
+    _dobController = TextEditingController(text: widget.student?.dob);
     _emailController = TextEditingController(text: widget.student?.email);
     _phoneController = TextEditingController(text: widget.student?.phone);
     _routeController = TextEditingController(text: widget.student?.routeAddress);
     _passwordController = TextEditingController();
+    _selectedGender = widget.student?.gender ?? 'Male';
+    if (_selectedGender.isEmpty) _selectedGender = 'Male';
   }
 
   @override
@@ -44,10 +53,13 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     _nameController.dispose();
     _regController.dispose();
     _deptController.dispose();
+    _semesterController.dispose();
+    _fatherController.dispose();
+    _dobController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _routeController.dispose();
     _passwordController.dispose();
+    _routeController.dispose();
     super.dispose();
   }
 
@@ -58,27 +70,35 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
     
     final student = StudentModel(
       uid: widget.student?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      email: _emailController.text,
-      name: _nameController.text,
-      phone: _phoneController.text,
+      email: _emailController.text.trim(),
+      name: _nameController.text.trim(),
+      phone: _phoneController.text.trim(),
       role: 'student',
-      regNumber: _regController.text,
-      fatherName: widget.student?.fatherName ?? '',
-      gender: widget.student?.gender ?? '',
-      dob: widget.student?.dob ?? '',
-      department: _deptController.text,
-      semester: widget.student?.semester ?? '1',
+      regNumber: _regController.text.trim(),
+      fatherName: _fatherController.text.trim(),
+      gender: _selectedGender,
+      dob: _dobController.text.trim(),
+      department: _deptController.text.trim(),
+      semester: _semesterController.text.trim(),
       profileImage: widget.student?.profileImage ?? '',
-      routeAddress: _routeController.text,
+      routeAddress: _routeController.text.trim(),
     );
 
     try {
       await Provider.of<StudentProvider>(context, listen: false).addStudent(student);
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.student == null ? 'Student added successfully' : 'Student updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -101,50 +121,100 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
             CustomTextField(
               controller: _nameController, 
               labelText: 'Student Full Name',
-              prefixIcon: Icons.person,
-              validator: (v) => v!.isEmpty ? 'Enter name' : null,
+              prefixIcon: Icons.person_outline,
+              validator: AppValidators.validateFullName,
             ),
             CustomTextField(
               controller: _regController, 
               labelText: 'Registration Number',
-              prefixIcon: Icons.badge,
-              validator: (v) => v!.isEmpty ? 'Enter Reg No' : null,
+              prefixIcon: Icons.badge_outlined,
+              validator: AppValidators.validateRegistrationNumber,
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomTextField(
+                    controller: _deptController, 
+                    labelText: 'Department',
+                    prefixIcon: Icons.school_outlined,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomTextField(
+                    controller: _semesterController, 
+                    labelText: 'Semester',
+                    prefixIcon: Icons.calendar_today_outlined,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
             ),
             CustomTextField(
-              controller: _deptController, 
-              labelText: 'Department',
-              prefixIcon: Icons.school,
+              controller: _fatherController, 
+              labelText: 'Father\'s Name',
+              prefixIcon: Icons.person_pin_outlined,
+              validator: (v) => AppValidators.validateRequired(v, "Father's Name"),
+            ),
+            const Text('Gender', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<String>(
+                    title: const Text('Male'),
+                    value: 'Male',
+                    groupValue: _selectedGender,
+                    onChanged: (v) => setState(() => _selectedGender = v!),
+                  ),
+                ),
+                Expanded(
+                  child: RadioListTile<String>(
+                    title: const Text('Female'),
+                    value: 'Female',
+                    groupValue: _selectedGender,
+                    onChanged: (v) => setState(() => _selectedGender = v!),
+                  ),
+                ),
+              ],
+            ),
+            CustomTextField(
+              controller: _dobController, 
+              labelText: 'Date of Birth (YYYY-MM-DD)',
+              prefixIcon: Icons.cake_outlined,
+              validator: (v) => AppValidators.validateRequired(v, "Date of Birth"),
             ),
             CustomTextField(
               controller: _emailController, 
               labelText: 'Email Address',
-              prefixIcon: Icons.email,
+              prefixIcon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
-              validator: (v) => v!.isEmpty ? 'Enter email' : null,
+              validator: AppValidators.validateEmail,
             ),
             CustomTextField(
               controller: _phoneController, 
               labelText: 'Phone Number',
-              prefixIcon: Icons.phone,
+              prefixIcon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
+              validator: AppValidators.validatePhone,
             ),
             CustomTextField(
               controller: _routeController, 
               labelText: 'Route Address',
-              prefixIcon: Icons.location_on,
-              validator: (v) => v!.isEmpty ? 'Enter route address' : null,
+              prefixIcon: Icons.map_outlined,
+              validator: (v) => AppValidators.validateRequired(v, "Route Address"),
             ),
             if (widget.student == null)
               CustomTextField(
                 controller: _passwordController, 
                 labelText: 'Password',
-                prefixIcon: Icons.lock,
+                prefixIcon: Icons.lock_outline,
                 isPassword: true,
                 validator: AppValidators.validatePassword,
+                maxLength: 20,
               ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             CustomButton(
-              text: 'SAVE STUDENT', 
+              text: widget.student == null ? 'ADD STUDENT' : 'UPDATE STUDENT', 
               isLoading: _isLoading,
               onPressed: _saveForm
             ),

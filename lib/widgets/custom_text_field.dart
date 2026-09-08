@@ -6,6 +6,7 @@ class CustomTextField extends StatelessWidget {
   final IconData? prefixIcon;
   final bool isPassword;
   final String? Function(String?)? validator;
+  final int? maxLength;
 
   const CustomTextField({
     super.key,
@@ -14,6 +15,7 @@ class CustomTextField extends StatelessWidget {
     this.prefixIcon,
     this.isPassword = false,
     this.validator,
+    this.maxLength,
   });
 
   @override
@@ -21,11 +23,13 @@ class CustomTextField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
         border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        counterText: "",
       ),
       validator: validator,
     );

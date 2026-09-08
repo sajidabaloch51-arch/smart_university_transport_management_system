@@ -16,15 +16,20 @@ import 'providers/notice_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Start Firebase initialization without blocking the initial frame
-  // We handle the actual wait inside the SplashScreen
-  Firebase.initializeApp().then((app) {
-    debugPrint("Firebase initialized successfully");
-  }).catchError((e) {
-    debugPrint("Background Firebase initialization failed: $e");
-  });
+  // Initialize Firebase in a non-blocking way for the initial UI render
+  _initializeFirebase();
 
   runApp(const SUTMSApp());
+}
+
+Future<void> _initializeFirebase() async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp().timeout(const Duration(seconds: 5));
+    }
+  } catch (e) {
+    debugPrint("Firebase initialization skipped or failed: $e");
+  }
 }
 
 class SUTMSApp extends StatelessWidget {

@@ -1,0 +1,6 @@
+- [ ] Add `shared_preferences` dependency to `pubspec.yaml`
+- [ ] Update `lib/core/validators/app_validators.dart` with strong password validation
+- [ ] Update `lib/models/student_model.dart` to include `routeAddress`
+- [ ] Update `lib/screens/auth/student_registration_screen.dart` with requested fields
+- [ ] Implement "Remember Me" logic in `lib/screens/shared/login_screen.dart`
+- [ ] Update `lib/screens/shared/splash_screen.dart` for auto-login logic

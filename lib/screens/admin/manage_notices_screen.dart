@@ -38,7 +38,7 @@ class ManageNoticesScreen extends StatelessWidget {
                 notice: notice,
                 onReadMore: () {},
                 onEdit: () => context.push('/add-edit-notice', extra: notice),
-                onDelete: () => noticeProvider.deleteNotice(notice.id),
+                onDelete: () => _confirmDelete(context, noticeProvider, notice.id),
               );
             },
           );
@@ -48,6 +48,29 @@ class ManageNoticesScreen extends StatelessWidget {
         onPressed: () => context.push('/add-edit-notice'),
         icon: const Icon(Icons.add_alert),
         label: const Text('Post Notice'),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, NoticeProvider provider, String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Notice'),
+        content: const Text('Are you sure you want to delete this notice permanently?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              provider.deleteNotice(id);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notice deleted'), backgroundColor: Colors.red),
+              );
+            }, 
+            child: const Text('Delete', style: TextStyle(color: Colors.red))
+          ),
+        ],
       ),
     );
   }

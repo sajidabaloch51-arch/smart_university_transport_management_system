@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
 
 class ManageUsersScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   final _firestoreService = FirestoreService();
 
   void _showAddUserDialog() {
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
@@ -26,53 +28,62 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Add New User'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomTextField(
-                  controller: nameController, 
-                  labelText: 'Full Name',
-                  prefixIcon: Icons.person,
-                ),
-                const SizedBox(height: 12),
-                CustomTextField(
-                  controller: emailController, 
-                  labelText: 'Email',
-                  prefixIcon: Icons.email,
-                ),
-                const SizedBox(height: 12),
-                CustomTextField(
-                  controller: passwordController, 
-                  labelText: 'Password', 
-                  isPassword: true,
-                  prefixIcon: Icons.lock,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: role,
-                  decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'student', child: Text('Student')),
-                    DropdownMenuItem(value: 'driver', child: Text('Driver')),
-                  ],
-                  onChanged: (v) => setDialogState(() => role = v!),
-                ),
-              ],
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CustomTextField(
+                    controller: nameController, 
+                    labelText: 'Full Name',
+                    prefixIcon: Icons.person,
+                    validator: AppValidators.validateFullName,
+                  ),
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    controller: emailController, 
+                    labelText: 'Email',
+                    prefixIcon: Icons.email,
+                    validator: AppValidators.validateEmail,
+                  ),
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    controller: passwordController, 
+                    labelText: 'Password', 
+                    isPassword: true,
+                    prefixIcon: Icons.lock,
+                    validator: AppValidators.validatePassword,
+                    maxLength: 20,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: role,
+                    decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'student', child: Text('Student')),
+                      DropdownMenuItem(value: 'driver', child: Text('Driver')),
+                    ],
+                    onChanged: (v) => setDialogState(() => role = v!),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                final user = UserModel(
-                  uid: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: nameController.text,
-                  email: emailController.text,
-                  phone: '',
-                  role: role,
-                );
-                await _firestoreService.createUser(user);
-                if (mounted) Navigator.pop(context);
+                if (formKey.currentState!.validate()) {
+                  final user = UserModel(
+                    uid: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: nameController.text,
+                    email: emailController.text,
+                    phone: '',
+                    role: role,
+                  );
+                  await _firestoreService.createUser(user);
+                  if (mounted) Navigator.pop(context);
+                }
               },
               child: const Text('Create'),
             ),

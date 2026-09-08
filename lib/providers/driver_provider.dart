@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/driver_model.dart';
 import '../models/route_model.dart';
@@ -35,6 +36,18 @@ class DriverProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   Duration get dutyDuration => _dutyDuration;
+
+  Stream<List<DriverModel>> streamDrivers() {
+    final db = FirebaseFirestore.instance;
+    if (Firebase.apps.isEmpty) return Stream.value([_driver!].whereType<DriverModel>().toList());
+
+    return db.collection('users')
+        .where('role', isEqualTo: 'driver')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
+            .toList());
+  }
 
   /// Initialize driver data
   Future<void> init(String driverId) async {

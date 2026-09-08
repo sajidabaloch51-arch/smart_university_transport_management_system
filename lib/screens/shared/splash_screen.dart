@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_colors.dart';
 import '../../constants/strings.dart';
+import '../../providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,43 +21,32 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateToNext() async {
-    // Run initializations with a max timeout to prevent hanging on slow connections
-    try {
-      final results = await Future.wait([
-        SharedPreferences.getInstance(),
-        Firebase.initializeApp().timeout(const Duration(seconds: 2)),
-      ]).timeout(const Duration(seconds: 3));
-      
-      if (!mounted) return;
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
 
-      final SharedPreferences? prefs = results[0] as SharedPreferences?;
-      final bool rememberMe = prefs?.getBool('remember_me') ?? false;
-      
-      // Only check Firebase auth if Firebase initialized successfully
-      User? user;
-      try {
-        user = FirebaseAuth.instance.currentUser;
-      } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    final bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final String? role = prefs.getString('user_role');
+    final String? uid = prefs.getString('uid');
 
-      if (rememberMe && user != null) {
-        final String? role = prefs?.getString('user_role');
-        if (role == 'admin') {
-          context.go('/admin-dashboard');
-        } else if (role == 'driver') {
-          context.go('/driver-dashboard');
-        } else {
-          context.go('/student-dashboard');
-        }
-      } else {
-        // If rememberMe is false, sign out to ensure re-authentication is required
-        if (user != null) {
-          await FirebaseAuth.instance.signOut();
-        }
-        context.go('/onboarding');
+    if (isLoggedIn && role != null && uid != null) {
+      // Restore auth state
+      if (mounted) {
+        context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
       }
-    } catch (e) {
-      debugPrint("Initialization took too long or failed: $e. Proceeding to onboarding.");
-      if (mounted) context.go('/onboarding');
+      
+      switch (role) {
+        case 'admin':
+          context.go('/admin-dashboard');
+          break;
+        case 'driver':
+          context.go('/driver-dashboard');
+          break;
+        default:
+          context.go('/student-dashboard');
+      }
+    } else {
+      context.go('/onboarding');
     }
   }
 

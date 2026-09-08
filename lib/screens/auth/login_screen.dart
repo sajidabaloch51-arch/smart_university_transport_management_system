@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../student/student_dashboard.dart';
@@ -8,7 +9,8 @@ import '../admin/admin_dashboard.dart';
 import 'role_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? role;
+  const LoginScreen({super.key, this.role});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -36,16 +38,30 @@ class _LoginScreenState extends State<LoginScreen> {
     await Future.delayed(const Duration(seconds: 1));
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      String role = '';
+      Widget destination;
       
       // Automatic Role Routing Logic
       if (email.contains('admin')) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboard()));
+        role = 'admin';
+        destination = const AdminDashboard();
       } else if (email.contains('driver')) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DriverDashboard()));
+        role = 'driver';
+        destination = const DriverDashboard();
       } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const StudentDashboard()));
+        role = 'student';
+        destination = const StudentDashboard();
       }
+
+      if (_rememberMe) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('role', role);
+        await prefs.setString('email', email);
+      }
+
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => destination));
     }
   }
 
@@ -87,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 labelText: "Password", 
                 prefixIcon: Icons.lock_outline,
                 isPassword: true,
+                maxLength: 20,
               ),
               
               Row(

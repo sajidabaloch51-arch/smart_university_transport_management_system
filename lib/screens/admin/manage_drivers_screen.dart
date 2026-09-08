@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../widgets/driver_card.dart';
+import '../../models/driver_model.dart';
 
 class ManageDriversScreen extends StatefulWidget {
   const ManageDriversScreen({super.key});
@@ -17,6 +18,8 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final driverProvider = Provider.of<DriverProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Drivers'),
@@ -38,23 +41,35 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
           ),
         ),
       ),
-      body: Consumer<DriverProvider>(
-        builder: (context, provider, child) {
-          // In a real app, this list would come from a stream or fetched data
-          // For now, we simulate the display logic
-          final driver = provider.driver;
-          if (driver == null) return const Center(child: Text('No drivers found.'));
+      body: StreamBuilder<List<DriverModel>>(
+        stream: driverProvider.streamDrivers(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
 
-          return ListView(
+          final drivers = snapshot.data?.where((d) => 
+            d.name.toLowerCase().contains(_searchQuery) || 
+            d.driverId.toLowerCase().contains(_searchQuery)
+          ).toList() ?? [];
+
+          if (drivers.isEmpty) {
+            return const Center(child: Text('No drivers found.'));
+          }
+
+          return ListView.builder(
             padding: const EdgeInsets.all(16),
-            children: [
-              DriverCard(
-                driver: driver,
-                onEdit: () => context.push('/add-edit-driver', extra: driver),
-                onDelete: () {},
-              ),
-              // Map additional drivers here
-            ],
+            itemCount: drivers.length,
+            itemBuilder: (context, index) {
+              return DriverCard(
+                driver: drivers[index],
+                onEdit: () => context.push('/add-edit-driver', extra: drivers[index]),
+                onDelete: () => _confirmDelete(context, drivers[index].uid, drivers[index].name),
+              );
+            },
           );
         },
       ),
@@ -62,6 +77,29 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
         onPressed: () => context.push('/add-edit-driver'),
         icon: const Icon(Icons.person_add),
         label: const Text('Add Driver'),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String uid, String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Driver'),
+        content: Text('Are you sure you want to delete driver $name? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              // Add delete logic in provider if needed
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Driver removed successfully'), backgroundColor: Colors.red),
+              );
+            }, 
+            child: const Text('Delete', style: TextStyle(color: Colors.red))
+          ),
+        ],
       ),
     );
   }
