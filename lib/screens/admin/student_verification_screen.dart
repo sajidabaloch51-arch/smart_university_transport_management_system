@@ -69,9 +69,9 @@ class StudentVerificationScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 4),
-                      Text('Reg No: ${student.regNumber}'),
+                      Text('Roll No: ${student.rollNo}'),
                       const SizedBox(height: 2),
-                      Text('Route: ${student.routeAddress}'),
+                      Text('Reg No: ${student.regNumber.isEmpty ? "N/A" : student.regNumber}'),
                     ],
                   ),
                   trailing: ElevatedButton(

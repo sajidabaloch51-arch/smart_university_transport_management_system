@@ -11,11 +11,20 @@ class AdminProvider extends ChangeNotifier {
   AdminModel? get admin => _admin;
   bool get isLoading => _isLoading;
 
+  // Local cache for demo purposes
+  final Map<String, AdminModel> _localAdmins = {};
+
   Future<void> fetchAdminData(String uid) async {
+    if (_localAdmins.containsKey(uid)) {
+      _admin = _localAdmins[uid];
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
     
-    // Using simple fetch logic as a placeholder
+    // Default mock admin if not in cache
     _admin = AdminModel(
       uid: uid,
       name: 'System Admin',
@@ -24,9 +33,27 @@ class AdminProvider extends ChangeNotifier {
       role: 'admin',
       university: 'University of Gwadar',
       profilePhoto: '',
+      employeeId: 'EMP-001',
+      designation: 'Super Admin',
+      officeLocation: 'Main Admin Block',
     );
     
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> addAdmin(AdminModel admin) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Simulate API call
+      await Future.delayed(const Duration(seconds: 1));
+      _localAdmins[admin.uid] = admin;
+      _admin = admin;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

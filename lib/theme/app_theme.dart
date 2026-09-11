@@ -22,6 +22,7 @@ class AppTheme {
         titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
+          color: AppColors.white,
         ),
       ),
       cardTheme: CardThemeData(

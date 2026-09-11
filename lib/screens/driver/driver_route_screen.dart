@@ -13,37 +13,88 @@ class DriverRouteScreen extends StatelessWidget {
         final route = provider.assignedRoute;
         if (route == null) return const Center(child: Text('Route details not assigned.'));
 
-        return Scaffold(
-          appBar: AppBar(title: const Text('My Route')),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildRouteSummary(route),
-                const SizedBox(height: 30),
-                const Text('Stop Timeline', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                _buildTimeline(route.stops),
-                const SizedBox(height: 40),
-                CustomButton(
-                  text: 'Open Google Maps', 
-                  icon: Icons.map_outlined,
-                  onPressed: () {},
-                ),
-                const SizedBox(height: 16),
-                CustomButton(
-                  text: 'View Full Schedule', 
-                  color: Colors.orange,
-                  icon: Icons.calendar_today,
-                  onPressed: () {},
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildRouteSummary(route),
+              const SizedBox(height: 30),
+              const Text('Stop Timeline', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              _buildTimeline(route.stops),
+              const SizedBox(height: 40),
+              CustomButton(
+                text: 'Open Google Maps', 
+                icon: Icons.map_outlined,
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Launching Google Maps Navigation...'),
+                      backgroundColor: Colors.blue,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              CustomButton(
+                text: 'View Full Schedule', 
+                color: Colors.orange,
+                icon: Icons.calendar_today,
+                onPressed: () => _showFullSchedule(context, provider),
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         );
       },
+    );
+  }
+
+  void _showFullSchedule(BuildContext context, DriverProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Route Schedule",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            if (provider.todaySchedules.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: Text("No schedule details available.")),
+              )
+            else
+              ...provider.todaySchedules.map((s) => ListTile(
+                leading: const Icon(Icons.schedule, color: Colors.orange),
+                title: Text("${s.departureTime} - ${s.arrivalTime}"),
+                subtitle: Text("Bus: ${s.busNumber} | ${s.days.join(', ')}"),
+                contentPadding: EdgeInsets.zero,
+              )),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              ),
+              child: const Text("CLOSE"),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

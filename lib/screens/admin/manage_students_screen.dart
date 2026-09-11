@@ -76,11 +76,6 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/add-edit-student'),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Student'),
-      ),
     );
   }
 

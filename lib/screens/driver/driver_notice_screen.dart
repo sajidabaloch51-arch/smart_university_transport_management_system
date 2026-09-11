@@ -10,22 +10,19 @@ class DriverNoticeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DriverProvider>(
       builder: (context, provider, child) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Official Notices')),
-          body: provider.notices.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: provider.notices.length,
-                  itemBuilder: (context, index) {
-                    final notice = provider.notices[index];
-                    return NoticeCard(
-                      notice: notice, 
-                      onReadMore: () => _showDetails(context, notice),
-                    );
-                  },
-                ),
-        );
+        return provider.notices.isEmpty
+            ? _buildEmptyState()
+            : ListView.builder(
+                padding: const EdgeInsets.all(20),
+                itemCount: provider.notices.length,
+                itemBuilder: (context, index) {
+                  final notice = provider.notices[index];
+                  return NoticeCard(
+                    notice: notice, 
+                    onReadMore: () => _showDetails(context, notice),
+                  );
+                },
+              );
       },
     );
   }

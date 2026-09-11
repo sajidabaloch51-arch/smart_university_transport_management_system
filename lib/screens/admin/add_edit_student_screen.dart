@@ -22,6 +22,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   final _formKey = GlobalKey<FormState>();
   
   late TextEditingController _nameController;
+  late TextEditingController _rollNoController;
   late TextEditingController _regController;
   late TextEditingController _deptController;
   late TextEditingController _semesterController;
@@ -61,6 +62,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.student?.name);
+    _rollNoController = TextEditingController(text: widget.student?.rollNo);
     _regController = TextEditingController(text: widget.student?.regNumber);
     _deptController = TextEditingController(text: widget.student?.department);
     _semesterController = TextEditingController(text: widget.student?.semester ?? '1');
@@ -77,6 +79,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _rollNoController.dispose();
     _regController.dispose();
     _deptController.dispose();
     _semesterController.dispose();
@@ -113,6 +116,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
       semester: _semesterController.text.trim(),
       profileImage: profileImageBase64,
       routeAddress: _routeController.text.trim(),
+      rollNo: _rollNoController.text.trim(),
       verificationStatus: widget.student?.verificationStatus ?? 'approved',
     );
 
@@ -189,8 +193,14 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
               validator: AppValidators.validateFullName,
             ),
             CustomTextField(
+              controller: _rollNoController, 
+              labelText: 'Roll No',
+              prefixIcon: Icons.format_list_numbered,
+              validator: AppValidators.validateRollNo,
+            ),
+            CustomTextField(
               controller: _regController, 
-              labelText: 'Registration Number',
+              labelText: 'Registration Number (Optional)',
               prefixIcon: Icons.badge_outlined,
               validator: AppValidators.validateRegistrationNumber,
             ),

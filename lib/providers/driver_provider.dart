@@ -96,6 +96,28 @@ class DriverProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> updateProfileImage(String base64Img) async {
+    if (_driver == null) return;
+    
+    final updatedDriver = DriverModel(
+      uid: _driver!.uid,
+      name: _driver!.name,
+      email: _driver!.email,
+      phone: _driver!.phone,
+      role: _driver!.role,
+      driverId: _driver!.driverId,
+      profileImg: base64Img,
+      assignedBusId: _driver!.assignedBusId,
+      assignedBusNumber: _driver!.assignedBusNumber,
+      assignedRouteId: _driver!.assignedRouteId,
+      assignedRouteName: _driver!.assignedRouteName,
+      isOnDuty: _driver!.isOnDuty,
+      lastDutyStart: _driver!.lastDutyStart,
+    );
+    
+    await updateDriver(updatedDriver);
+  }
+
   /// Initialize driver data
   Future<void> init(String driverId) async {
     // If we already have this driver in local cache, use it

@@ -33,7 +33,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 title: 'Student',
                 subtitle: 'Track buses, check schedules, and get notices.',
                 icon: Icons.school_rounded,
-                onTap: () => context.push('/login', extra: 'student'),
+                onTap: () => context.push('/student-portal-entry'),
               ),
               const SizedBox(height: 20),
               _buildRoleCard(

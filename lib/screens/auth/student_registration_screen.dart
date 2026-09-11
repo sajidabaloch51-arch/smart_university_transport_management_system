@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -10,8 +11,9 @@ import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/route_provider.dart';
 import '../../models/student_model.dart';
-import '../student/student_dashboard.dart';
+import '../../models/route_model.dart';
 
 class StudentRegistrationScreen extends StatefulWidget {
   const StudentRegistrationScreen({super.key});
@@ -23,12 +25,26 @@ class StudentRegistrationScreen extends StatefulWidget {
 class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _rollNoController = TextEditingController();
   final _regController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
+  
+  String? _selectedDepartment;
+
+  final List<String> _departments = [
+    'Computer Science',
+    'Business Administration',
+    'Education',
+    'Economics',
+    'Commerce',
+    'Chemistry',
+    'Zoology',
+    'English',
+  ];
   
   bool _termsAccepted = false;
   bool _isLoading = false;
@@ -58,6 +74,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _rollNoController.dispose();
     _regController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -69,6 +86,12 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
   void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedDepartment == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please select your department")),
+        );
+        return;
+      }
       if (!_termsAccepted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Please accept terms and conditions")),
@@ -93,10 +116,13 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         fatherName: '',
         gender: '',
         dob: '',
-        department: 'BS IT',
+        department: _selectedDepartment!,
         semester: '1',
         profileImage: profileImageBase64,
         routeAddress: _addressController.text.trim(),
+        rollNo: _rollNoController.text.trim(),
+        assignedRouteId: null,
+        assignedRouteName: null,
         verificationStatus: 'pending',
       );
 
@@ -104,22 +130,46 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         await Provider.of<StudentProvider>(context, listen: false).addStudent(student);
         
         if (mounted) {
-          // Update Auth state
-          context.read<AuthProvider>().setAuthenticated(
-            true, 
-            role: 'student', 
-            uid: student.uid
-          );
-          
           setState(() => _isLoading = false);
-          Navigator.pushAndRemoveUntil(
-            context, 
-            MaterialPageRoute(builder: (_) => const StudentDashboard()),
-            (route) => false,
-          );
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Registration Successful! Welcome Student.")),
+          final prefs = await SharedPreferences.getInstance();
+          const roleKey = 'saved_emails_student';
+          List<String> emails = prefs.getStringList(roleKey) ?? [];
+          if (!emails.contains(student.email)) {
+            emails.add(student.email);
+            await prefs.setStringList(roleKey, emails);
+          }
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Row(
+                children: [
+                  Icon(Icons.hourglass_empty_rounded, color: Colors.orange, size: 28),
+                  SizedBox(width: 10),
+                  Text("Registration Pending"),
+                ],
+              ),
+              content: const Text(
+                "Your registration request has been submitted to the Admin for verification based on your Roll No. "
+                "You will be able to access the portal once your account is approved."
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8, bottom: 8),
+                  child: ElevatedButton(
+                    onPressed: () => context.go('/login', extra: 'student'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("OK, PROCEED TO LOGIN", style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
           );
         }
       } catch (e) {
@@ -140,141 +190,182 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       imageProvider = MemoryImage(_webImage!);
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Student Registration"),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/role-selection');
-            }
-          },
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/student-portal-entry');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Student Registration"),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/student-portal-entry');
+              }
+            },
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: const Color(0xFFE3F2FD),
-                        backgroundImage: imageProvider,
-                        child: imageProvider == null 
-                            ? const Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF1565C0))
-                            : null,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: AutofillGroup(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: const Color(0xFFE3F2FD),
+                            backgroundImage: imageProvider,
+                            child: imageProvider == null 
+                                ? const Icon(Icons.person_add_rounded, size: 50, color: Color(0xFF1565C0))
+                                : null,
+                          ),
+                          const CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Color(0xFF1565C0),
+                            child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                          ),
+                        ],
                       ),
-                      const CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Color(0xFF1565C0),
-                        child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Center(
+                    child: Text(
+                      "Upload Profile Photo",
+                      style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  
+                  CustomTextField(
+                    controller: _nameController,
+                    labelText: "Full Name", 
+                    prefixIcon: Icons.person_outline,
+                    validator: AppValidators.validateFullName,
+                    autofillHints: const [AutofillHints.name],
+                  ),
+
+                  CustomTextField(
+                    controller: _rollNoController,
+                    labelText: "Roll No", 
+                    prefixIcon: Icons.format_list_numbered,
+                    validator: AppValidators.validateRollNo,
+                  ),
+                  
+                  CustomTextField(
+                    controller: _regController,
+                    labelText: "Registration Number (Optional)", 
+                    prefixIcon: Icons.badge_outlined,
+                    validator: AppValidators.validateRegistrationNumber,
+                  ),
+
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: "Department",
+                      prefixIcon: const Icon(Icons.school_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
+                    value: _selectedDepartment,
+                    items: _departments.map((dept) => DropdownMenuItem(
+                      value: dept,
+                      child: Text(dept),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _selectedDepartment = v),
+                    validator: (v) => v == null ? 'Select your department' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  CustomTextField(
+                    controller: _phoneController,
+                    labelText: "Phone Number", 
+                    prefixIcon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    validator: AppValidators.validatePhone,
+                  ),
+                  
+                  CustomTextField(
+                    controller: _addressController,
+                    labelText: "Route Address", 
+                    prefixIcon: Icons.map_outlined,
+                    validator: (v) => AppValidators.validateRequired(v, "Route Address"),
+                  ),
+
+                  const SizedBox(height: 16),
+                  
+                  CustomTextField(
+                    controller: _emailController,
+                    labelText: "Email Address", 
+                    prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: AppValidators.validateEmail,
+                    autofillHints: const [AutofillHints.email, AutofillHints.newUsername],
+                  ),
+                  
+                  CustomTextField(
+                    controller: _passController,
+                    labelText: "Password", 
+                    prefixIcon: Icons.lock_outline,
+                    isPassword: true,
+                    validator: AppValidators.validatePassword,
+                    maxLength: 20,
+                    autofillHints: const [AutofillHints.newPassword],
+                  ),
+                  
+                  CustomTextField(
+                    controller: _confirmPassController,
+                    labelText: "Confirm Password", 
+                    prefixIcon: Icons.lock_reset_outlined,
+                    isPassword: true,
+                    validator: (v) => AppValidators.validateConfirmPassword(v, _passController.text),
+                    maxLength: 20,
+                  ),
+                  
+                  CheckboxListTile(
+                    value: _termsAccepted,
+                    onChanged: (v) => setState(() => _termsAccepted = v!),
+                    title: const Text("I accept terms and conditions", style: TextStyle(fontSize: 12)),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  CustomButton(
+                    text: "REGISTER",
+                    isLoading: _isLoading,
+                    onPressed: _handleRegister,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Don't have an account? "),
+                      GestureDetector(
+                        onTap: () => context.go('/login', extra: 'student'),
+                        child: const Text("Login", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Center(
-                child: Text(
-                  "Upload Profile Photo",
-                  style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500),
-                ),
-              ),
-              const SizedBox(height: 22),
-              
-              CustomTextField(
-                controller: _nameController,
-                labelText: "Full Name", 
-                prefixIcon: Icons.person_outline,
-                validator: AppValidators.validateFullName,
-              ),
-              
-              CustomTextField(
-                controller: _regController,
-                labelText: "Registration Number", 
-                prefixIcon: Icons.badge_outlined,
-                validator: AppValidators.validateRegistrationNumber,
-              ),
-              
-              CustomTextField(
-                controller: _phoneController,
-                labelText: "Phone Number", 
-                prefixIcon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                validator: AppValidators.validatePhone,
-              ),
-              
-              CustomTextField(
-                controller: _addressController,
-                labelText: "Route Address", 
-                prefixIcon: Icons.map_outlined,
-                validator: (v) => AppValidators.validateRequired(v, "Route Address"),
-              ),
-              
-              CustomTextField(
-                controller: _emailController,
-                labelText: "Email Address", 
-                prefixIcon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-                validator: AppValidators.validateEmail,
-              ),
-              
-              CustomTextField(
-                controller: _passController,
-                labelText: "Password", 
-                prefixIcon: Icons.lock_outline,
-                isPassword: true,
-                validator: AppValidators.validatePassword,
-                maxLength: 20,
-              ),
-              
-              CustomTextField(
-                controller: _confirmPassController,
-                labelText: "Confirm Password", 
-                prefixIcon: Icons.lock_reset_outlined,
-                isPassword: true,
-                validator: (v) => AppValidators.validateConfirmPassword(v, _passController.text),
-                maxLength: 20,
-              ),
-              
-              CheckboxListTile(
-                value: _termsAccepted,
-                onChanged: (v) => setState(() => _termsAccepted = v!),
-                title: const Text("I accept terms and conditions", style: TextStyle(fontSize: 12)),
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
-              ),
-              
-              const SizedBox(height: 24),
-              CustomButton(
-                text: "REGISTER",
-                isLoading: _isLoading,
-                onPressed: _handleRegister,
-              ),
-              
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Already have an account? "),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Text("Login", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
-                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
