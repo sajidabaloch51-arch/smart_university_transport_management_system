@@ -18,7 +18,42 @@ class StudentProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   // Local cache for demo/offline mode
-  final Map<String, StudentModel> _localStudents = {};
+  final Map<String, StudentModel> _localStudents = {
+    'pending_1': StudentModel(
+      uid: 'pending_1',
+      name: 'Khadija Maqbool',
+      email: 'khadija@gmail.com',
+      phone: '03344556677',
+      role: 'student',
+      regNumber: '002',
+      fatherName: 'Maqbool Ahmed',
+      gender: 'Female',
+      dob: '2004-05-15',
+      department: 'Computer Science',
+      semester: '1',
+      profileImage: '',
+      routeAddress: 'Gwadar East Bay',
+      rollNo: '01234',
+      verificationStatus: 'pending',
+    ),
+    'pending_2': StudentModel(
+      uid: 'pending_2',
+      name: 'Zubair Ahmed',
+      email: 'zubair@gmail.com',
+      phone: '03322110099',
+      role: 'student',
+      regNumber: '005',
+      fatherName: 'Ahmed Khan',
+      gender: 'Male',
+      dob: '2003-10-20',
+      department: 'Business Administration',
+      semester: '3',
+      profileImage: '',
+      routeAddress: 'Main Town Gwadar',
+      rollNo: '220145',
+      verificationStatus: 'pending',
+    ),
+  };
 
   Stream<List<StudentModel>> streamStudents() {
     try {
@@ -91,6 +126,7 @@ class StudentProvider extends ChangeNotifier {
           semester: current.semester,
           profileImage: current.profileImage,
           routeAddress: current.routeAddress,
+          rollNo: current.rollNo,
           verificationStatus: status,
         );
         notifyListeners();

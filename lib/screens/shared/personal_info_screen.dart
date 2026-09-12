@@ -86,6 +86,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       semester: _currentStudent!.semester,
       profileImage: _currentStudent!.profileImage,
       routeAddress: _addressController.text.trim(),
+      rollNo: _currentStudent!.rollNo,
+      verificationStatus: _currentStudent!.verificationStatus,
     );
 
     try {
@@ -212,8 +214,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 validator: (v) => AppValidators.validateRequired(v, "Route Address"),
               ),
               
-              const SizedBox(height: 16),
               _buildReadOnlyInfo('Email Address', _currentStudent!.email, Icons.email_outlined),
+              _buildReadOnlyInfo('Roll No', _currentStudent!.rollNo, Icons.format_list_numbered),
               _buildReadOnlyInfo('Department', _currentStudent!.department, Icons.school_outlined),
               
               const SizedBox(height: 40),

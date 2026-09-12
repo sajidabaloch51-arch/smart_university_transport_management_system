@@ -15,60 +15,57 @@ class DutyScreen extends StatelessWidget {
 
         bool isOnDuty = driver.isOnDuty;
 
-        return Scaffold(
-          appBar: AppBar(title: const Text('Duty Tracking')),
-          body: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                // Live Status Indicator
-                _StatusBadge(isOnDuty: isOnDuty),
-                const SizedBox(height: 40),
-                
-                // Real-time Stats Grid
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 20,
-                    children: [
-                      _StatTile(
-                        icon: Icons.timer, 
-                        value: _formatDuration(provider.dutyDuration), 
-                        label: 'Duty Timer'
-                      ),
-                      _StatTile(
-                        icon: Icons.speed_rounded, 
-                        value: '${provider.currentPosition?.speed.toStringAsFixed(1) ?? "0.0"} km/h', 
-                        label: 'Current Speed'
-                      ),
-                      _StatTile(
-                        icon: Icons.my_location, 
-                        value: '${provider.currentPosition?.latitude.toStringAsFixed(4) ?? "0.0"}, ${provider.currentPosition?.longitude.toStringAsFixed(4) ?? "0.0"}', 
-                        label: 'GPS Coordinates'
-                      ),
-                      _StatTile(
-                        icon: Icons.bus_alert, 
-                        value: provider.assignedRoute?.stops.first.stopName ?? 'N/A', 
-                        label: 'Next Stop'
-                      ),
-                    ],
-                  ),
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              // Live Status Indicator
+              _StatusBadge(isOnDuty: isOnDuty),
+              const SizedBox(height: 40),
+              
+              // Real-time Stats Grid
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 20,
+                  crossAxisSpacing: 20,
+                  children: [
+                    _StatTile(
+                      icon: Icons.timer, 
+                      value: _formatDuration(provider.dutyDuration), 
+                      label: 'Duty Timer'
+                    ),
+                    _StatTile(
+                      icon: Icons.speed_rounded, 
+                      value: '${provider.currentPosition?.speed.toStringAsFixed(1) ?? "0.0"} km/h', 
+                      label: 'Current Speed'
+                    ),
+                    _StatTile(
+                      icon: Icons.my_location, 
+                      value: '${provider.currentPosition?.latitude.toStringAsFixed(4) ?? "0.0"}, ${provider.currentPosition?.longitude.toStringAsFixed(4) ?? "0.0"}', 
+                      label: 'GPS Coordinates'
+                    ),
+                    _StatTile(
+                      icon: Icons.bus_alert, 
+                      value: provider.assignedRoute?.stops.first.stopName ?? 'N/A', 
+                      label: 'Next Stop'
+                    ),
+                  ],
                 ),
-                
-                const SizedBox(height: 20),
-                
-                // Start/End Duty Toggle
-                CustomButton(
-                  text: isOnDuty ? 'END DUTY' : 'START DUTY',
-                  color: isOnDuty ? Colors.red : Colors.green,
-                  isLoading: provider.isLoading,
-                  icon: isOnDuty ? Icons.stop_circle_outlined : Icons.play_circle_fill_rounded,
-                  onPressed: () => provider.toggleDuty(),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Start/End Duty Toggle
+              CustomButton(
+                text: isOnDuty ? 'END DUTY' : 'START DUTY',
+                color: isOnDuty ? Colors.red : Colors.green,
+                isLoading: provider.isLoading,
+                icon: isOnDuty ? Icons.stop_circle_outlined : Icons.play_circle_fill_rounded,
+                onPressed: () => provider.toggleDuty(),
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         );
       },

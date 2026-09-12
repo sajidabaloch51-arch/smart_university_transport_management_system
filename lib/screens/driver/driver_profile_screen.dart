@@ -2,10 +2,73 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/driver_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class DriverProfileScreen extends StatelessWidget {
   const DriverProfileScreen({super.key});
+
+  Future<void> _showImagePickerOptions(BuildContext context, DriverProvider provider) async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Select Profile Photo', style: TextStyle(fontWeight: FontWeight.bold))),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(context, provider, ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take a Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(context, provider, ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(BuildContext context, DriverProvider provider, ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        await provider.updateProfileImage(base64Image);
+        
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile photo updated successfully')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,27 +77,24 @@ class DriverProfileScreen extends StatelessWidget {
         final driver = provider.driver;
         if (driver == null) return const Center(child: Text('Profile error'));
 
-        return Scaffold(
-          appBar: AppBar(title: const Text('My Profile')),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
-                _buildHeader(driver),
-                const SizedBox(height: 40),
-                _buildInfoSection(driver),
-                const SizedBox(height: 40),
-                _buildActions(context),
-                const SizedBox(height: 30),
-              ],
-            ),
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 30),
+              _buildHeader(context, provider, driver),
+              const SizedBox(height: 40),
+              _buildInfoSection(driver),
+              const SizedBox(height: 40),
+              _buildActions(context),
+              const SizedBox(height: 30),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildHeader(dynamic driver) {
+  Widget _buildHeader(BuildContext context, DriverProvider provider, dynamic driver) {
     ImageProvider<Object>? imageProvider;
     if (driver.profileImg != null && driver.profileImg.isNotEmpty) {
       if (driver.profileImg.startsWith('http')) {
@@ -70,7 +130,7 @@ class DriverProfileScreen extends StatelessWidget {
               backgroundColor: Colors.blue,
               child: IconButton(
                 icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                onPressed: () {},
+                onPressed: () => _showImagePickerOptions(context, provider),
               ),
             ),
           ],
@@ -136,7 +196,13 @@ class DriverProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 15),
           TextButton(
-            onPressed: () => context.go('/login'),
+            onPressed: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              if (context.mounted) {
+                context.go('/role-selection');
+              }
+            },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('LOGOUT ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
           ),

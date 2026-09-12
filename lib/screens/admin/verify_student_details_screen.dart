@@ -26,7 +26,7 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
 
   void _checkRecord() {
     setState(() {
-      _officialRecord = UniversityDBService.lookupRecord(widget.student.regNumber);
+      _officialRecord = UniversityDBService.lookupRecord(widget.student.rollNo);
       _isChecking = false;
     });
   }
@@ -84,7 +84,9 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
           children: [
             _infoRow(Icons.person_outline, 'Full Name', widget.student.name),
             const Divider(),
-            _infoRow(Icons.badge_outlined, 'Registration Number', widget.student.regNumber),
+            _infoRow(Icons.format_list_numbered, 'Roll No', widget.student.rollNo),
+            const Divider(),
+            _infoRow(Icons.badge_outlined, 'Registration Number', widget.student.regNumber.isEmpty ? "N/A" : widget.student.regNumber),
             const Divider(),
             _infoRow(Icons.phone_outlined, 'Phone Number', widget.student.phone),
             const Divider(),
@@ -147,9 +149,9 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
   Widget _buildVerificationStatus() {
     if (_officialRecord == null) {
       return _statusBanner(
-        '❌ Registration Number Not Found',
+        '❌ Roll No Not Found',
         Colors.red,
-        'The provided registration number does not exist in the official records.',
+        'The provided roll number does not exist in the official records.',
       );
     }
 

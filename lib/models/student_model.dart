@@ -9,6 +9,9 @@ class StudentModel extends UserModel {
   final String semester;
   final String profileImage;
   final String routeAddress;
+  final String rollNo;
+  final String? assignedRouteId;
+  final String? assignedRouteName;
   final String verificationStatus; // pending, approved, rejected
 
   StudentModel({
@@ -25,6 +28,9 @@ class StudentModel extends UserModel {
     required this.semester,
     required this.profileImage,
     required this.routeAddress,
+    required this.rollNo,
+    this.assignedRouteId,
+    this.assignedRouteName,
     this.verificationStatus = 'pending',
   });
 
@@ -43,6 +49,9 @@ class StudentModel extends UserModel {
       semester: map['semester'] ?? '',
       profileImage: map['profileImage'] ?? map['profilePhoto'] ?? '',
       routeAddress: map['routeAddress'] ?? '',
+      rollNo: map['rollNo'] ?? map['serialNumber'] ?? '',
+      assignedRouteId: map['assignedRouteId'],
+      assignedRouteName: map['assignedRouteName'],
       verificationStatus: map['verificationStatus'] ?? 'pending',
     );
   }
@@ -59,6 +68,9 @@ class StudentModel extends UserModel {
       'semester': semester,
       'profileImage': profileImage,
       'routeAddress': routeAddress,
+      'rollNo': rollNo,
+      'assignedRouteId': assignedRouteId,
+      'assignedRouteName': assignedRouteName,
       'verificationStatus': verificationStatus,
     });
     return map;

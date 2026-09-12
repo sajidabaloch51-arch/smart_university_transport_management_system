@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -36,7 +38,13 @@ class ProfileScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => context.go('/login'),
+                onPressed: () async {
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  await authProvider.logout();
+                  if (context.mounted) {
+                    context.go('/role-selection');
+                  }
+                },
                 icon: const Icon(Icons.logout),
                 label: const Text('LOGOUT'),
                 style: OutlinedButton.styleFrom(
