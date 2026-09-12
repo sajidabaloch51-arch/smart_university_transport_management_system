@@ -56,6 +56,13 @@ class AppValidators {
     return null;
   }
 
+  static String? validateRegNo(String? value) {
+    if (value == null || value.isEmpty) return 'Registration number is required';
+    final regExp = RegExp(r'^[a-zA-Z0-9-]+$');
+    if (!regExp.hasMatch(value)) return 'Invalid format (e.g. 19-UOG-123)';
+    return null;
+  }
+
   static String? validateRollNo(String? value) {
     if (value == null || value.isEmpty) return 'Roll No is required';
     if (value.length < 3) return 'Roll No must be at least 3 characters long';

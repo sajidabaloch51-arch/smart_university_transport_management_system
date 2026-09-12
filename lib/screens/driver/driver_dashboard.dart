@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/schedule_card.dart';
 import '../../widgets/notice_card.dart';
+import '../../widgets/dashboard_card.dart';
 import 'driver_route_screen.dart';
 import 'duty_screen.dart';
 import 'driver_notice_screen.dart';
@@ -179,7 +180,7 @@ class DashboardSummary extends StatelessWidget {
         }
 
         if (provider.driver == null) {
-          return const Center(child: Text("Error loading driver data. Tap refresh."));
+          return const Center(child: Text("Error loading data."));
         }
 
         return SingleChildScrollView(
@@ -194,23 +195,23 @@ class DashboardSummary extends StatelessWidget {
               DriverCard(driver: provider.driver!),
               const SizedBox(height: 30),
               
-              const SectionHeader(title: "Today's Schedule"),
+              _sectionTitle("Today's Schedule"),
               if (provider.todaySchedules.isEmpty)
-                const EmptyStateBox(message: 'No schedules assigned for today.')
+                _emptyBox('No schedules assigned for today.')
               else
                 ...provider.todaySchedules.map((s) => ScheduleCard(schedule: s)),
               
               const SizedBox(height: 30),
               
-              const SectionHeader(title: "Recent Alerts"),
+              _sectionTitle("Recent Alerts"),
               if (provider.notices.isEmpty)
-                const EmptyStateBox(message: 'No active transport alerts.')
+                _emptyBox('No active transport alerts.')
               else
                 ...provider.notices.take(2).map((n) => NoticeCard(notice: n, onReadMore: onNavigateToNotices)),
               
               const SizedBox(height: 30),
               
-              const SectionHeader(title: "Quick Actions"),
+              _sectionTitle("Quick Actions"),
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -230,29 +231,30 @@ class DashboardSummary extends StatelessWidget {
       },
     );
   }
-}
 
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+  Widget _toolBtn(String title, IconData icon, Color color) {
+    return AspectRatio(
+      aspectRatio: 1.4,
+      child: DashboardCard(title: title, value: '', icon: icon, color: color, onTap: () {}),
     );
   }
-}
 
-class EmptyStateBox extends StatelessWidget {
-  final String message;
-  const EmptyStateBox({super.key, required this.message});
-  @override
-  Widget build(BuildContext context) {
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+    );
+  }
+
+  Widget _emptyBox(String message) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black12),
+      ),
       child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
     );
   }

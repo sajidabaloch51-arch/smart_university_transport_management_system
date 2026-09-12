@@ -1,4 +1,6 @@
 # Miscellaneous
+.gradle/
+local.properties
 *.class
 *.log
 *.pyc
@@ -58,7 +60,6 @@ package-lock.json
 **/ios/GoogleService-Info.plist
 
 # Web-related
-lib/generated_plugin_registrant.dart
 
 # Symbolication related
 app.*.symbols
