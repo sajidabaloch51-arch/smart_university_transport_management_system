@@ -3,6 +3,7 @@ import 'user_model.dart';
 
 class DriverModel extends UserModel {
   final String driverId; // Employee ID
+  final String licenseNumber;
   final String profileImg;
   final String assignedBusId;
   final String assignedBusNumber;
@@ -18,6 +19,7 @@ class DriverModel extends UserModel {
     required super.phone,
     required super.role,
     required this.driverId,
+    required this.licenseNumber,
     required this.profileImg,
     required this.assignedBusId,
     required this.assignedBusNumber,
@@ -35,6 +37,7 @@ class DriverModel extends UserModel {
       phone: map['phone'] ?? '',
       role: map['role'] ?? 'driver',
       driverId: map['driverId'] ?? '',
+      licenseNumber: map['licenseNumber'] ?? '',
       profileImg: map['profileImg'] ?? '',
       assignedBusId: map['assignedBusId'] ?? '',
       assignedBusNumber: map['assignedBusNumber'] ?? '',
@@ -52,6 +55,7 @@ class DriverModel extends UserModel {
     final map = super.toMap();
     map.addAll({
       'driverId': driverId,
+      'licenseNumber': licenseNumber,
       'profileImg': profileImg,
       'assignedBusId': assignedBusId,
       'assignedBusNumber': assignedBusNumber,

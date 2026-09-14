@@ -20,7 +20,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _regController = TextEditingController();
-  final _addressController = TextEditingController();
   
   bool _isLoading = false;
   bool _isFetching = true;
@@ -45,7 +44,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
             _nameController.text = student.name;
             _phoneController.text = student.phone;
             _regController.text = student.regNumber;
-            _addressController.text = student.routeAddress;
           }
           _isFetching = false;
         });
@@ -62,7 +60,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _regController.dispose();
-    _addressController.dispose();
     super.dispose();
   }
 
@@ -85,7 +82,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       department: _currentStudent!.department,
       semester: _currentStudent!.semester,
       profileImage: _currentStudent!.profileImage,
-      routeAddress: _addressController.text.trim(),
+      routeAddress: '',
       rollNo: _currentStudent!.rollNo,
       verificationStatus: _currentStudent!.verificationStatus,
     );
@@ -205,13 +202,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 validator: AppValidators.validatePhone,
-              ),
-
-              CustomTextField(
-                controller: _addressController,
-                labelText: 'Route Address',
-                prefixIcon: Icons.map_outlined,
-                validator: (v) => AppValidators.validateRequired(v, "Route Address"),
               ),
               
               _buildReadOnlyInfo('Email Address', _currentStudent!.email, Icons.email_outlined),

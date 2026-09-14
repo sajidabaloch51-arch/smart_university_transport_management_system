@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../providers/student_provider.dart';
+import '../../services/university_db_service.dart';
+import '../../models/student_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../student/student_dashboard.dart';
@@ -55,13 +59,72 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (_rememberMe) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('role', role);
+        await prefs.setBool('is_logged_in', true);
+        await prefs.setString('user_role', role);
         await prefs.setString('email', email);
+        await prefs.setString('uid', email.split('@')[0] + "_id");
+      }
+
+      // Verification Check for Students
+      if (role == 'student') {
+        final uid = email.split('@')[0] + "_id";
+        final studentProvider = context.read<StudentProvider>();
+        final student = await studentProvider.getStudent(uid);
+
+        if (student != null) {
+          final officialRecord = UniversityDBService.lookupRecord(student.rollNo);
+          if (officialRecord != null && student.verificationStatus == 'pending') {
+            // Auto-approve
+            final approvedStudent = StudentModel(
+              uid: student.uid,
+              name: student.name,
+              email: student.email,
+              phone: student.phone,
+              role: student.role,
+              regNumber: student.regNumber,
+              fatherName: student.fatherName,
+              gender: student.gender,
+              dob: student.dob,
+              department: student.department,
+              semester: student.semester,
+              profileImage: student.profileImage,
+              routeAddress: student.routeAddress,
+              rollNo: student.rollNo,
+              assignedRouteId: student.assignedRouteId,
+              assignedRouteName: student.assignedRouteName,
+              assignedBusId: student.assignedBusId,
+              assignedBusName: student.assignedBusName,
+              assignedBusCode: student.assignedBusCode,
+              assignedDriverId: student.assignedDriverId,
+              assignedDriverName: student.assignedDriverName,
+              assignedDriverPhone: student.assignedDriverPhone,
+              assignedDepartureTime: student.assignedDepartureTime,
+              assignedArrivalTime: student.assignedArrivalTime,
+              verificationStatus: 'approved',
+            );
+            await studentProvider.updateStudent(approvedStudent);
+          } else if (officialRecord == null && student.verificationStatus == 'pending') {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account pending verification. Roll No not in official records.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+        }
+      }
+
+      if (mounted) {
+        context.read<AuthProvider>().setAuthenticated(true, 
+          role: role, 
+          uid: email.split('@')[0] + "_id"
+        );
       }
 
       setState(() => _isLoading = false);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => destination));
+      context.go(role == 'admin' ? '/admin-dashboard' : (role == 'driver' ? '/driver-dashboard' : '/student-dashboard'));
     }
   }
 

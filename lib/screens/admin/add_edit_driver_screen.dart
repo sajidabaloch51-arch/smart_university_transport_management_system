@@ -22,6 +22,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _idController;
+  late TextEditingController _licenseController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _passController;
@@ -57,6 +58,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.driver?.name ?? '');
     _idController = TextEditingController(text: widget.driver?.driverId ?? '');
+    _licenseController = TextEditingController(text: widget.driver?.licenseNumber ?? '');
     _emailController = TextEditingController(text: widget.driver?.email ?? '');
     _phoneController = TextEditingController(text: widget.driver?.phone ?? '');
     _passController = TextEditingController();
@@ -94,12 +96,13 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
       }
 
       final driver = DriverModel(
-        uid: widget.driver?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        uid: widget.driver?.uid ?? (_emailController.text.trim().split('@')[0] + "_id"),
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         role: 'driver',
         driverId: _idController.text.trim(),
+        licenseNumber: _licenseController.text.trim(),
         profileImg: profileImageBase64,
         assignedBusId: widget.driver?.assignedBusId ?? '',
         assignedBusNumber: _selectedBus ?? 'Not Assigned',
@@ -186,6 +189,12 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
               labelText: 'Employee ID',
               prefixIcon: Icons.badge,
               validator: (v) => AppValidators.validateRequired(v, 'Employee ID'),
+            ),
+            CustomTextField(
+              controller: _licenseController, 
+              labelText: 'License Number',
+              prefixIcon: Icons.description,
+              validator: AppValidators.validateBalochistanLicense,
             ),
             CustomTextField(
               controller: _emailController, 

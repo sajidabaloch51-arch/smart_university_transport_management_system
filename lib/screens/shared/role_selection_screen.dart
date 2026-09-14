@@ -41,7 +41,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 title: 'Bus Driver',
                 subtitle: 'Manage duty, stream location, and view route.',
                 icon: Icons.drive_eta_rounded,
-                onTap: () => context.push('/login', extra: 'driver'),
+                onTap: () => context.push('/driver-portal-entry'),
               ),
               const SizedBox(height: 20),
               _buildRoleCard(

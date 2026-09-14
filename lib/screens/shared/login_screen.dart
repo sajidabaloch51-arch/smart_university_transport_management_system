@@ -7,6 +7,7 @@ import '../../constants/strings.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../core/validators/app_validators.dart';
+import '../../services/university_db_service.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
@@ -127,11 +128,45 @@ class _LoginScreenState extends State<LoginScreen> {
           final student = await studentProvider.getStudent(uid);
           
           if (student != null) {
-            if (student.verificationStatus == 'pending') {
+            // Check if student exists in official university records
+            final officialRecord = UniversityDBService.lookupRecord(student.rollNo);
+            
+            // If in official records, ensure they are approved
+            if (officialRecord != null && student.verificationStatus == 'pending') {
+              // Auto-approve during login if record found
+              final approvedStudent = StudentModel(
+                uid: student.uid,
+                name: student.name,
+                email: student.email,
+                phone: student.phone,
+                role: student.role,
+                regNumber: student.regNumber,
+                fatherName: student.fatherName,
+                gender: student.gender,
+                dob: student.dob,
+                department: student.department,
+                semester: student.semester,
+                profileImage: student.profileImage,
+                routeAddress: student.routeAddress,
+                rollNo: student.rollNo,
+                assignedRouteId: student.assignedRouteId,
+                assignedRouteName: student.assignedRouteName,
+                assignedBusId: student.assignedBusId,
+                assignedBusName: student.assignedBusName,
+                assignedBusCode: student.assignedBusCode,
+                assignedDriverId: student.assignedDriverId,
+                assignedDriverName: student.assignedDriverName,
+                assignedDriverPhone: student.assignedDriverPhone,
+                assignedDepartureTime: student.assignedDepartureTime,
+                assignedArrivalTime: student.assignedArrivalTime,
+                verificationStatus: 'approved',
+              );
+              await studentProvider.updateStudent(approvedStudent);
+            } else if (officialRecord == null && student.verificationStatus == 'pending') {
               setState(() => _isLoading = false);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Your account is pending verification by the Admin based on your Roll No.'),
+                  content: Text('Your account is pending Admin verification. Your Roll No was not found in immediate official records.'),
                   backgroundColor: Colors.orange,
                 ),
               );

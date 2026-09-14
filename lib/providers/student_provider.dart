@@ -127,6 +127,16 @@ class StudentProvider extends ChangeNotifier {
           profileImage: current.profileImage,
           routeAddress: current.routeAddress,
           rollNo: current.rollNo,
+          assignedRouteId: current.assignedRouteId,
+          assignedRouteName: current.assignedRouteName,
+          assignedBusId: current.assignedBusId,
+          assignedBusName: current.assignedBusName,
+          assignedBusCode: current.assignedBusCode,
+          assignedDriverId: current.assignedDriverId,
+          assignedDriverName: current.assignedDriverName,
+          assignedDriverPhone: current.assignedDriverPhone,
+          assignedDepartureTime: current.assignedDepartureTime,
+          assignedArrivalTime: current.assignedArrivalTime,
           verificationStatus: status,
         );
         notifyListeners();

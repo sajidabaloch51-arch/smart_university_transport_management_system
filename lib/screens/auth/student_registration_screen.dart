@@ -13,7 +13,7 @@ import '../../providers/student_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/route_provider.dart';
 import '../../models/student_model.dart';
-import '../../models/route_model.dart';
+import '../../services/university_db_service.dart';
 
 class StudentRegistrationScreen extends StatefulWidget {
   const StudentRegistrationScreen({super.key});
@@ -28,7 +28,6 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   final _rollNoController = TextEditingController();
   final _regController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
@@ -77,7 +76,6 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
     _rollNoController.dispose();
     _regController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
     _emailController.dispose();
     _passController.dispose();
     _confirmPassController.dispose();
@@ -106,6 +104,10 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         profileImageBase64 = base64Encode(_webImage!);
       }
 
+      final rollNo = _rollNoController.text.trim();
+      final officialRecord = UniversityDBService.lookupRecord(rollNo);
+      final status = officialRecord != null ? 'approved' : 'pending';
+
       final student = StudentModel(
         uid: _emailController.text.trim().split('@')[0] + "_id",
         name: _nameController.text.trim(),
@@ -119,11 +121,11 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         department: _selectedDepartment!,
         semester: '1',
         profileImage: profileImageBase64,
-        routeAddress: _addressController.text.trim(),
-        rollNo: _rollNoController.text.trim(),
+        routeAddress: '',
+        rollNo: rollNo,
         assignedRouteId: null,
         assignedRouteName: null,
-        verificationStatus: 'pending',
+        verificationStatus: status,
       );
 
       try {
@@ -140,37 +142,72 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
             await prefs.setStringList(roleKey, emails);
           }
 
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
-                children: [
-                  Icon(Icons.hourglass_empty_rounded, color: Colors.orange, size: 28),
-                  SizedBox(width: 10),
-                  Text("Registration Pending"),
+          if (status == 'approved') {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                    SizedBox(width: 10),
+                    Text("Verified & Registered"),
+                  ],
+                ),
+                content: const Text(
+                  "Your Roll No was found in official records. Your account is auto-approved. "
+                  "You can now log in to access the portal."
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 8),
+                    child: ElevatedButton(
+                      onPressed: () => context.go('/login', extra: 'student'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1565C0),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text("PROCEED TO LOGIN", style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
                 ],
               ),
-              content: const Text(
-                "Your registration request has been submitted to the Admin for verification based on your Roll No. "
-                "You will be able to access the portal once your account is approved."
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8, bottom: 8),
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/login', extra: 'student'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1565C0),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: const Text("OK, PROCEED TO LOGIN", style: TextStyle(color: Colors.white)),
-                  ),
+            );
+          } else {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.hourglass_empty_rounded, color: Colors.orange, size: 28),
+                    SizedBox(width: 10),
+                    Text("Registration Pending"),
+                  ],
                 ),
-              ],
-            ),
-          );
+                content: const Text(
+                  "Your Roll No was not found in immediate official records. "
+                  "Your registration has been submitted for manual Admin verification. "
+                  "Please wait for approval before logging in."
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 8),
+                    child: ElevatedButton(
+                      onPressed: () => context.go('/login', extra: 'student'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1565C0),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text("OK, PROCEED TO LOGIN", style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -300,13 +337,6 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                     validator: AppValidators.validatePhone,
                   ),
                   
-                  CustomTextField(
-                    controller: _addressController,
-                    labelText: "Route Address", 
-                    prefixIcon: Icons.map_outlined,
-                    validator: (v) => AppValidators.validateRequired(v, "Route Address"),
-                  ),
-
                   const SizedBox(height: 16),
                   
                   CustomTextField(

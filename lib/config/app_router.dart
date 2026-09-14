@@ -57,6 +57,7 @@ import '../screens/admin/student_verification_screen.dart';
 import '../screens/admin/verify_student_details_screen.dart';
 
 import '../screens/auth/student_portal_entry_screen.dart';
+import '../screens/auth/driver_portal_entry_screen.dart';
 
 class AppRouter {
   static final router = GoRouter(
@@ -66,6 +67,7 @@ class AppRouter {
       GoRoute(path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
       GoRoute(path: '/role-selection', builder: (context, state) => const RoleSelectionScreen()),
       GoRoute(path: '/student-portal-entry', builder: (context, state) => const StudentPortalEntryScreen()),
+      GoRoute(path: '/driver-portal-entry', builder: (context, state) => const DriverPortalEntryScreen()),
       GoRoute(path: '/login', builder: (context, state) => LoginScreen(role: state.extra as String?)),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       

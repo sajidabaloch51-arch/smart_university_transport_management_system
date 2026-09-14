@@ -80,7 +80,7 @@ class FirestoreService {
   // --- DRIVER OPERATIONS ---
   Future<DriverModel?> getDriverData(String driverId) async {
     return await _withTimeout<DriverModel>((db) async {
-      final doc = await db.collection('drivers').doc(driverId).get();
+      final doc = await db.collection('users').doc(driverId).get();
       if (doc.exists) {
         return DriverModel.fromMap(doc.data()!, doc.id);
       }

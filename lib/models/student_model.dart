@@ -12,6 +12,14 @@ class StudentModel extends UserModel {
   final String rollNo;
   final String? assignedRouteId;
   final String? assignedRouteName;
+  final String? assignedBusId;
+  final String? assignedBusName;
+  final String? assignedBusCode;
+  final String? assignedDriverId;
+  final String? assignedDriverName;
+  final String? assignedDriverPhone;
+  final String? assignedDepartureTime;
+  final String? assignedArrivalTime;
   final String verificationStatus; // pending, approved, rejected
 
   StudentModel({
@@ -31,6 +39,14 @@ class StudentModel extends UserModel {
     required this.rollNo,
     this.assignedRouteId,
     this.assignedRouteName,
+    this.assignedBusId,
+    this.assignedBusName,
+    this.assignedBusCode,
+    this.assignedDriverId,
+    this.assignedDriverName,
+    this.assignedDriverPhone,
+    this.assignedDepartureTime,
+    this.assignedArrivalTime,
     this.verificationStatus = 'pending',
   });
 
@@ -52,6 +68,14 @@ class StudentModel extends UserModel {
       rollNo: map['rollNo'] ?? map['serialNumber'] ?? '',
       assignedRouteId: map['assignedRouteId'],
       assignedRouteName: map['assignedRouteName'],
+      assignedBusId: map['assignedBusId'],
+      assignedBusName: map['assignedBusName'],
+      assignedBusCode: map['assignedBusCode'],
+      assignedDriverId: map['assignedDriverId'],
+      assignedDriverName: map['assignedDriverName'],
+      assignedDriverPhone: map['assignedDriverPhone'],
+      assignedDepartureTime: map['assignedDepartureTime'],
+      assignedArrivalTime: map['assignedArrivalTime'],
       verificationStatus: map['verificationStatus'] ?? 'pending',
     );
   }
@@ -71,6 +95,14 @@ class StudentModel extends UserModel {
       'rollNo': rollNo,
       'assignedRouteId': assignedRouteId,
       'assignedRouteName': assignedRouteName,
+      'assignedBusId': assignedBusId,
+      'assignedBusName': assignedBusName,
+      'assignedBusCode': assignedBusCode,
+      'assignedDriverId': assignedDriverId,
+      'assignedDriverName': assignedDriverName,
+      'assignedDriverPhone': assignedDriverPhone,
+      'assignedDepartureTime': assignedDepartureTime,
+      'assignedArrivalTime': assignedArrivalTime,
       'verificationStatus': verificationStatus,
     });
     return map;
