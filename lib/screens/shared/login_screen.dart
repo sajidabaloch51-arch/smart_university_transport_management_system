@@ -190,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Navigation
         if (targetRole == 'driver') {
-          context.read<DriverProvider>().init('driver_123');
+          context.read<DriverProvider>().init(uid);
           context.go('/driver-dashboard');
         } else if (targetRole == 'admin') {
           context.go('/admin-dashboard');

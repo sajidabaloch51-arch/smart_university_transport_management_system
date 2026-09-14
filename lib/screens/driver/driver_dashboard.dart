@@ -32,8 +32,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
       
       if (authProvider.uid != null) {
         driverProvider.init(authProvider.uid!);
-      } else if (driverProvider.driver == null) {
-        driverProvider.init('driver_123');
       }
     });
   }

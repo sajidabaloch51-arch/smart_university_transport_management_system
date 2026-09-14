@@ -149,6 +149,7 @@ class DriverProfileScreen extends StatelessWidget {
         children: [
           _infoTile(Icons.email_outlined, 'Email Address', driver.email),
           _infoTile(Icons.phone_outlined, 'Phone Number', driver.phone),
+          _infoTile(Icons.description_outlined, 'License Number', driver.licenseNumber),
           _infoTile(Icons.directions_bus_outlined, 'Assigned Bus', driver.assignedBusNumber),
           _infoTile(Icons.route_outlined, 'Assigned Route', driver.assignedRouteName),
         ],

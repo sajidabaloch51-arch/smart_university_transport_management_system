@@ -120,35 +120,30 @@ class DriverProvider extends ChangeNotifier {
 
   /// Initialize driver data
   Future<void> init(String driverId) async {
-    // If we already have this driver in local cache, use it
-    if (_localDrivers.containsKey(driverId)) {
-      _driver = _localDrivers[driverId];
-      _subscribeToRealtimeStreams();
-      notifyListeners();
-      return;
-    }
-
-    // If Firebase isn't ready, load mock data for this ID
-    if (Firebase.apps.isEmpty) {
-      _loadMockData(driverId);
-      return;
-    }
-
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _driver = await _firestoreService.getDriverData(driverId);
+      // Prioritize Firestore data for the actual logged-in user
+      final firestoreDriver = await _firestoreService.getDriverData(driverId);
       
-      if (_driver == null) {
-        _loadMockData(driverId);
-      } else {
+      if (firestoreDriver != null) {
+        _driver = firestoreDriver;
         _localDrivers[driverId] = _driver!;
         _subscribeToRealtimeStreams();
+      } else {
+        // Only fallback to mock if absolutely necessary (e.g., demo/no internet)
+        // but try to keep it as realistic as possible
+        if (_localDrivers.containsKey(driverId)) {
+          _driver = _localDrivers[driverId];
+          _subscribeToRealtimeStreams();
+        } else {
+          _loadMockData(driverId);
+        }
       }
     } catch (e) {
-      debugPrint("Firebase error: $e. Loading mock data for demo.");
+      debugPrint("Driver init error: $e");
       _loadMockData(driverId);
     } finally {
       _isLoading = false;
