@@ -33,7 +33,7 @@ class BusCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Capacity: ${bus.capacity} | Driver: ${bus.assignedDriverName}'),
+            Text('Driver: ${bus.assignedDriverName}'),
             const SizedBox(height: 4),
             Text('Route: ${bus.assignedRouteName}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],

@@ -24,20 +24,10 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _employeeIdController = TextEditingController();
-  final _officeLocationController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
-  
-  String? _selectedDesignation;
-  final List<String> _designations = [
-    'Super Admin',
-    'Transport Manager',
-    'Assistant Manager',
-    'System Administrator',
-    'IT Support Head',
-  ];
   
   bool _isLoading = false;
   Uint8List? _webImage;
@@ -66,7 +56,6 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
   void dispose() {
     _nameController.dispose();
     _employeeIdController.dispose();
-    _officeLocationController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passController.dispose();
@@ -76,13 +65,6 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
 
   void _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      if (_selectedDesignation == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please select your designation")),
-        );
-        return;
-      }
-
       setState(() => _isLoading = true);
       
       String profileImageBase64 = '';
@@ -99,8 +81,6 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
         university: 'University of Gwadar',
         profilePhoto: profileImageBase64,
         employeeId: _employeeIdController.text.trim(),
-        designation: _selectedDesignation!,
-        officeLocation: _officeLocationController.text.trim(),
       );
 
       try {
@@ -227,29 +207,6 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
                   validator: AppValidators.validateEmployeeId,
                 ),
 
-                DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    labelText: "Designation",
-                    prefixIcon: const Icon(Icons.work_outline),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  value: _selectedDesignation,
-                  items: _designations.map((des) => DropdownMenuItem(
-                    value: des,
-                    child: Text(des),
-                  )).toList(),
-                  onChanged: (v) => setState(() => _selectedDesignation = v),
-                  validator: (v) => v == null ? 'Select your designation' : null,
-                ),
-                const SizedBox(height: 16),
-
-                CustomTextField(
-                  controller: _officeLocationController,
-                  labelText: "Office Location", 
-                  prefixIcon: Icons.location_city_outlined,
-                  validator: (v) => AppValidators.validateRequired(v, "Office Location"),
-                ),
-                
                 CustomTextField(
                   controller: _phoneController,
                   labelText: "Official Phone Number", 

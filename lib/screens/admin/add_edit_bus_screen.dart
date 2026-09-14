@@ -16,9 +16,7 @@ class AddEditBusScreen extends StatefulWidget {
 class _AddEditBusScreenState extends State<AddEditBusScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _busNoController;
-  late TextEditingController _capacityController;
   late TextEditingController _regNoController;
-  late TextEditingController _modelController;
 
   String? _selectedDriver;
   String? _selectedRoute;
@@ -28,9 +26,7 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   void initState() {
     super.initState();
     _busNoController = TextEditingController(text: widget.bus?.busNumber ?? '');
-    _capacityController = TextEditingController(text: widget.bus?.capacity.toString() ?? '');
     _regNoController = TextEditingController(text: widget.bus?.registrationNumber ?? '');
-    _modelController = TextEditingController(text: widget.bus?.busModel ?? '');
     
     // Safety check for dropdown values
     const drivers = ['Nasir Ali', 'Ali Ahmed'];
@@ -48,9 +44,7 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   @override
   void dispose() {
     _busNoController.dispose();
-    _capacityController.dispose();
     _regNoController.dispose();
-    _modelController.dispose();
     super.dispose();
   }
 
@@ -61,8 +55,6 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
       final bus = BusModel(
         id: widget.bus?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         busNumber: _busNoController.text.trim(),
-        capacity: int.tryParse(_capacityController.text) ?? 0,
-        busModel: _modelController.text.trim(),
         registrationNumber: _regNoController.text.trim(),
         assignedDriverId: '',
         assignedDriverName: _selectedDriver ?? 'Not Assigned',
@@ -100,17 +92,6 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
               CustomTextField(
                 controller: _busNoController, 
                 labelText: 'Bus Number (e.g., UOG-001)',
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              CustomTextField(
-                controller: _capacityController, 
-                labelText: 'Seating Capacity', 
-                keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              CustomTextField(
-                controller: _modelController, 
-                labelText: 'Bus Model / Year',
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               CustomTextField(

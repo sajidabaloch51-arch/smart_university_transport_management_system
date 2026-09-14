@@ -43,11 +43,13 @@ class AdminProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(admin.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                Text(admin.designation, style: const TextStyle(color: Colors.grey)),
+                if (admin.designation != null && admin.designation!.isNotEmpty)
+                  Text(admin.designation!, style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 40),
                 _profileTile(Icons.email, 'Official Email', admin.email),
                 _profileTile(Icons.badge, 'Employee ID', admin.employeeId),
-                _profileTile(Icons.location_city, 'Office Location', admin.officeLocation),
+                if (admin.officeLocation != null && admin.officeLocation!.isNotEmpty)
+                  _profileTile(Icons.location_city, 'Office Location', admin.officeLocation!),
                 _profileTile(Icons.phone, 'Support Phone', admin.phone),
                 _profileTile(Icons.school, 'Institution', admin.university),
                 const SizedBox(height: 40),

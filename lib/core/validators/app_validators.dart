@@ -96,7 +96,7 @@ class AppValidators {
 
   static String? validateBalochistanLicense(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter a valid driving licence number.';
+      return null; // Now optional
     }
     
     final trimmedValue = value.trim().toUpperCase();

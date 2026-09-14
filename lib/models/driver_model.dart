@@ -3,7 +3,7 @@ import 'user_model.dart';
 
 class DriverModel extends UserModel {
   final String driverId; // Employee ID
-  final String licenseNumber;
+  final String? licenseNumber;
   final String profileImg;
   final String assignedBusId;
   final String assignedBusNumber;
@@ -19,7 +19,7 @@ class DriverModel extends UserModel {
     required super.phone,
     required super.role,
     required this.driverId,
-    required this.licenseNumber,
+    this.licenseNumber,
     required this.profileImg,
     required this.assignedBusId,
     required this.assignedBusNumber,

@@ -26,6 +26,7 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _cnicController = TextEditingController();
+  final _licenseController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
@@ -59,6 +60,7 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _cnicController.dispose();
+    _licenseController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -80,7 +82,8 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         role: 'driver',
-        driverId: _cnicController.text.trim(), // Using CNIC as placeholder ID
+        driverId: _cnicController.text.trim(),
+        licenseNumber: _licenseController.text.trim(),
         profileImg: profileImageBase64,
         assignedBusId: '',
         assignedBusNumber: 'Not Assigned',
@@ -231,6 +234,13 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                     prefixIcon: Icons.credit_card_outlined,
                     keyboardType: TextInputType.number,
                     validator: AppValidators.validateCNIC,
+                  ),
+                  
+                  CustomTextField(
+                    controller: _licenseController,
+                    labelText: "License Number (Optional)",
+                    prefixIcon: Icons.badge_outlined,
+                    validator: AppValidators.validateBalochistanLicense,
                   ),
                   
                   CustomTextField(

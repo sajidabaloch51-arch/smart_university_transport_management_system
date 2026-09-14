@@ -1,8 +1,8 @@
 class BusModel {
   final String id;
   final String busNumber;
-  final int capacity;
-  final String busModel;
+  final int? capacity;
+  final String? busModel;
   final String registrationNumber;
   final String assignedDriverId;
   final String assignedDriverName;
@@ -13,8 +13,8 @@ class BusModel {
   BusModel({
     required this.id,
     required this.busNumber,
-    required this.capacity,
-    required this.busModel,
+    this.capacity,
+    this.busModel,
     required this.registrationNumber,
     required this.assignedDriverId,
     required this.assignedDriverName,

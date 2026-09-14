@@ -4,8 +4,8 @@ class AdminModel extends UserModel {
   final String university;
   final String profilePhoto;
   final String employeeId;
-  final String designation;
-  final String officeLocation;
+  final String? designation;
+  final String? officeLocation;
 
   AdminModel({
     required super.uid,
@@ -16,8 +16,8 @@ class AdminModel extends UserModel {
     required this.university,
     required this.profilePhoto,
     required this.employeeId,
-    required this.designation,
-    required this.officeLocation,
+    this.designation,
+    this.officeLocation,
   });
 
   factory AdminModel.fromMap(Map<String, dynamic> map) {

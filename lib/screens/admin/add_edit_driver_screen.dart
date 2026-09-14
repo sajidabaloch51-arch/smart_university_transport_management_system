@@ -192,7 +192,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
             ),
             CustomTextField(
               controller: _licenseController, 
-              labelText: 'License Number',
+              labelText: 'License Number (Optional)',
               prefixIcon: Icons.description,
               validator: AppValidators.validateBalochistanLicense,
             ),

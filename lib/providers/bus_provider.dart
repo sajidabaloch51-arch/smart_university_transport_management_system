@@ -18,8 +18,6 @@ class BusProvider extends ChangeNotifier {
     BusModel(
       id: 'b1', 
       busNumber: 'UOG-001', 
-      busModel: 'Hino 2023', 
-      capacity: 60, 
       registrationNumber: 'GW-1234',
       assignedDriverId: '',
       assignedDriverName: 'Not Assigned',
@@ -30,8 +28,6 @@ class BusProvider extends ChangeNotifier {
     BusModel(
       id: 'b2', 
       busNumber: 'UOG-002', 
-      busModel: 'Isuzu 2022', 
-      capacity: 50, 
       registrationNumber: 'GW-5678',
       assignedDriverId: '',
       assignedDriverName: 'Not Assigned',

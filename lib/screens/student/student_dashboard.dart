@@ -238,7 +238,7 @@ class StudentDashboard extends StatelessWidget {
           (d) => d.assignedRouteId == student.assignedRouteId,
           orElse: () => DriverModel(
             uid: '', name: 'Not Assigned', email: '', phone: '', role: 'driver', 
-            driverId: '', profileImg: '', assignedBusId: '', assignedBusNumber: '', 
+            driverId: '', licenseNumber: '', profileImg: '', assignedBusId: '', assignedBusNumber: '', 
             assignedRouteId: '', assignedRouteName: '', isOnDuty: false
           ),
         );

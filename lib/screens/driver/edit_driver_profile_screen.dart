@@ -78,6 +78,7 @@ class _EditDriverProfileScreenState extends State<EditDriverProfileScreen> {
         phone: _phoneController.text.trim(),
         role: _currentDriver!.role,
         driverId: _currentDriver!.driverId,
+        licenseNumber: _currentDriver!.licenseNumber,
         profileImg: profileImageBase64,
         assignedBusId: _currentDriver!.assignedBusId,
         assignedBusNumber: _currentDriver!.assignedBusNumber,
