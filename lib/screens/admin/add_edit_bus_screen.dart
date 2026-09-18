@@ -55,11 +55,11 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
       final bus = BusModel(
         id: widget.bus?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         busNumber: _busNoController.text.trim(),
-        registrationNumber: _regNoController.text.trim(),
+        registrationNumber: widget.bus?.registrationNumber ?? '',
         assignedDriverId: '',
-        assignedDriverName: _selectedDriver ?? 'Not Assigned',
+        assignedDriverName: 'Not Assigned',
         assignedRouteId: '',
-        assignedRouteName: _selectedRoute ?? 'Not Assigned',
+        assignedRouteName: 'Not Assigned',
         isActive: widget.bus?.isActive ?? true,
       );
 
@@ -93,25 +93,6 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
                 controller: _busNoController, 
                 labelText: 'Bus Number (e.g., UOG-001)',
                 validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              CustomTextField(
-                controller: _regNoController, 
-                labelText: 'Legal Registration Number',
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _selectedDriver,
-                decoration: InputDecoration(labelText: 'Assign Driver', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                items: ['Nasir Ali', 'Ali Ahmed'].map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                onChanged: (v) => setState(() => _selectedDriver = v),
-              ),
-              const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                value: _selectedRoute,
-                decoration: InputDecoration(labelText: 'Assign Route', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                items: ['Route A', 'Route B'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                onChanged: (v) => setState(() => _selectedRoute = v),
               ),
               const SizedBox(height: 40),
               CustomButton(

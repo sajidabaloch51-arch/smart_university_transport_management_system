@@ -5,15 +5,24 @@ import '../../providers/schedule_provider.dart';
 import '../../widgets/schedule_card.dart';
 import '../../models/schedule_model.dart';
 
-class ManageScheduleScreen extends StatelessWidget {
+class ManageScheduleScreen extends StatefulWidget {
   const ManageScheduleScreen({super.key});
+
+  @override
+  State<ManageScheduleScreen> createState() => _ManageScheduleScreenState();
+}
+
+class _ManageScheduleScreenState extends State<ManageScheduleScreen> {
+  String _filter = 'All'; // 'All', 'Today', 'Weekly', 'Monthly'
 
   @override
   Widget build(BuildContext context) {
     final scheduleProvider = Provider.of<ScheduleProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Schedules')),
+      appBar: AppBar(
+        title: const Text('Manage Schedules'),
+      ),
       body: StreamBuilder<List<ScheduleModel>>(
         stream: scheduleProvider.streamSchedules(),
         builder: (context, snapshot) {
@@ -24,9 +33,10 @@ class ManageScheduleScreen extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final schedules = snapshot.data ?? [];
+          var schedules = snapshot.data ?? [];
+
           if (schedules.isEmpty) {
-            return const Center(child: Text('No schedules found.'));
+            return const Center(child: Text('No schedules found for this period.'));
           }
 
           return ListView.builder(

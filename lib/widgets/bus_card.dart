@@ -29,15 +29,7 @@ class BusCard extends StatelessWidget {
           ),
           child: const Icon(Icons.directions_bus, color: Colors.purple),
         ),
-        title: Text(bus.busNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Driver: ${bus.assignedDriverName}'),
-            const SizedBox(height: 4),
-            Text('Route: ${bus.assignedRouteName}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
-        ),
+        title: Text(bus.busNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

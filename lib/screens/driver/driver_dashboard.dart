@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/schedule_provider.dart';
+import '../../models/schedule_model.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/schedule_card.dart';
 import '../../widgets/notice_card.dart';
@@ -193,11 +195,29 @@ class DashboardSummary extends StatelessWidget {
               DriverCard(driver: provider.driver!),
               const SizedBox(height: 30),
               
-              _sectionTitle("Today's Schedule"),
+              _sectionTitle("Today's Active Duties"),
               if (provider.todaySchedules.isEmpty)
                 _emptyBox('No schedules assigned for today.')
               else
                 ...provider.todaySchedules.map((s) => ScheduleCard(schedule: s)),
+              
+              const SizedBox(height: 30),
+              
+              _sectionTitle("Upcoming Schedules"),
+              StreamBuilder<List<ScheduleModel>>(
+                stream: Provider.of<ScheduleProvider>(context).streamSchedules(),
+                builder: (context, snapshot) {
+                  final schedules = snapshot.data ?? [];
+                  final tomorrow = DateTime.now().add(const Duration(days: 1));
+                  final upcoming = schedules.where((s) => 
+                    s.driverId == provider.driver?.uid && 
+                    s.date.isAfter(DateTime.now())
+                  ).toList();
+                  
+                  if (upcoming.isEmpty) return _emptyBox('No upcoming duties scheduled.');
+                  return Column(children: upcoming.map((s) => ScheduleCard(schedule: s)).toList());
+                },
+              ),
               
               const SizedBox(height: 30),
               

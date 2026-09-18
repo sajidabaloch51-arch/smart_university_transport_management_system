@@ -42,7 +42,7 @@ class ManageRoutesScreen extends StatelessWidget {
                     child: Text(route.routeNumber, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
                   ),
                   title: Text(route.routeName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${route.startPoint} ↔ ${route.endPoint}\n${route.stops.length} Stops | ${route.totalDistance}'),
+                  subtitle: Text('${route.startLocation} ↔ ${route.endLocation}\n${route.viaStops.length} via stops | ${route.distanceKm}'),
                   isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,

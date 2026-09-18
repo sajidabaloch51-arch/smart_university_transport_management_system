@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../models/route_model.dart';
 
 class DriverRouteScreen extends StatelessWidget {
   const DriverRouteScreen({super.key});
@@ -19,14 +20,18 @@ class DriverRouteScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildRouteSummary(route),
+              const SizedBox(height: 24),
+              const Text('Live Route View', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              _buildMockMapView(),
               const SizedBox(height: 30),
-              const Text('Stop Timeline', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Route Stop Timeline', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
-              _buildTimeline(route.stops),
+              _buildTimeline(route.viaStops),
               const SizedBox(height: 40),
               CustomButton(
-                text: 'Open Google Maps', 
-                icon: Icons.map_outlined,
+                text: 'Navigate with Google Maps', 
+                icon: Icons.navigation,
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -49,6 +54,35 @@ class DriverRouteScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMockMapView() {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20),
+        image: const DecorationImage(
+          image: NetworkImage('https://maps.googleapis.com/maps/api/staticmap?center=25.12,62.32&zoom=13&size=600x300&maptype=roadmap'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(30)),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.map, color: Colors.white, size: 16),
+              SizedBox(width: 8),
+              Text('Interactive Map Mockup', style: TextStyle(color: Colors.white, fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -78,7 +112,7 @@ class DriverRouteScreen extends StatelessWidget {
               ...provider.todaySchedules.map((s) => ListTile(
                 leading: const Icon(Icons.schedule, color: Colors.orange),
                 title: Text("${s.departureTime} - ${s.arrivalTime}"),
-                subtitle: Text("Bus: ${s.busNumber} | ${s.days.join(', ')}"),
+                subtitle: Text("Vehicle: ${s.vehicleNo} | ${s.shift}"),
                 contentPadding: EdgeInsets.zero,
               )),
             const SizedBox(height: 20),
@@ -98,7 +132,7 @@ class DriverRouteScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRouteSummary(dynamic route) {
+  Widget _buildRouteSummary(RouteModel route) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -114,7 +148,7 @@ class DriverRouteScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(route.routeName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)),
-                  Text('Route ID: ${route.routeNumber}', style: const TextStyle(color: Colors.blueGrey)),
+                  Text('Route No: ${route.routeNumber}', style: const TextStyle(color: Colors.blueGrey)),
                 ],
               ),
               Container(
@@ -128,8 +162,16 @@ class DriverRouteScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _summaryStat(Icons.straighten, route.totalDistance, 'Distance'),
-              _summaryStat(Icons.timer_outlined, route.estimatedDuration, 'Duration'),
+              _summaryStat(Icons.location_on, route.startLocation, 'Start'),
+              _summaryStat(Icons.flag, route.endLocation, 'End'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _summaryStat(Icons.straighten, route.distanceKm, 'Distance'),
+              _summaryStat(Icons.timer_outlined, route.estimatedTime, 'Duration'),
             ],
           ),
         ],
@@ -142,13 +184,13 @@ class DriverRouteScreen extends StatelessWidget {
       children: [
         Icon(icon, color: Colors.blue.shade800),
         const SizedBox(height: 4),
-        Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }
 
-  Widget _buildTimeline(List stops) {
+  Widget _buildTimeline(List<String> stops) {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -177,7 +219,7 @@ class DriverRouteScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(stop.stopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text(stop, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   Text('Scheduled Stop ${index + 1}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
                   const SizedBox(height: 25),
                 ],

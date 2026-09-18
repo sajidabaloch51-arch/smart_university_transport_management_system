@@ -15,7 +15,19 @@ class ScheduleProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   final List<ScheduleModel> _mockSchedules = [
-    ScheduleModel(id: 's1', busNumber: 'UOG-001', routeName: 'Route A', departureTime: '08:00 AM', arrivalTime: '08:45 AM', days: ['Mon', 'Tue', 'Wed']),
+    ScheduleModel(
+      id: 's1',
+      driverId: 'drv1',
+      driverName: 'Nasir Ali',
+      routeId: 'r1',
+      routeName: 'Route A',
+      date: DateTime.now(),
+      departureTime: '08:00 AM',
+      arrivalTime: '08:45 AM',
+      shift: 'Morning',
+      vehicleNo: 'UOG-001',
+      status: 'Scheduled',
+    ),
   ];
 
   Stream<List<ScheduleModel>> streamSchedules() {

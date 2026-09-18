@@ -20,11 +20,12 @@ class RouteProvider extends ChangeNotifier {
       universityId: 'uog', 
       routeName: 'Gwadar East Bay', 
       routeNumber: 'A', 
-      startPoint: 'City Center', 
-      endPoint: 'UOG Main Campus', 
+      startLocation: 'City Center', 
+      endLocation: 'UOG Main Campus', 
+      viaStops: ['East Bay', 'Harbor Road'],
       stops: [], 
-      totalDistance: '12km', 
-      estimatedDuration: '30m'
+      distanceKm: '12km', 
+      estimatedTime: '30m'
     ),
   ];
 

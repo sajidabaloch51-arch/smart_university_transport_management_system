@@ -55,8 +55,8 @@ class ScheduleScreen extends StatelessWidget {
                     schedule.departureTime, 
                     schedule.arrivalTime, 
                     isMyRoute,
-                    schedule.busNumber,
-                    schedule.days
+                    schedule.vehicleNo,
+                    [schedule.shift]
                   ),
                   const SizedBox(height: 16),
                 ],

@@ -15,6 +15,7 @@ class ManageDriversScreen extends StatefulWidget {
 class _ManageDriversScreenState extends State<ManageDriversScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _statusFilter = 'All';
 
   @override
   Widget build(BuildContext context) {
@@ -24,20 +25,43 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
       appBar: AppBar(
         title: const Text('Manage Drivers'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Search driver by name or ID...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+          preferredSize: const Size.fromHeight(110),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, ID, or CNIC...',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                  ),
+                ),
               ),
-            ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: ['All', 'Active', 'Inactive', 'On Leave'].map((status) {
+                    final isSelected = _statusFilter == status;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: FilterChip(
+                        label: Text(status),
+                        selected: isSelected,
+                        onSelected: (val) => setState(() => _statusFilter = status),
+                        selectedColor: Colors.green.shade100,
+                        checkmarkColor: Colors.green,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -51,10 +75,13 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final drivers = snapshot.data?.where((d) => 
-            d.name.toLowerCase().contains(_searchQuery) || 
-            d.driverId.toLowerCase().contains(_searchQuery)
-          ).toList() ?? [];
+          final drivers = snapshot.data?.where((d) {
+            final matchesSearch = d.name.toLowerCase().contains(_searchQuery) || 
+                                 d.driverId.toLowerCase().contains(_searchQuery) ||
+                                 (d.cnicOrLicense?.toLowerCase().contains(_searchQuery) ?? false);
+            final matchesStatus = _statusFilter == 'All' || d.status == _statusFilter;
+            return matchesSearch && matchesStatus;
+          }).toList() ?? [];
 
           if (drivers.isEmpty) {
             return const Center(child: Text('No drivers found.'));
@@ -64,10 +91,11 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: drivers.length,
             itemBuilder: (context, index) {
+              final driver = drivers[index];
               return DriverCard(
-                driver: drivers[index],
-                onEdit: () => context.push('/add-edit-driver', extra: drivers[index]),
-                onDelete: () => _confirmDelete(context, drivers[index].uid, drivers[index].name),
+                driver: driver,
+                onEdit: () => context.push('/add-edit-driver', extra: driver),
+                onDelete: () => _confirmDelete(context, driver.uid, driver.name),
               );
             },
           );

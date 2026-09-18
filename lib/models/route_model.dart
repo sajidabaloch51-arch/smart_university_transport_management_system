@@ -3,11 +3,12 @@ class RouteModel {
   final String universityId;
   final String routeName;
   final String routeNumber;
-  final String startPoint;
-  final String endPoint;
-  final List<RouteStop> stops;
-  final String totalDistance;
-  final String estimatedDuration;
+  final String startLocation;
+  final String endLocation;
+  final List<String> viaStops;
+  final List<RouteStop> stops; // Keep for coordinates
+  final String distanceKm;
+  final String estimatedTime;
   final bool isActive;
 
   RouteModel({
@@ -15,11 +16,12 @@ class RouteModel {
     required this.universityId,
     required this.routeName,
     required this.routeNumber,
-    required this.startPoint,
-    required this.endPoint,
+    required this.startLocation,
+    required this.endLocation,
+    required this.viaStops,
     required this.stops,
-    required this.totalDistance,
-    required this.estimatedDuration,
+    required this.distanceKm,
+    required this.estimatedTime,
     this.isActive = true,
   });
 
@@ -29,13 +31,14 @@ class RouteModel {
       universityId: map['universityId'] ?? '',
       routeName: map['routeName'] ?? '',
       routeNumber: map['routeNumber'] ?? '',
-      startPoint: map['startPoint'] ?? '',
-      endPoint: map['endPoint'] ?? '',
+      startLocation: map['startLocation'] ?? map['startPoint'] ?? '',
+      endLocation: map['endLocation'] ?? map['endPoint'] ?? '',
+      viaStops: List<String>.from(map['viaStops'] ?? []),
       stops: (map['stops'] as List? ?? [])
           .map((s) => RouteStop.fromMap(s as Map<String, dynamic>))
           .toList(),
-      totalDistance: map['totalDistance'] ?? '',
-      estimatedDuration: map['estimatedDuration'] ?? '',
+      distanceKm: map['distanceKm'] ?? map['totalDistance'] ?? '',
+      estimatedTime: map['estimatedTime'] ?? map['estimatedDuration'] ?? '',
       isActive: map['isActive'] ?? true,
     );
   }
@@ -45,13 +48,42 @@ class RouteModel {
       'universityId': universityId,
       'routeName': routeName,
       'routeNumber': routeNumber,
-      'startPoint': startPoint,
-      'endPoint': endPoint,
+      'startLocation': startLocation,
+      'endLocation': endLocation,
+      'viaStops': viaStops,
       'stops': stops.map((s) => s.toMap()).toList(),
-      'totalDistance': totalDistance,
-      'estimatedDuration': estimatedDuration,
+      'distanceKm': distanceKm,
+      'estimatedTime': estimatedTime,
       'isActive': isActive,
     };
+  }
+
+  RouteModel copyWith({
+    String? id,
+    String? universityId,
+    String? routeName,
+    String? routeNumber,
+    String? startLocation,
+    String? endLocation,
+    List<String>? viaStops,
+    List<RouteStop>? stops,
+    String? distanceKm,
+    String? estimatedTime,
+    bool? isActive,
+  }) {
+    return RouteModel(
+      id: id ?? this.id,
+      universityId: universityId ?? this.universityId,
+      routeName: routeName ?? this.routeName,
+      routeNumber: routeNumber ?? this.routeNumber,
+      startLocation: startLocation ?? this.startLocation,
+      endLocation: endLocation ?? this.endLocation,
+      viaStops: viaStops ?? this.viaStops,
+      stops: stops ?? this.stops,
+      distanceKm: distanceKm ?? this.distanceKm,
+      estimatedTime: estimatedTime ?? this.estimatedTime,
+      isActive: isActive ?? this.isActive,
+    );
   }
 }
 

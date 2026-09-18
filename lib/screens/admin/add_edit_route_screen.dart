@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/route_model.dart';
+import '../../models/driver_model.dart';
 import 'package:provider/provider.dart';
 import '../../providers/route_provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 
@@ -24,19 +26,20 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
   List<TextEditingController> _stopControllers = [];
   bool _isLoading = false;
+  String? _selectedDriverId;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.route?.routeName ?? '');
     _numberController = TextEditingController(text: widget.route?.routeNumber ?? '');
-    _startController = TextEditingController(text: widget.route?.startPoint ?? '');
-    _endController = TextEditingController(text: widget.route?.endPoint ?? '');
-    _distController = TextEditingController(text: widget.route?.totalDistance ?? '');
-    _durController = TextEditingController(text: widget.route?.estimatedDuration ?? '');
+    _startController = TextEditingController(text: widget.route?.startLocation ?? '');
+    _endController = TextEditingController(text: widget.route?.endLocation ?? '');
+    _distController = TextEditingController(text: widget.route?.distanceKm ?? '');
+    _durController = TextEditingController(text: widget.route?.estimatedTime ?? '');
     
     if (widget.route != null) {
-      _stopControllers = widget.route!.stops.map((s) => TextEditingController(text: s.stopName)).toList();
+      _stopControllers = widget.route!.viaStops.map((s) => TextEditingController(text: s)).toList();
     }
   }
 
@@ -62,25 +65,54 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
+      final routeId = widget.route?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
       final route = RouteModel(
-        id: widget.route?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: routeId,
         universityId: 'uog',
         routeName: _nameController.text.trim(),
         routeNumber: _numberController.text.trim(),
-        startPoint: _startController.text.trim(),
-        endPoint: _endController.text.trim(),
-        totalDistance: _distController.text.trim(),
-        estimatedDuration: _durController.text.trim(),
-        stops: _stopControllers.asMap().entries.map((e) => RouteStop(
-          stopName: e.value.text.trim(),
-          lat: 0,
-          lng: 0,
-          order: e.key,
-        )).toList(),
+        startLocation: _startController.text.trim(),
+        endLocation: _endController.text.trim(),
+        distanceKm: _distController.text.trim(),
+        estimatedTime: _durController.text.trim(),
+        viaStops: _stopControllers.map((e) => e.text.trim()).toList(),
+        stops: [], // Coordinates can be added via map later
       );
 
       try {
         await Provider.of<RouteProvider>(context, listen: false).addRoute(route);
+        
+        // If a driver was selected, assign the route to that driver directly
+        if (_selectedDriverId != null) {
+          final driverProvider = Provider.of<DriverProvider>(context, listen: false);
+          // Retrieve the driver list to get the driver details matching _selectedDriverId
+          final drivers = await driverProvider.streamDrivers().first;
+          final currentDriver = drivers.firstWhere((d) => d.uid == _selectedDriverId);
+          
+          final updatedDriver = DriverModel(
+            uid: currentDriver.uid,
+            name: currentDriver.name,
+            email: currentDriver.email,
+            phone: currentDriver.phone,
+            role: currentDriver.role,
+            driverId: currentDriver.driverId,
+            licenseNumber: currentDriver.licenseNumber,
+            cnicOrLicense: currentDriver.cnicOrLicense,
+            licenseExpiryDate: currentDriver.licenseExpiryDate,
+            address: currentDriver.address,
+            experienceYears: currentDriver.experienceYears,
+            status: currentDriver.status,
+            profileImg: currentDriver.profileImg,
+            assignedBusId: currentDriver.assignedBusId,
+            assignedBusNumber: currentDriver.assignedBusNumber,
+            assignedRouteId: route.id,
+            assignedRouteName: route.routeName,
+            isOnDuty: currentDriver.isOnDuty,
+            lastDutyStart: currentDriver.lastDutyStart,
+          );
+          await driverProvider.updateDriver(updatedDriver);
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Route ${widget.route == null ? 'added' : 'updated'} successfully'), backgroundColor: Colors.green),
@@ -97,6 +129,8 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final driverProvider = Provider.of<DriverProvider>(context);
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.route == null ? 'Add Route' : 'Edit Route')),
       body: SingleChildScrollView(
@@ -121,7 +155,7 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                   Expanded(
                     child: CustomTextField(
                       controller: _startController, 
-                      labelText: 'Start Point',
+                      labelText: 'Start Location',
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     )
                   ),
@@ -129,7 +163,7 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                   Expanded(
                     child: CustomTextField(
                       controller: _endController, 
-                      labelText: 'End Point',
+                      labelText: 'End Location',
                       validator: (v) => v!.isEmpty ? 'Required' : null,
                     )
                   ),
@@ -154,8 +188,24 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              StreamBuilder<List<DriverModel>>(
+                stream: driverProvider.streamDrivers(),
+                builder: (context, snapshot) {
+                  final drivers = snapshot.data ?? [];
+                  return DropdownButtonFormField<String>(
+                    value: _selectedDriverId,
+                    decoration: InputDecoration(
+                      labelText: 'Assign Driver (Optional)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: drivers.map((d) => DropdownMenuItem(value: d.uid, child: Text(d.name))).toList(),
+                    onChanged: (v) => setState(() => _selectedDriverId = v),
+                  );
+                },
+              ),
               const Divider(height: 40),
-              const Text('Stops List', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Via Stops', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ...List.generate(_stopControllers.length, (index) {
                 return Padding(

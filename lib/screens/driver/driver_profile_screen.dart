@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/driver_model.dart';
 
 class DriverProfileScreen extends StatelessWidget {
   const DriverProfileScreen({super.key});
@@ -142,14 +143,19 @@ class DriverProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoSection(dynamic driver) {
+  Widget _buildInfoSection(DriverModel driver) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
           _infoTile(Icons.email_outlined, 'Email Address', driver.email),
           _infoTile(Icons.phone_outlined, 'Phone Number', driver.phone),
-          _infoTile(Icons.description_outlined, 'License Number', driver.licenseNumber),
+          _infoTile(Icons.perm_identity, 'CNIC / License', driver.cnicOrLicense ?? 'Not Provided'),
+          _infoTile(Icons.calendar_month, 'License Expiry', driver.licenseExpiryDate != null ? "${driver.licenseExpiryDate!.day}/${driver.licenseExpiryDate!.month}/${driver.licenseExpiryDate!.year}" : 'Not Provided'),
+          _infoTile(Icons.home_outlined, 'Address', driver.address ?? 'Not Provided'),
+          _infoTile(Icons.history, 'Experience', '${driver.experienceYears ?? 0} Years'),
+          _infoTile(Icons.info_outline, 'Account Status', driver.status),
+          const Divider(height: 40),
           _infoTile(Icons.directions_bus_outlined, 'Assigned Bus', driver.assignedBusNumber),
           _infoTile(Icons.route_outlined, 'Assigned Route', driver.assignedRouteName),
         ],
@@ -170,12 +176,14 @@ class DriverProfileScreen extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.blue, size: 22),
           const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              ],
+            ),
           ),
         ],
       ),
@@ -188,12 +196,12 @@ class DriverProfileScreen extends StatelessWidget {
       child: Column(
         children: [
           ElevatedButton(
-            onPressed: () => context.push('/edit-driver-profile'),
+            onPressed: () => _showRequestUpdateDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 55),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
             ),
-            child: const Text('Edit Profile Information'),
+            child: const Text('Request Information Update'),
           ),
           const SizedBox(height: 15),
           TextButton(
@@ -206,6 +214,39 @@ class DriverProfileScreen extends StatelessWidget {
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('LOGOUT ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRequestUpdateDialog(BuildContext context) {
+    final phoneController = TextEditingController();
+    final addressController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Update'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Submit a request to update your personal details. Admin will review and update.'),
+            const SizedBox(height: 16),
+            TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'New Phone Number')),
+            TextField(controller: addressController, decoration: const InputDecoration(labelText: 'New Address')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Update request sent to administrator'), backgroundColor: Colors.blue),
+              );
+            }, 
+            child: const Text('Submit Request')
           ),
         ],
       ),

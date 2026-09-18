@@ -47,7 +47,7 @@ class DutyScreen extends StatelessWidget {
                     ),
                     _StatTile(
                       icon: Icons.bus_alert, 
-                      value: provider.assignedRoute?.stops.first.stopName ?? 'N/A', 
+                      value: provider.assignedRoute?.viaStops.isNotEmpty == true ? provider.assignedRoute!.viaStops.first : 'N/A', 
                       label: 'Next Stop'
                     ),
                   ],

@@ -99,23 +99,7 @@ class DriverProvider extends ChangeNotifier {
   Future<void> updateProfileImage(String base64Img) async {
     if (_driver == null) return;
     
-    final updatedDriver = DriverModel(
-      uid: _driver!.uid,
-      name: _driver!.name,
-      email: _driver!.email,
-      phone: _driver!.phone,
-      role: _driver!.role,
-      driverId: _driver!.driverId,
-      licenseNumber: _driver!.licenseNumber,
-      profileImg: base64Img,
-      assignedBusId: _driver!.assignedBusId,
-      assignedBusNumber: _driver!.assignedBusNumber,
-      assignedRouteId: _driver!.assignedRouteId,
-      assignedRouteName: _driver!.assignedRouteName,
-      isOnDuty: _driver!.isOnDuty,
-      lastDutyStart: _driver!.lastDutyStart,
-    );
-    
+    final updatedDriver = _driver!.copyWith(profileImg: base64Img);
     await updateDriver(updatedDriver);
   }
 
@@ -161,6 +145,11 @@ class DriverProvider extends ChangeNotifier {
       role: 'driver',
       driverId: 'ID-2024-005',
       licenseNumber: 'LNC-998877',
+      cnicOrLicense: '34101-1234567-1',
+      licenseExpiryDate: DateTime.now().add(const Duration(days: 365)),
+      address: 'Main Street, Gwadar',
+      experienceYears: 10,
+      status: 'Active',
       profileImg: '',
       assignedBusId: 'bus_01',
       assignedBusNumber: 'UOG-101',
@@ -174,25 +163,31 @@ class DriverProvider extends ChangeNotifier {
       universityId: 'uog',
       routeName: 'Gwadar City Center',
       routeNumber: 'A',
-      startPoint: 'City Center',
-      endPoint: 'University Main Gate',
+      startLocation: 'City Center',
+      endLocation: 'University Main Gate',
+      viaStops: ['Bus Stand', 'Fish Harbor'],
       stops: [
         RouteStop(stopName: 'Bus Stand', lat: 25.12, lng: 62.32, order: 1),
         RouteStop(stopName: 'Fish Harbor', lat: 25.13, lng: 62.33, order: 2),
         RouteStop(stopName: 'University Gate', lat: 25.14, lng: 62.34, order: 3),
       ],
-      totalDistance: '15 km',
-      estimatedDuration: '35 min',
+      distanceKm: '15 km',
+      estimatedTime: '35 min',
     );
 
     _todaySchedules = [
       ScheduleModel(
         id: 'sch_01',
-        busNumber: 'UOG-101',
+        driverId: driverId,
+        driverName: 'Nasir Ali',
+        routeId: 'route_01',
         routeName: 'Route A',
+        date: DateTime.now(),
         departureTime: '07:30 AM',
         arrivalTime: '08:15 AM',
-        days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        shift: 'Morning',
+        vehicleNo: 'UOG-101',
+        status: 'Scheduled',
       )
     ];
 
@@ -250,19 +245,7 @@ class DriverProvider extends ChangeNotifier {
         bool hasPermission = await _locationService.checkPermissions();
         if (!hasPermission) throw Exception('Location permissions required');
         
-        _driver = DriverModel(
-          uid: _driver!.uid,
-          name: _driver!.name,
-          email: _driver!.email,
-          phone: _driver!.phone,
-          role: _driver!.role,
-          driverId: _driver!.driverId,
-          licenseNumber: _driver!.licenseNumber,
-          profileImg: _driver!.profileImg,
-          assignedBusId: _driver!.assignedBusId,
-          assignedBusNumber: _driver!.assignedBusNumber,
-          assignedRouteId: _driver!.assignedRouteId,
-          assignedRouteName: _driver!.assignedRouteName,
+        _driver = _driver!.copyWith(
           isOnDuty: true,
           lastDutyStart: DateTime.now(),
         );
@@ -271,20 +254,9 @@ class DriverProvider extends ChangeNotifier {
         _startTimer();
         await _firestoreService.updateDriverStatus(_driver!.uid, true);
       } else {
-        _driver = DriverModel(
-          uid: _driver!.uid,
-          name: _driver!.name,
-          email: _driver!.email,
-          phone: _driver!.phone,
-          role: _driver!.role,
-          driverId: _driver!.driverId,
-          licenseNumber: _driver!.licenseNumber,
-          profileImg: _driver!.profileImg,
-          assignedBusId: _driver!.assignedBusId,
-          assignedBusNumber: _driver!.assignedBusNumber,
-          assignedRouteId: _driver!.assignedRouteId,
-          assignedRouteName: _driver!.assignedRouteName,
+        _driver = _driver!.copyWith(
           isOnDuty: false,
+          lastDutyStart: null,
         );
         _stopLocationTracking();
         _stopTimer();

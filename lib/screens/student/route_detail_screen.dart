@@ -72,9 +72,9 @@ class RouteDetailScreen extends StatelessWidget {
           children: [
             _buildInfoRow(Icons.route, 'Route Name', route.routeName),
             const Divider(height: 30),
-            _buildInfoRow(Icons.straighten, 'Total Distance', route.totalDistance),
+            _buildInfoRow(Icons.straighten, 'Total Distance', route.distanceKm),
             const Divider(height: 30),
-            _buildInfoRow(Icons.timer_outlined, 'Estimated Duration', route.estimatedDuration),
+            _buildInfoRow(Icons.timer_outlined, 'Estimated Duration', route.estimatedTime),
           ],
         ),
       ),
