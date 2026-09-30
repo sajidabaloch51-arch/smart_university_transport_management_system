@@ -20,7 +20,7 @@ class DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shadowColor: color.withOpacity(0.1),
+      shadowColor: color.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
@@ -30,7 +30,7 @@ class DashboardCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.9), color],
+              colors: [color.withValues(alpha: 0.9), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

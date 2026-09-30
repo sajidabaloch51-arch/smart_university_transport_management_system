@@ -42,7 +42,7 @@ class StudentDetailsScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 60,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     child: profileImage,
                   ),
                   CircleAvatar(

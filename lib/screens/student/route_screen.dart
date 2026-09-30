@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/bus_route_card.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/route_provider.dart';
 import '../../models/student_model.dart';
+import '../../models/route_model.dart';
 import '../../core/constants/app_colors.dart';
 
 class RouteScreen extends StatefulWidget {
@@ -18,45 +20,20 @@ class RouteScreen extends StatefulWidget {
 class _RouteScreenState extends State<RouteScreen> {
   bool _isProcessing = false;
 
-  // Mock Route List
-  final List<Map<String, dynamic>> _allRoutes = [
-    {
-      "busName": "Bus B",
-      "busCode": "UOG-002",
-      "status": BusStatus.delayed,
-      "driverName": "Zahid Khan",
-      "driverPhone": "03339876543",
-      "licenseNumber": "GAW-554433",
-      "startLocation": "Pishukan",
-      "destination": "University Campus",
-      "departureTime": "07:15 AM",
-      "arrivalTime": "08:30 AM",
-    },
-    {
-      "busName": "Bus C",
-      "busCode": "UOG-003",
+  Map<String, dynamic> _routeToMap(RouteModel route) {
+    return {
+      "busName": route.routeName,
+      "busCode": route.routeNumber,
       "status": BusStatus.scheduled,
-      "driverName": "Irfan Ali",
-      "driverPhone": "03125554433",
-      "licenseNumber": "SIB-112233",
-      "startLocation": "East Bay",
-      "destination": "University Campus",
-      "departureTime": "08:00 AM",
-      "arrivalTime": "08:45 AM",
-    },
-    {
-      "busName": "Bus D",
-      "busCode": "UOG-004",
-      "status": BusStatus.scheduled,
-      "driverName": "Sajid Baloch",
-      "driverPhone": "03441112233",
-      "licenseNumber": "QTA-998877",
-      "startLocation": "Pasni Road",
-      "destination": "University Campus",
-      "departureTime": "06:45 AM",
-      "arrivalTime": "08:00 AM",
-    }
-  ];
+      "driverName": "Not Assigned",
+      "driverPhone": "",
+      "startLocation": route.startLocation,
+      "destination": route.endLocation,
+      "departureTime": route.estimatedTime,
+      "arrivalTime": route.estimatedTime,
+      "routeId": route.id,
+    };
+  }
 
   Future<void> _showSelectionDialog(
     BuildContext context,
@@ -96,6 +73,7 @@ class _RouteScreenState extends State<RouteScreen> {
                 routeData['departureTime'],
                 routeData['arrivalTime'],
                 currentStudent,
+                routeId: routeData['routeId'] as String?,
               );
             },
             child: const Text("Select Route"),
@@ -142,7 +120,6 @@ class _RouteScreenState extends State<RouteScreen> {
               _detailRow(Icons.person_outline, "Driver Name", routeData['driverName']),
               _detailRow(Icons.badge_outlined, "Driver ID", "DRV-${routeData['busCode'].split('-').last}"),
               _detailRow(Icons.directions_bus_outlined, "Bus Number", routeData['busCode']),
-            _detailRow(Icons.description_outlined, "License Number", routeData['licenseNumber'] ?? "Verified"),
             _detailRow(Icons.route_outlined, "Route", "${routeData['startLocation']} → ${routeData['destination']}"),
               _detailRow(Icons.phone_outlined, "Contact", phone),
               _detailRow(Icons.verified_user_outlined, "Status", "Active", valueColor: Colors.green),
@@ -203,7 +180,7 @@ class _RouteScreenState extends State<RouteScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: AppColors.primary, size: 20),
@@ -295,8 +272,9 @@ class _RouteScreenState extends State<RouteScreen> {
     String startLoc,
     String depTime,
     String arrTime,
-    StudentModel? currentStudent,
-  ) async {
+    StudentModel? currentStudent, {
+    String? routeId,
+  }) async {
     setState(() => _isProcessing = true);
     try {
       final updatedStudent = StudentModel(
@@ -305,7 +283,7 @@ class _RouteScreenState extends State<RouteScreen> {
         email: currentStudent?.email ?? "",
         phone: currentStudent?.phone ?? "",
         role: currentStudent?.role ?? 'student',
-        regNumber: currentStudent?.regNumber ?? "UOG-STU",
+        regNumber: currentStudent?.regNumber ?? "",
         fatherName: currentStudent?.fatherName ?? "",
         gender: currentStudent?.gender ?? "",
         dob: currentStudent?.dob ?? "",
@@ -313,18 +291,18 @@ class _RouteScreenState extends State<RouteScreen> {
         semester: currentStudent?.semester ?? "1",
         profileImage: currentStudent?.profileImage ?? "",
         routeAddress: currentStudent?.routeAddress ?? startLoc,
-        rollNo: currentStudent?.rollNo ?? "0000",
-        assignedRouteId: busCode,
+        rollNo: currentStudent?.rollNo ?? "",
+        assignedRouteId: routeId ?? busCode,
         assignedRouteName: busName,
         assignedBusId: busCode,
         assignedBusName: busName,
         assignedBusCode: busCode,
-        assignedDriverId: 'driver_$busCode',
+        assignedDriverId: null,
         assignedDriverName: driverName,
         assignedDriverPhone: driverPhone,
         assignedDepartureTime: depTime,
         assignedArrivalTime: arrTime,
-        verificationStatus: currentStudent?.verificationStatus ?? 'approved',
+        verificationStatus: currentStudent?.verificationStatus ?? 'pending',
       );
 
       await provider.updateStudent(updatedStudent);
@@ -392,27 +370,25 @@ class _RouteScreenState extends State<RouteScreen> {
                       ),
                     ),
                     BusRouteCard(
-                      busName: student.assignedBusName ?? "Bus A",
-                      busCode: student.assignedBusCode ?? "UOG-001",
-                      status: BusStatus.inTransit,
+                      busName: student.assignedBusName ?? student.assignedRouteName ?? "Assigned Route",
+                      busCode: student.assignedBusCode ?? student.assignedRouteId ?? "—",
+                      status: BusStatus.scheduled,
                       isPrimary: true,
-                      driverName: student.assignedDriverName ?? "Ahmed K.",
-                      driverPhone: student.assignedDriverPhone ?? "03001234567",
-                      startLocation: student.routeAddress.isNotEmpty ? student.routeAddress : "Gwadar City",
+                      driverName: student.assignedDriverName ?? "Not Assigned",
+                      driverPhone: student.assignedDriverPhone ?? "",
+                      startLocation: student.routeAddress.isNotEmpty ? student.routeAddress : "—",
                       destination: "University Campus",
-                      departureTime: student.assignedDepartureTime ?? "07:30 AM",
-                      arrivalTime: student.assignedArrivalTime ?? "08:15 AM",
-                      currentLocation: "Marine Drive",
+                      departureTime: student.assignedDepartureTime ?? "—",
+                      arrivalTime: student.assignedArrivalTime ?? "—",
                       onCall: () {},
                       onChat: () {},
                       onCancel: () => _cancelRoute(context, studentProvider, authProvider.uid!, student),
                       onShowDriverDetails: () => _showDriverDetails(context, {
-                        'busName': student.assignedBusName ?? "Bus A",
-                        'busCode': student.assignedBusCode ?? "UOG-001",
-                        'driverName': student.assignedDriverName ?? "Ahmed K.",
-                        'driverPhone': student.assignedDriverPhone ?? "03001234567",
-                        'licenseNumber': "GAW-123456",
-                        'startLocation': student.routeAddress.isNotEmpty ? student.routeAddress : "Gwadar City",
+                        'busName': student.assignedBusName ?? student.assignedRouteName ?? "Assigned Route",
+                        'busCode': student.assignedBusCode ?? "—",
+                        'driverName': student.assignedDriverName ?? "Not Assigned",
+                        'driverPhone': student.assignedDriverPhone ?? "",
+                        'startLocation': student.routeAddress.isNotEmpty ? student.routeAddress : "—",
                         'destination': "University Campus",
                       }),
                     ),
@@ -423,32 +399,59 @@ class _RouteScreenState extends State<RouteScreen> {
                   const Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 12),
                     child: Text(
-                      "Alternative Routes",
+                      "Available Routes",
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
                     ),
                   ),
-                  ..._allRoutes.map((routeData) {
-                    // Don't show if it's already assigned
-                    if (student?.assignedBusCode == routeData['busCode']) return const SizedBox.shrink();
-                    
-                    return BusRouteCard(
-                      busName: routeData['busName'],
-                      busCode: routeData['busCode'],
-                      status: routeData['status'],
-                      driverName: routeData['driverName'],
-                      driverPhone: routeData['driverPhone'],
-                      startLocation: routeData['startLocation'],
-                      destination: routeData['destination'],
-                      departureTime: routeData['departureTime'],
-                      arrivalTime: routeData['arrivalTime'],
-                      onCall: () {},
-                      onChat: () {},
-                      onSelect: authProvider.uid == null ? null : () => _showSelectionDialog(
-                        context, studentProvider, authProvider.uid!, routeData, student
-                      ),
-                      onShowDriverDetails: () => _showDriverDetails(context, routeData),
-                    );
-                  }),
+                  StreamBuilder<List<RouteModel>>(
+                    stream: Provider.of<RouteProvider>(context).streamRoutes(),
+                    builder: (context, routeSnap) {
+                      final routes = (routeSnap.data ?? [])
+                          .where((r) => r.isActive)
+                          .where((r) => r.id != student?.assignedRouteId)
+                          .toList();
+                      if (routes.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'No routes available yet. Admin must add routes first.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: routes.map((route) {
+                          final routeData = _routeToMap(route);
+                          return BusRouteCard(
+                            busName: routeData['busName'],
+                            busCode: routeData['busCode'],
+                            status: routeData['status'],
+                            driverName: routeData['driverName'],
+                            driverPhone: routeData['driverPhone'],
+                            startLocation: routeData['startLocation'],
+                            destination: routeData['destination'],
+                            departureTime: routeData['departureTime'],
+                            arrivalTime: routeData['arrivalTime'],
+                            onCall: () {},
+                            onChat: () {},
+                            onSelect: authProvider.uid == null
+                                ? null
+                                : () => _showSelectionDialog(
+                                      context,
+                                      studentProvider,
+                                      authProvider.uid!,
+                                      routeData,
+                                      student,
+                                    ),
+                            onShowDriverDetails: () => _showDriverDetails(context, routeData),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                 ],
               );
             },

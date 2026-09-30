@@ -48,7 +48,7 @@ class BusRouteCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: isPrimary ? 4 : 2,
-      shadowColor: isPrimary ? AppColors.primary.withOpacity(0.4) : Colors.black12,
+      shadowColor: isPrimary ? AppColors.primary.withValues(alpha: 0.4) : Colors.black12,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: isPrimary 
@@ -139,7 +139,7 @@ class BusRouteCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -157,7 +157,7 @@ class BusRouteCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.15),
+            color: statusColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -248,7 +248,7 @@ class BusRouteCard extends StatelessWidget {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.success),
               ),
@@ -301,7 +301,7 @@ class BusRouteCard extends StatelessWidget {
   Widget _actionButton(IconData icon, Color color, VoidCallback? onPressed) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: IconButton(
@@ -329,7 +329,7 @@ class BusRouteCard extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [AppColors.primary, AppColors.primary.withOpacity(0.2)],
+                        colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.2)],
                       ),
                     ),
                   ),
@@ -343,7 +343,7 @@ class BusRouteCard extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [AppColors.primary.withOpacity(0.2), AppColors.primary],
+                          colors: [AppColors.primary.withValues(alpha: 0.2), AppColors.primary],
                         ),
                       ),
                     ),

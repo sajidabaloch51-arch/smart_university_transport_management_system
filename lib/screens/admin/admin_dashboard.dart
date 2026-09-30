@@ -5,12 +5,6 @@ import '../../core/constants/app_colors.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../providers/auth_provider.dart';
 
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
-import '../../widgets/dashboard_card.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/route_provider.dart';
 import '../../providers/schedule_provider.dart';
@@ -91,16 +85,6 @@ class AdminDashboard extends StatelessWidget {
               const SizedBox(height: 16),
               _buildModulesGrid(context, crossAxisCount, isDesktop, isTablet),
               const SizedBox(height: 24),
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
-                child: Text(
-                  "Recent Activities Log",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildActivityLog(),
-              const SizedBox(height: 24),
               _buildActionTile(
                 title: "View Feedback Board",
                 icon: Icons.feedback_outlined,
@@ -128,7 +112,7 @@ class AdminDashboard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.3),
+            color: AppColors.primary.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -213,9 +197,9 @@ class AdminDashboard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,39 +235,12 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityLog() {
-    final activities = [
-      {'title': 'New driver Nasir Ali added', 'time': '2 hours ago', 'icon': Icons.person_add},
-      {'title': 'Schedule for Route A updated', 'time': '4 hours ago', 'icon': Icons.schedule},
-      {'title': 'Route "East Bay" deactivated', 'time': 'Yesterday', 'icon': Icons.block},
-    ];
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: activities.length,
-      itemBuilder: (context, index) {
-        final activity = activities[index];
-        return ListTile(
-          dense: true,
-          leading: CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.grey.shade100,
-            child: Icon(activity['icon'] as IconData, size: 16, color: Colors.grey.shade700),
-          ),
-          title: Text(activity['title'] as String, style: const TextStyle(fontSize: 14)),
-          subtitle: Text(activity['time'] as String, style: const TextStyle(fontSize: 12)),
-        );
-      },
-    );
-  }
-
   Widget _buildActionTile({required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15), 
-        side: BorderSide(color: color.withOpacity(0.2))
+        side: BorderSide(color: color.withValues(alpha: 0.2))
       ),
       child: ListTile(
         onTap: onTap,

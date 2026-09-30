@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../models/student_model.dart';
 import '../../providers/student_provider.dart';
 import '../../core/validators/app_validators.dart';
@@ -37,24 +36,16 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
   bool _isLoading = false;
 
   Uint8List? _webImage;
-  XFile? _pickedFile;
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 

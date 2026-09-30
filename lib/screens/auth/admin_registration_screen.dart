@@ -4,13 +4,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
 import '../../providers/admin_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/admin_model.dart';
 
 class AdminRegistrationScreen extends StatefulWidget {
@@ -31,24 +29,16 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
   
   bool _isLoading = false;
   Uint8List? _webImage;
-  XFile? _pickedFile;
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 
@@ -73,7 +63,7 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
       }
 
       final admin = AdminModel(
-        uid: _emailController.text.trim().split('@')[0] + "_admin_id",
+        uid: "${_emailController.text.trim().split('@')[0]}_admin_id",
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),

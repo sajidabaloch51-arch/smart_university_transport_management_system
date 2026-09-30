@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
@@ -57,7 +56,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: role,
+                    initialValue: role,
                     decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
                     items: const [
                       DropdownMenuItem(value: 'student', child: Text('Student')),

@@ -21,12 +21,14 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   String? _selectedDriver;
   String? _selectedRoute;
   bool _isLoading = false;
+  bool _isActive = true;
 
   @override
   void initState() {
     super.initState();
     _busNoController = TextEditingController(text: widget.bus?.busNumber ?? '');
     _regNoController = TextEditingController(text: widget.bus?.registrationNumber ?? '');
+    _isActive = widget.bus?.isActive ?? true;
     
     // Safety check for dropdown values
     const drivers = ['Nasir Ali', 'Ali Ahmed'];
@@ -55,12 +57,14 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
       final bus = BusModel(
         id: widget.bus?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         busNumber: _busNoController.text.trim(),
-        registrationNumber: widget.bus?.registrationNumber ?? '',
+        registrationNumber: _regNoController.text.trim().isNotEmpty
+            ? _regNoController.text.trim()
+            : (widget.bus?.registrationNumber ?? ''),
         assignedDriverId: '',
-        assignedDriverName: 'Not Assigned',
+        assignedDriverName: _selectedDriver ?? 'Not Assigned',
         assignedRouteId: '',
-        assignedRouteName: 'Not Assigned',
-        isActive: widget.bus?.isActive ?? true,
+        assignedRouteName: _selectedRoute ?? 'Not Assigned',
+        isActive: _isActive,
       );
 
       try {
@@ -94,7 +98,15 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
                 labelText: 'Bus Number (e.g., UOG-001)',
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 40),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Bus Active'),
+                subtitle: Text(_isActive ? 'Bus is ON / available' : 'Bus is OFF / inactive'),
+                value: _isActive,
+                activeThumbColor: Colors.green,
+                onChanged: (val) => setState(() => _isActive = val),
+              ),
+              const SizedBox(height: 24),
               CustomButton(
                 text: widget.bus == null ? 'REGISTER BUS' : 'UPDATE BUS', 
                 isLoading: _isLoading,

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/shared/splash_screen.dart';
 import '../screens/shared/onboarding_screen.dart';
@@ -14,7 +13,6 @@ import '../screens/student/live_map_screen.dart';
 import '../screens/student/notice_screen.dart';
 import '../screens/student/notice_detail_screen.dart';
 import '../screens/student/feedback_screen.dart';
-import '../screens/student/profile_screen.dart';
 import '../screens/student/schedule_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
 import '../screens/driver/driver_profile_screen.dart';

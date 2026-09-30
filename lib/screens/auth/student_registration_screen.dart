@@ -4,14 +4,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
 import '../../core/validators/app_validators.dart';
 import '../../providers/student_provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/route_provider.dart';
 import '../../models/student_model.dart';
 import '../../services/university_db_service.dart';
 
@@ -49,24 +46,16 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   bool _isLoading = false;
   
   Uint8List? _webImage;
-  XFile? _pickedFile;
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 
@@ -106,10 +95,24 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
       final rollNo = _rollNoController.text.trim();
       final officialRecord = UniversityDBService.lookupRecord(rollNo);
+
+      if (officialRecord != null && officialRecord.enrollmentStatus != 'Active') {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot register: university enrollment status is "${officialRecord.enrollmentStatus}".',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       final status = officialRecord != null ? 'approved' : 'pending';
 
       final student = StudentModel(
-        uid: _emailController.text.trim().split('@')[0] + "_id",
+        uid: "${_emailController.text.trim().split('@')[0]}_id",
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -319,7 +322,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       prefixIcon: const Icon(Icons.school_outlined),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                     ),
-                    value: _selectedDepartment,
+                    initialValue: _selectedDepartment,
                     items: _departments.map((dept) => DropdownMenuItem(
                       value: dept,
                       child: Text(dept),

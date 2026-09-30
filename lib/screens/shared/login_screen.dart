@@ -7,11 +7,10 @@ import '../../constants/strings.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../core/validators/app_validators.dart';
-import '../../services/university_db_service.dart';
+import '../../services/student_access_guard.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
-import '../../models/student_model.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role;
@@ -68,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 });
                 Navigator.pop(context);
               },
-            )).toList(),
+            )),
             const SizedBox(height: 20),
           ],
         ),
@@ -93,13 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailController.text.trim().toLowerCase();
       
       // Simulate Login Delay
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 200));
 
       if (mounted) {
         final prefs = await SharedPreferences.getInstance();
         
         // Use a mock UID for demonstration if real auth isn't connected yet
-        final uid = email.split('@')[0] + "_id";
+        final uid = "${email.split('@')[0]}_id";
 
         // Save email to history
         _saveEmailToList(email);
@@ -117,70 +116,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Determine Role
         String targetRole = widget.role ?? 'student';
-        if (email.contains('admin')) targetRole = 'admin';
-        else if (email.contains('driver')) targetRole = 'driver';
+        if (email.contains('admin')) {
+          targetRole = 'admin';
+        } else if (email.contains('driver')) targetRole = 'driver';
         
         await prefs.setString('user_role', targetRole);
 
-        // Update AuthProvider
+        // Students must be registered + approved (uni DB or admin)
         if (targetRole == 'student') {
-          final studentProvider = context.read<StudentProvider>();
-          final student = await studentProvider.getStudent(uid);
-          
-          if (student != null) {
-            // Check if student exists in official university records
-            final officialRecord = UniversityDBService.lookupRecord(student.rollNo);
-            
-            // If in official records, ensure they are approved
-            if (officialRecord != null && student.verificationStatus == 'pending') {
-              // Auto-approve during login if record found
-              final approvedStudent = StudentModel(
-                uid: student.uid,
-                name: student.name,
-                email: student.email,
-                phone: student.phone,
-                role: student.role,
-                regNumber: student.regNumber,
-                fatherName: student.fatherName,
-                gender: student.gender,
-                dob: student.dob,
-                department: student.department,
-                semester: student.semester,
-                profileImage: student.profileImage,
-                routeAddress: student.routeAddress,
-                rollNo: student.rollNo,
-                assignedRouteId: student.assignedRouteId,
-                assignedRouteName: student.assignedRouteName,
-                assignedBusId: student.assignedBusId,
-                assignedBusName: student.assignedBusName,
-                assignedBusCode: student.assignedBusCode,
-                assignedDriverId: student.assignedDriverId,
-                assignedDriverName: student.assignedDriverName,
-                assignedDriverPhone: student.assignedDriverPhone,
-                assignedDepartureTime: student.assignedDepartureTime,
-                assignedArrivalTime: student.assignedArrivalTime,
-                verificationStatus: 'approved',
-              );
-              await studentProvider.updateStudent(approvedStudent);
-            } else if (officialRecord == null && student.verificationStatus == 'pending') {
-              setState(() => _isLoading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Your account is pending Admin verification. Your Roll No was not found in immediate official records.'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              return;
-            } else if (student.verificationStatus == 'rejected') {
-              setState(() => _isLoading = false);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Your registration request was rejected by the Admin.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-              return;
-            }
+          final access = await StudentAccessGuard.evaluate(
+            studentProvider: context.read<StudentProvider>(),
+            uid: uid,
+          );
+
+          if (!access.allowed) {
+            setState(() => _isLoading = false);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(access.message ?? 'Access denied'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
           }
         }
 

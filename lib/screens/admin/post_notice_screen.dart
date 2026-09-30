@@ -28,7 +28,7 @@ class _PostNoticeScreenState extends State<PostNoticeScreen> {
     _titleController = TextEditingController(text: widget.notice?.title ?? '');
     _bodyController = TextEditingController(text: widget.notice?.description ?? '');
     _selectedType = widget.notice?.type.name ?? 'general';
-    _targetAudience = 'all'; // Default
+    _targetAudience = widget.notice?.targetAudience ?? 'all';
   }
 
   void _saveNotice() async {
@@ -42,6 +42,7 @@ class _PostNoticeScreenState extends State<PostNoticeScreen> {
         date: DateTime.now(),
         postedBy: 'Admin',
         type: NoticeType.values.firstWhere((t) => t.name == _selectedType, orElse: () => NoticeType.general),
+        targetAudience: _targetAudience,
       );
 
       try {
@@ -97,12 +98,12 @@ class _PostNoticeScreenState extends State<PostNoticeScreen> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: _targetAudience,
+                initialValue: _targetAudience,
                 decoration: InputDecoration(labelText: 'Target Audience', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                items: [
-                  const DropdownMenuItem(value: 'all', child: Text('All Users')),
-                  const DropdownMenuItem(value: 'students', child: Text('Students Only')),
-                  const DropdownMenuItem(value: 'drivers', child: Text('Drivers Only')),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All Users')),
+                  DropdownMenuItem(value: 'students', child: Text('Students Only')),
+                  DropdownMenuItem(value: 'drivers', child: Text('Drivers Only')),
                 ],
                 onChanged: (v) => setState(() => _targetAudience = v!),
               ),
@@ -126,7 +127,7 @@ class _PostNoticeScreenState extends State<PostNoticeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.1),
+          color: isSelected ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color),
         ),

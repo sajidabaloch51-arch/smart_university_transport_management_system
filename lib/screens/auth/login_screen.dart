@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/student_provider.dart';
-import '../../services/university_db_service.dart';
-import '../../models/student_model.dart';
+import '../../services/student_access_guard.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
-import '../student/student_dashboard.dart';
-import '../driver/driver_dashboard.dart';
-import '../admin/admin_dashboard.dart';
-import 'role_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role;
@@ -38,23 +34,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     
-    // Simulate Login Delay
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(const Duration(milliseconds: 200));
 
     if (mounted) {
       String role = '';
-      Widget destination;
       
-      // Automatic Role Routing Logic
       if (email.contains('admin')) {
         role = 'admin';
-        destination = const AdminDashboard();
       } else if (email.contains('driver')) {
         role = 'driver';
-        destination = const DriverDashboard();
       } else {
         role = 'student';
-        destination = const StudentDashboard();
+      }
+
+      final uid = "${email.split('@')[0]}_id";
+
+      if (role == 'student') {
+        final access = await StudentAccessGuard.evaluate(
+          studentProvider: context.read<StudentProvider>(),
+          uid: uid,
+        );
+        if (!access.allowed) {
+          setState(() => _isLoading = false);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(access.message ?? 'Access denied'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
       }
 
       if (_rememberMe) {
@@ -62,64 +72,13 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setBool('is_logged_in', true);
         await prefs.setString('user_role', role);
         await prefs.setString('email', email);
-        await prefs.setString('uid', email.split('@')[0] + "_id");
-      }
-
-      // Verification Check for Students
-      if (role == 'student') {
-        final uid = email.split('@')[0] + "_id";
-        final studentProvider = context.read<StudentProvider>();
-        final student = await studentProvider.getStudent(uid);
-
-        if (student != null) {
-          final officialRecord = UniversityDBService.lookupRecord(student.rollNo);
-          if (officialRecord != null && student.verificationStatus == 'pending') {
-            // Auto-approve
-            final approvedStudent = StudentModel(
-              uid: student.uid,
-              name: student.name,
-              email: student.email,
-              phone: student.phone,
-              role: student.role,
-              regNumber: student.regNumber,
-              fatherName: student.fatherName,
-              gender: student.gender,
-              dob: student.dob,
-              department: student.department,
-              semester: student.semester,
-              profileImage: student.profileImage,
-              routeAddress: student.routeAddress,
-              rollNo: student.rollNo,
-              assignedRouteId: student.assignedRouteId,
-              assignedRouteName: student.assignedRouteName,
-              assignedBusId: student.assignedBusId,
-              assignedBusName: student.assignedBusName,
-              assignedBusCode: student.assignedBusCode,
-              assignedDriverId: student.assignedDriverId,
-              assignedDriverName: student.assignedDriverName,
-              assignedDriverPhone: student.assignedDriverPhone,
-              assignedDepartureTime: student.assignedDepartureTime,
-              assignedArrivalTime: student.assignedArrivalTime,
-              verificationStatus: 'approved',
-            );
-            await studentProvider.updateStudent(approvedStudent);
-          } else if (officialRecord == null && student.verificationStatus == 'pending') {
-            setState(() => _isLoading = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Account pending verification. Roll No not in official records.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
-        }
+        await prefs.setString('uid', uid);
       }
 
       if (mounted) {
         context.read<AuthProvider>().setAuthenticated(true, 
           role: role, 
-          uid: email.split('@')[0] + "_id"
+          uid: uid,
         );
       }
 
@@ -198,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const Text("Don't have an account? "),
                   GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RoleSelectionScreen())),
+                    onTap: () => context.go('/role-selection'),
                     child: const Text("Sign Up", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
                   ),
                 ],

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/route_provider.dart';
@@ -26,39 +25,27 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _idController;
-  late TextEditingController _licenseController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _passController;
-  late TextEditingController _cnicController;
-  late TextEditingController _addressController;
   late TextEditingController _experienceController;
   
-  DateTime? _licenseExpiryDate;
   String _status = 'Active';
   String? _selectedBus;
   String? _selectedRoute;
   bool _isLoading = false;
 
   Uint8List? _webImage;
-  XFile? _pickedFile;
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 
@@ -67,15 +54,11 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.driver?.name ?? '');
     _idController = TextEditingController(text: widget.driver?.driverId ?? '');
-    _licenseController = TextEditingController(text: widget.driver?.licenseNumber ?? '');
     _emailController = TextEditingController(text: widget.driver?.email ?? '');
     _phoneController = TextEditingController(text: widget.driver?.phone ?? '');
-    _cnicController = TextEditingController(text: widget.driver?.cnicOrLicense ?? '');
-    _addressController = TextEditingController(text: widget.driver?.address ?? '');
     _experienceController = TextEditingController(text: widget.driver?.experienceYears?.toString() ?? '');
     _passController = TextEditingController();
     
-    _licenseExpiryDate = widget.driver?.licenseExpiryDate;
     _status = widget.driver?.status ?? 'Active';
     
     // Safety check for dropdown values
@@ -98,8 +81,6 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passController.dispose();
-    _cnicController.dispose();
-    _addressController.dispose();
     _experienceController.dispose();
     super.dispose();
   }
@@ -114,7 +95,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
       }
 
       final driver = DriverModel(
-        uid: widget.driver?.uid ?? (_emailController.text.trim().split('@')[0] + "_id"),
+        uid: widget.driver?.uid ?? ("${_emailController.text.trim().split('@')[0]}_id"),
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -258,7 +239,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: _status,
+              initialValue: _status,
               decoration: InputDecoration(
                 labelText: 'Account Status',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -303,7 +284,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
                 }
                 
                 return DropdownButtonFormField<String>(
-                  value: currentBusVal,
+                  initialValue: currentBusVal,
                   decoration: InputDecoration(
                     labelText: 'Assign Bus',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -327,7 +308,7 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
                 }
                 
                 return DropdownButtonFormField<String>(
-                  value: currentVal,
+                  initialValue: currentVal,
                   decoration: InputDecoration(
                     labelText: 'Assign Route',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

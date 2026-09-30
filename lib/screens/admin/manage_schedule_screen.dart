@@ -13,8 +13,6 @@ class ManageScheduleScreen extends StatefulWidget {
 }
 
 class _ManageScheduleScreenState extends State<ManageScheduleScreen> {
-  String _filter = 'All'; // 'All', 'Today', 'Weekly', 'Monthly'
-
   @override
   Widget build(BuildContext context) {
     final scheduleProvider = Provider.of<ScheduleProvider>(context);

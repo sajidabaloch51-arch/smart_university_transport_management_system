@@ -103,7 +103,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 items: _categories.map((String category) {
                   return DropdownMenuItem<String>(
                     value: category,

@@ -30,7 +30,7 @@ class ScheduleCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      'Vehicle: ${schedule.vehicleNo} | Day: ${schedule.date.day}/${schedule.date.month}/${schedule.date.year}',
+                      'Vehicle: ${schedule.vehicleNo} | Days: ${schedule.operationalDays.join(', ')}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                   ],

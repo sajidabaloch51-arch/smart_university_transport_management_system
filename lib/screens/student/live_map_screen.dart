@@ -88,7 +88,7 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
     final universityPos = _kGooglePlex.target;
     final eta = _mapsService.getETAString(driverPos, universityPos);
     
-    final markerId = const MarkerId('driver_bus');
+    const markerId = MarkerId('driver_bus');
     final marker = Marker(
       markerId: markerId,
       position: driverPos,

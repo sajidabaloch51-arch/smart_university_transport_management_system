@@ -4,12 +4,9 @@ import 'live_map_screen.dart';
 import 'route_screen.dart';
 import 'notice_screen.dart';
 import 'profile_screen.dart';
-import '../../widgets/empty_state_widget.dart';
 import '../../services/firestore_service.dart';
-import '../../models/route_model.dart';
 import '../../models/notice_model.dart';
 import '../../theme/app_colors.dart';
-import '../../constants/strings.dart';
 import '../../widgets/notice_card.dart';
 
 class StudentHomeScreen extends StatefulWidget {

@@ -12,9 +12,8 @@
         android:allowBackup="true"
         android:supportsRtl="true">
 
-        <!-- TODO: Add your Google Maps API Key here -->
         <meta-data android:name="com.google.android.geo.API_KEY"
-            android:value="PASTE_YOUR_ACTUAL_GOOGLE_KEY_HERE" />
+            android:value="AIzaSyDtouw9raLD-fu9yAotY71sksxSEG-8jTg" />
 
         <activity
             android:name="com.example.sutms.MainActivity"

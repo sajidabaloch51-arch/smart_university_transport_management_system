@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../models/driver_model.dart';
 import '../../providers/driver_provider.dart';
 import '../../widgets/custom_textfield.dart';
@@ -23,7 +22,6 @@ class _EditDriverProfileScreenState extends State<EditDriverProfileScreen> {
   bool _isSaving = false;
 
   Uint8List? _webImage;
-  XFile? _pickedFile;
   DriverModel? _currentDriver;
 
   Future<void> _pickImage() async {
@@ -31,17 +29,10 @@ class _EditDriverProfileScreenState extends State<EditDriverProfileScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 

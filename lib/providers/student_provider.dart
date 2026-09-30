@@ -17,95 +17,23 @@ class StudentProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  // Local cache for demo/offline mode
-  final Map<String, StudentModel> _localStudents = {
-    'pending_1': StudentModel(
-      uid: 'pending_1',
-      name: 'Khadija Maqbool',
-      email: 'khadija@gmail.com',
-      phone: '03344556677',
-      role: 'student',
-      regNumber: '002',
-      fatherName: 'Maqbool Ahmed',
-      gender: 'Female',
-      dob: '2004-05-15',
-      department: 'Computer Science',
-      semester: '1',
-      profileImage: '',
-      routeAddress: 'Gwadar East Bay',
-      rollNo: '01234',
-      verificationStatus: 'pending',
-    ),
-    'pending_2': StudentModel(
-      uid: 'pending_2',
-      name: 'Zubair Ahmed',
-      email: 'zubair@gmail.com',
-      phone: '03322110099',
-      role: 'student',
-      regNumber: '005',
-      fatherName: 'Ahmed Khan',
-      gender: 'Male',
-      dob: '2003-10-20',
-      department: 'Business Administration',
-      semester: '3',
-      profileImage: '',
-      routeAddress: 'Main Town Gwadar',
-      rollNo: '220145',
-      verificationStatus: 'pending',
-    ),
-  };
+  // Local cache — starts empty; filled by registration / admin actions
+  final Map<String, StudentModel> _localStudents = {};
 
   Stream<List<StudentModel>> streamStudents() {
-    try {
-      final db = _db;
-      if (db == null) {
-        return Stream.value(_localStudents.values.toList());
-      }
-
-      return db.collection('users')
-          .where('role', isEqualTo: 'student')
-          .where('verificationStatus', isEqualTo: 'approved')
-          .snapshots()
-          .map((snapshot) {
-            final students = snapshot.docs
-              .map((doc) => StudentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-              .toList();
-            // Update local cache
-            for (var s in students) { _localStudents[s.uid] = s; }
-            return students;
-          });
-    } catch (e) {
-      debugPrint("Error in streamStudents: $e");
-      return Stream.value(_localStudents.values.toList());
-    }
+    return Stream.value(
+      _localStudents.values
+          .where((s) => s.verificationStatus == 'approved')
+          .toList(),
+    );
   }
 
   Stream<List<StudentModel>> streamPendingStudents() {
-    try {
-      final db = _db;
-      if (db == null) {
-        return Stream.value(_localStudents.values
-            .where((s) => s.verificationStatus == 'pending')
-            .toList());
-      }
-
-      return db.collection('users')
-          .where('role', isEqualTo: 'student')
-          .where('verificationStatus', isEqualTo: 'pending')
-          .snapshots()
-          .map((snapshot) {
-            final students = snapshot.docs
-              .map((doc) => StudentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-              .toList();
-            for (var s in students) { _localStudents[s.uid] = s; }
-            return students;
-          });
-    } catch (e) {
-      debugPrint("Error in streamPendingStudents: $e");
-      return Stream.value(_localStudents.values
+    return Stream.value(
+      _localStudents.values
           .where((s) => s.verificationStatus == 'pending')
-          .toList());
-    }
+          .toList(),
+    );
   }
 
   Future<void> verifyStudent(String uid, String status) async {
@@ -143,32 +71,18 @@ class StudentProvider extends ChangeNotifier {
       }
 
       final db = _db;
-      if (db != null) {
-        await db.collection('users').doc(uid).update({'verificationStatus': status});
-      }
+      if (db == null) return;
+      db.collection('users').doc(uid).update({'verificationStatus': status}).then(
+        (_) {},
+        onError: (e) => debugPrint("Error verifying student: $e"),
+      );
     } catch (e) {
       debugPrint("Error verifying student: $e");
     }
   }
 
   Future<StudentModel?> getStudent(String uid) async {
-    final db = _db;
-    
-    // Check local cache first for demo purposes
     if (_localStudents.containsKey(uid)) return _localStudents[uid];
-
-    if (db == null) return null;
-
-    try {
-      final doc = await db.collection('users').doc(uid).get();
-      if (doc.exists) {
-        final student = StudentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-        _localStudents[uid] = student;
-        return student;
-      }
-    } catch (e) {
-      debugPrint("Error getting student: $e");
-    }
     return null;
   }
 
@@ -179,17 +93,10 @@ class StudentProvider extends ChangeNotifier {
     final db = _db;
     if (db == null) return;
 
-    try {
-      _isLoading = true;
-      notifyListeners();
-      await db.collection('users').doc(student.uid).update(student.toMap());
-    } catch (e) {
-      debugPrint("Error updating student: $e");
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    db.collection('users').doc(student.uid).set(student.toMap(), SetOptions(merge: true)).then(
+      (_) {},
+      onError: (e) => debugPrint("Error updating student: $e"),
+    );
   }
 
   Future<void> addStudent(StudentModel student) async {
@@ -199,31 +106,22 @@ class StudentProvider extends ChangeNotifier {
     final db = _db;
     if (db == null) return;
 
-    try {
-      _isLoading = true;
-      notifyListeners();
-      await db.collection('users').doc(student.uid).set(student.toMap());
-    } catch (e) {
-      debugPrint("Error adding student: $e");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    db.collection('users').doc(student.uid).set(student.toMap()).then(
+      (_) {},
+      onError: (e) => debugPrint("Error adding student: $e"),
+    );
   }
 
   Future<void> deleteStudent(String uid) async {
+    _localStudents.remove(uid);
+    notifyListeners();
+
     final db = _db;
     if (db == null) return;
 
-    try {
-      _isLoading = true;
-      notifyListeners();
-      await db.collection('users').doc(uid).delete();
-    } catch (e) {
-      debugPrint("Error deleting student: $e");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
+    db.collection('users').doc(uid).delete().then(
+      (_) {},
+      onError: (e) => debugPrint("Error deleting student: $e"),
+    );
   }
 }

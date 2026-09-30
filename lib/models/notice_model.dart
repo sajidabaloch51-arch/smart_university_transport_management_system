@@ -9,6 +9,8 @@ class NoticeModel {
   final DateTime date;
   final NoticeType type;
   final String postedBy;
+  /// 'all' | 'students' | 'drivers'
+  final String targetAudience;
 
   NoticeModel({
     required this.id,
@@ -17,6 +19,7 @@ class NoticeModel {
     required this.date,
     required this.type,
     required this.postedBy,
+    this.targetAudience = 'all',
   });
 
   factory NoticeModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -24,9 +27,12 @@ class NoticeModel {
       id: docId,
       title: map['title'] ?? '',
       description: map['description'] ?? '',
-      date: (map['date'] as Timestamp).toDate(),
+      date: map['date'] is Timestamp
+          ? (map['date'] as Timestamp).toDate()
+          : DateTime.tryParse(map['date']?.toString() ?? '') ?? DateTime.now(),
       type: _parseNoticeType(map['type']),
       postedBy: map['postedBy'] ?? 'Admin',
+      targetAudience: map['targetAudience'] ?? 'all',
     );
   }
 
@@ -48,6 +54,14 @@ class NoticeModel {
       'date': Timestamp.fromDate(date),
       'type': type.name,
       'postedBy': postedBy,
+      'targetAudience': targetAudience,
     };
+  }
+
+  bool isVisibleTo(String role) {
+    if (targetAudience == 'all') return true;
+    if (role == 'driver') return targetAudience == 'drivers';
+    if (role == 'student') return targetAudience == 'students';
+    return true; // admin sees all
   }
 }

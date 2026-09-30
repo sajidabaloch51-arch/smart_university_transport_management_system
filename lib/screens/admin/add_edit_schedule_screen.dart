@@ -18,6 +18,8 @@ class AddEditScheduleScreen extends StatefulWidget {
 }
 
 class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
+  static const _allDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   final _formKey = GlobalKey<FormState>();
   String? _selectedRouteId;
   String? _selectedDriverId;
@@ -28,6 +30,7 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
   late TimeOfDay _arrivalTime;
   String _selectedShift = 'Morning';
   String _selectedStatus = 'Scheduled';
+  late Set<String> _operationalDays;
 
   bool _isLoading = false;
 
@@ -39,10 +42,13 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
     _vehicleController = TextEditingController(text: widget.schedule?.vehicleNo ?? '');
     
     _selectedDate = widget.schedule?.date ?? DateTime.now();
-    _departureTime = const TimeOfDay(hour: 7, minute: 30); // Default or parse from schedule
+    _departureTime = const TimeOfDay(hour: 7, minute: 30);
     _arrivalTime = const TimeOfDay(hour: 8, minute: 0);
     _selectedShift = widget.schedule?.shift ?? 'Morning';
     _selectedStatus = widget.schedule?.status ?? 'Scheduled';
+    _operationalDays = Set<String>.from(
+      widget.schedule?.operationalDays ?? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+    );
   }
   
   @override
@@ -51,10 +57,26 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
     super.dispose();
   }
 
+  void _toggleDay(String day) {
+    setState(() {
+      final updated = Set<String>.from(_operationalDays);
+      if (updated.contains(day)) {
+        updated.remove(day);
+      } else {
+        updated.add(day);
+      }
+      _operationalDays = updated;
+    });
+  }
+
   void _saveSchedule() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedRouteId == null || _selectedDriverId == null) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select route and driver')));
+        return;
+      }
+      if (_operationalDays.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one operational day')));
         return;
       }
       
@@ -90,6 +112,7 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
         shift: _selectedShift,
         vehicleNo: _vehicleController.text.trim(),
         status: _selectedStatus,
+        operationalDays: _allDays.where(_operationalDays.contains).toList(),
       );
 
       try {
@@ -127,7 +150,7 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
                 builder: (context, snapshot) {
                   final routes = snapshot.data ?? [];
                   return DropdownButtonFormField<String>(
-                    value: _selectedRouteId,
+                    initialValue: _selectedRouteId,
                     decoration: InputDecoration(labelText: 'Select Route', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                     items: routes.map((r) => DropdownMenuItem(value: r.id, child: Text(r.routeName))).toList(),
                     onChanged: (v) => setState(() => _selectedRouteId = v),
@@ -140,7 +163,7 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
                 builder: (context, snapshot) {
                   final drivers = snapshot.data ?? [];
                   return DropdownButtonFormField<String>(
-                    value: _selectedDriverId,
+                    initialValue: _selectedDriverId,
                     decoration: InputDecoration(labelText: 'Select Driver', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                     items: drivers.map((d) => DropdownMenuItem(value: d.uid, child: Text(d.name))).toList(),
                     onChanged: (v) => setState(() => _selectedDriverId = v),
@@ -158,7 +181,7 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
               const Divider(height: 40),
               
               DropdownButtonFormField<String>(
-                value: _selectedShift,
+                initialValue: _selectedShift,
                 decoration: InputDecoration(labelText: 'Shift', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                 items: ['Morning', 'Evening', 'Night'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                 onChanged: (v) => setState(() => _selectedShift = v!),
@@ -171,11 +194,34 @@ class _AddEditScheduleScreenState extends State<AddEditScheduleScreen> {
               ),
               Wrap(
                 spacing: 8,
-                children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
-                  return ChoiceChip(
-                    label: Text(day),
-                    selected: true,
-                    onSelected: (val) {},
+                runSpacing: 8,
+                children: _allDays.map((day) {
+                  final isOn = _operationalDays.contains(day);
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _toggleDay(day),
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isOn ? const Color(0xFF1565C0) : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isOn ? const Color(0xFF1565C0) : Colors.grey.shade400,
+                          ),
+                        ),
+                        child: Text(
+                          '$day ${isOn ? 'ON' : 'OFF'}',
+                          style: TextStyle(
+                            color: isOn ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
                   );
                 }).toList(),
               ),

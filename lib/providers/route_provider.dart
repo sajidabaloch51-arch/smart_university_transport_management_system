@@ -14,64 +14,45 @@ class RouteProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final List<RouteModel> _mockRoutes = [
-    RouteModel(
-      id: 'r1', 
-      universityId: 'uog', 
-      routeName: 'Gwadar East Bay', 
-      routeNumber: 'A', 
-      startLocation: 'City Center', 
-      endLocation: 'UOG Main Campus', 
-      viaStops: ['East Bay', 'Harbor Road'],
-      stops: [], 
-      distanceKm: '12km', 
-      estimatedTime: '30m'
-    ),
-  ];
+  final List<RouteModel> _mockRoutes = [];
 
   Stream<List<RouteModel>> streamRoutes() {
-    try {
-      final db = _db;
-      if (db == null) return Stream.value(_mockRoutes);
-
-      return db.collection('routes')
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
-              .toList());
-    } catch (e) {
-      debugPrint("Error in streamRoutes: $e");
-      return Stream.value(_mockRoutes);
-    }
+    return Stream.value(List<RouteModel>.from(_mockRoutes));
   }
 
   Future<void> addRoute(RouteModel route) async {
-    final db = _db;
-    if (db == null) {
-      final index = _mockRoutes.indexWhere((r) => r.id == route.id);
-      if (index != -1) {
-        _mockRoutes[index] = route;
-      } else {
-        _mockRoutes.add(route);
-      }
-      notifyListeners();
-      return;
+    final index = _mockRoutes.indexWhere((r) => r.id == route.id);
+    if (index != -1) {
+      _mockRoutes[index] = route;
+    } else {
+      _mockRoutes.add(route);
     }
+    notifyListeners();
 
-    _isLoading = true;
-    notifyListeners();
-    await db.collection('routes').doc(route.id).set(route.toMap());
-    _isLoading = false;
-    notifyListeners();
+    final db = _db;
+    if (db == null) return;
+    db.collection('routes').doc(route.id).set(route.toMap()).then(
+      (_) {},
+      onError: (e) => debugPrint('Error saving route: $e'),
+    );
   }
 
   Future<void> deleteRoute(String id) async {
+    _mockRoutes.removeWhere((r) => r.id == id);
+    notifyListeners();
+
     final db = _db;
-    if (db == null) {
-      _mockRoutes.removeWhere((r) => r.id == id);
-      notifyListeners();
-      return;
-    }
-    await db.collection('routes').doc(id).delete();
+    if (db == null) return;
+    db.collection('routes').doc(id).delete().then(
+      (_) {},
+      onError: (e) => debugPrint('Error deleting route: $e'),
+    );
+  }
+
+  Future<void> toggleRouteActive(String id) async {
+    final index = _mockRoutes.indexWhere((r) => r.id == id);
+    if (index == -1) return;
+    final route = _mockRoutes[index];
+    await addRoute(route.copyWith(isActive: !route.isActive));
   }
 }

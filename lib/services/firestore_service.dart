@@ -73,7 +73,7 @@ class FirestoreService {
         .where('role', isEqualTo: 'student')
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => StudentModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+            .map((doc) => StudentModel.fromMap(doc.data(), doc.id))
             .toList());
   }
 

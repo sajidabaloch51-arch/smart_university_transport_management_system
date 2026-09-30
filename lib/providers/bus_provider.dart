@@ -14,72 +14,54 @@ class BusProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final List<BusModel> _mockBuses = [
-    BusModel(
-      id: 'b1', 
-      busNumber: 'UOG-001', 
-      registrationNumber: 'GW-1234',
-      assignedDriverId: '',
-      assignedDriverName: 'Not Assigned',
-      assignedRouteId: 'r1',
-      assignedRouteName: 'Route A',
-      isActive: true,
-    ),
-    BusModel(
-      id: 'b2', 
-      busNumber: 'UOG-002', 
-      registrationNumber: 'GW-5678',
-      assignedDriverId: '',
-      assignedDriverName: 'Not Assigned',
-      assignedRouteId: 'r2',
-      assignedRouteName: 'Route B',
-      isActive: false,
-    ),
-  ];
+  final List<BusModel> _mockBuses = [];
 
   Stream<List<BusModel>> streamBuses() {
-    try {
-      final db = _db;
-      if (db == null) return Stream.value(_mockBuses);
-
-      return db.collection('buses')
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => BusModel.fromMap(doc.data(), doc.id))
-              .toList());
-    } catch (e) {
-      debugPrint("Error in streamBuses: $e");
-      return Stream.value(_mockBuses);
-    }
+    return Stream.value(List<BusModel>.from(_mockBuses));
   }
 
   Future<void> addBus(BusModel bus) async {
-    final db = _db;
-    if (db == null) {
-      final index = _mockBuses.indexWhere((b) => b.id == bus.id);
-      if (index != -1) {
-        _mockBuses[index] = bus;
-      } else {
-        _mockBuses.add(bus);
-      }
-      notifyListeners();
-      return;
+    final index = _mockBuses.indexWhere((b) => b.id == bus.id);
+    if (index != -1) {
+      _mockBuses[index] = bus;
+    } else {
+      _mockBuses.add(bus);
     }
+    notifyListeners();
 
-    _isLoading = true;
-    notifyListeners();
-    await db.collection('buses').doc(bus.id).set(bus.toMap());
-    _isLoading = false;
-    notifyListeners();
+    final db = _db;
+    if (db == null) return;
+    db.collection('buses').doc(bus.id).set(bus.toMap()).then(
+      (_) {},
+      onError: (e) => debugPrint('Error saving bus: $e'),
+    );
   }
 
   Future<void> deleteBus(String id) async {
+    _mockBuses.removeWhere((b) => b.id == id);
+    notifyListeners();
+
     final db = _db;
-    if (db == null) {
-      _mockBuses.removeWhere((b) => b.id == id);
-      notifyListeners();
-      return;
-    }
-    await db.collection('buses').doc(id).delete();
+    if (db == null) return;
+    db.collection('buses').doc(id).delete().then(
+      (_) {},
+      onError: (e) => debugPrint('Error deleting bus: $e'),
+    );
+  }
+
+  Future<void> toggleBusActive(String id) async {
+    final index = _mockBuses.indexWhere((b) => b.id == id);
+    if (index == -1) return;
+    final bus = _mockBuses[index];
+    await addBus(BusModel(
+      id: bus.id,
+      busNumber: bus.busNumber,
+      registrationNumber: bus.registrationNumber,
+      assignedDriverId: bus.assignedDriverId,
+      assignedDriverName: bus.assignedDriverName,
+      assignedRouteId: bus.assignedRouteId,
+      assignedRouteName: bus.assignedRouteName,
+      isActive: !bus.isActive,
+    ));
   }
 }

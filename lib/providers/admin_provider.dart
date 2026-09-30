@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/admin_model.dart';
-import '../services/firestore_service.dart';
 
 class AdminProvider extends ChangeNotifier {
-  final FirestoreService _firestore = FirestoreService();
-  
   AdminModel? _admin;
   bool _isLoading = false;
 
@@ -47,8 +44,6 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
       _localAdmins[admin.uid] = admin;
       _admin = admin;
     } finally {

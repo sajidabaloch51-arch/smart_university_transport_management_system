@@ -3,7 +3,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
@@ -11,7 +10,6 @@ import '../../core/validators/app_validators.dart';
 import '../../models/driver_model.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
-import '../../providers/auth_provider.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -25,32 +23,22 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _cnicController = TextEditingController();
-  final _licenseController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   
   bool _isLoading = false;
   
   Uint8List? _webImage;
-  XFile? _pickedFile;
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     
     if (image != null) {
-      if (kIsWeb) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _webImage = f;
-          _pickedFile = image;
-        });
-      } else {
-        setState(() {
-          _pickedFile = image;
-        });
-      }
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _webImage = bytes;
+      });
     }
   }
 
@@ -59,8 +47,6 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _cnicController.dispose();
-    _licenseController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -75,15 +61,15 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
         profileImageBase64 = base64Encode(_webImage!);
       }
 
-      final driverId = _emailController.text.trim().split('@')[0] + "_id";
+      final driverId = "${_emailController.text.trim().split('@')[0]}_id";
       final driver = DriverModel(
         uid: driverId,
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
         role: 'driver',
-        driverId: _cnicController.text.trim(),
-        licenseNumber: _licenseController.text.trim(),
+        driverId: driverId,
+        licenseNumber: '',
         profileImg: profileImageBase64,
         assignedBusId: '',
         assignedBusNumber: 'Not Assigned',
@@ -226,21 +212,6 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                     prefixIcon: Icons.person_outline,
                     validator: AppValidators.validateFullName,
                     autofillHints: const [AutofillHints.name],
-                  ),
-                  
-                  CustomTextField(
-                    controller: _cnicController,
-                    labelText: "CNIC Number",
-                    prefixIcon: Icons.credit_card_outlined,
-                    keyboardType: TextInputType.number,
-                    validator: AppValidators.validateCNIC,
-                  ),
-                  
-                  CustomTextField(
-                    controller: _licenseController,
-                    labelText: "License Number (Optional)",
-                    prefixIcon: Icons.badge_outlined,
-                    validator: AppValidators.validateBalochistanLicense,
                   ),
                   
                   CustomTextField(

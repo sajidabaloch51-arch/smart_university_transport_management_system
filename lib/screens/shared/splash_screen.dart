@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_colors.dart';
 import '../../constants/strings.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/student_provider.dart';
+import '../../services/student_access_guard.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,8 +22,17 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigateToNext();
   }
 
+  Future<void> _clearSession(SharedPreferences prefs) async {
+    await prefs.setBool('is_logged_in', false);
+    await prefs.remove('user_role');
+    await prefs.remove('uid');
+    if (mounted) {
+      context.read<AuthProvider>().logout();
+    }
+  }
+
   void _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -30,7 +41,20 @@ class _SplashScreenState extends State<SplashScreen> {
     final String? uid = prefs.getString('uid');
 
     if (isLoggedIn && role != null && uid != null) {
-      // Restore auth state
+      // Students must still be approved before restoring session
+      if (role == 'student') {
+        final access = await StudentAccessGuard.evaluate(
+          studentProvider: context.read<StudentProvider>(),
+          uid: uid,
+        );
+        if (!access.allowed) {
+          await _clearSession(prefs);
+          if (!mounted) return;
+          context.go('/login', extra: 'student');
+          return;
+        }
+      }
+
       if (mounted) {
         context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
       }

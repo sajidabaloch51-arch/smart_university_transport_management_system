@@ -12,6 +12,7 @@ class ScheduleModel {
   final String shift; // 'Morning', 'Evening', 'Night'
   final String vehicleNo;
   final String status; // 'Scheduled', 'Completed', 'Cancelled'
+  final List<String> operationalDays;
 
   ScheduleModel({
     required this.id,
@@ -25,6 +26,7 @@ class ScheduleModel {
     required this.shift,
     required this.vehicleNo,
     required this.status,
+    this.operationalDays = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
   });
 
   factory ScheduleModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -40,6 +42,7 @@ class ScheduleModel {
       shift: map['shift'] ?? 'Morning',
       vehicleNo: map['vehicleNo'] ?? map['busNumber'] ?? '',
       status: map['status'] ?? 'Scheduled',
+      operationalDays: List<String>.from(map['operationalDays'] ?? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),
     );
   }
 
@@ -55,6 +58,7 @@ class ScheduleModel {
       'shift': shift,
       'vehicleNo': vehicleNo,
       'status': status,
+      'operationalDays': operationalDays,
     };
   }
 
@@ -70,6 +74,7 @@ class ScheduleModel {
     String? shift,
     String? vehicleNo,
     String? status,
+    List<String>? operationalDays,
   }) {
     return ScheduleModel(
       id: id ?? this.id,
@@ -83,6 +88,7 @@ class ScheduleModel {
       shift: shift ?? this.shift,
       vehicleNo: vehicleNo ?? this.vehicleNo,
       status: status ?? this.status,
+      operationalDays: operationalDays ?? this.operationalDays,
     );
   }
 }

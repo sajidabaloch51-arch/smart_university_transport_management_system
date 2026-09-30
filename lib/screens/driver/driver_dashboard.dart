@@ -3,12 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/schedule_provider.dart';
-import '../../models/schedule_model.dart';
+import '../../providers/notice_provider.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/schedule_card.dart';
 import '../../widgets/notice_card.dart';
-import '../../widgets/dashboard_card.dart';
 import 'driver_route_screen.dart';
 import 'duty_screen.dart';
 import 'driver_notice_screen.dart';
@@ -203,29 +201,21 @@ class DashboardSummary extends StatelessWidget {
               
               const SizedBox(height: 30),
               
-              _sectionTitle("Upcoming Schedules"),
-              StreamBuilder<List<ScheduleModel>>(
-                stream: Provider.of<ScheduleProvider>(context).streamSchedules(),
-                builder: (context, snapshot) {
-                  final schedules = snapshot.data ?? [];
-                  final tomorrow = DateTime.now().add(const Duration(days: 1));
-                  final upcoming = schedules.where((s) => 
-                    s.driverId == provider.driver?.uid && 
-                    s.date.isAfter(DateTime.now())
-                  ).toList();
-                  
-                  if (upcoming.isEmpty) return _emptyBox('No upcoming duties scheduled.');
-                  return Column(children: upcoming.map((s) => ScheduleCard(schedule: s)).toList());
+              _sectionTitle("Recent Alerts"),
+              Builder(
+                builder: (context) {
+                  final adminNotices = Provider.of<NoticeProvider>(context).noticesForRole('driver');
+                  if (adminNotices.isEmpty) {
+                    return _emptyBox('No active transport alerts.');
+                  }
+                  return Column(
+                    children: adminNotices
+                        .take(2)
+                        .map((n) => NoticeCard(notice: n, onReadMore: onNavigateToNotices))
+                        .toList(),
+                  );
                 },
               ),
-              
-              const SizedBox(height: 30),
-              
-              _sectionTitle("Recent Alerts"),
-              if (provider.notices.isEmpty)
-                _emptyBox('No active transport alerts.')
-              else
-                ...provider.notices.take(2).map((n) => NoticeCard(notice: n, onReadMore: onNavigateToNotices)),
               
               const SizedBox(height: 30),
               
@@ -247,13 +237,6 @@ class DashboardSummary extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _toolBtn(String title, IconData icon, Color color) {
-    return AspectRatio(
-      aspectRatio: 1.4,
-      child: DashboardCard(title: title, value: '', icon: icon, color: color, onTap: () {}),
     );
   }
 
@@ -288,7 +271,7 @@ class _ActionBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
-      shadowColor: color.withOpacity(0.2),
+      shadowColor: color.withValues(alpha: 0.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
         onTap: onTap,
@@ -297,7 +280,7 @@ class _ActionBtn extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.85), color],
+              colors: [color.withValues(alpha: 0.85), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -308,7 +291,7 @@ class _ActionBtn extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: Colors.white, size: 22),

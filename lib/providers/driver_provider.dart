@@ -23,7 +23,7 @@ class DriverProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   
-  // Local cache for demo mode
+  // Local cache for registered drivers
   final Map<String, DriverModel> _localDrivers = {};
 
   StreamSubscription? _positionSubscription;
@@ -52,48 +52,24 @@ class DriverProvider extends ChangeNotifier {
   }
 
   Stream<List<DriverModel>> streamDrivers() {
-    try {
-      final db = _db;
-      if (db == null) return Stream.value(_localDrivers.values.toList());
-
-      return db.collection('users')
-          .where('role', isEqualTo: 'driver')
-          .snapshots()
-          .map((snapshot) {
-            final drivers = snapshot.docs
-              .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
-              .toList();
-            // Update local cache
-            for (var d in drivers) { _localDrivers[d.uid] = d; }
-            return drivers;
-          });
-    } catch (e) {
-      debugPrint("Error in streamDrivers: $e");
-      return Stream.value(_localDrivers.values.toList());
-    }
+    return Stream.value(_localDrivers.values.toList());
   }
 
   Future<void> updateDriver(DriverModel driver) async {
-    try {
-      // Update local cache
-      _localDrivers[driver.uid] = driver;
-      if (_driver?.uid == driver.uid) {
-        _driver = driver;
-      }
-      notifyListeners();
-
-      final db = _db;
-      if (db == null) return;
-
-      _isLoading = true;
-      notifyListeners();
-      await db.collection('users').doc(driver.uid).set(driver.toMap(), SetOptions(merge: true));
-    } catch (e) {
-      debugPrint("Error updating driver: $e");
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+    // Update local cache first so registration/login feels instant
+    _localDrivers[driver.uid] = driver;
+    if (_driver?.uid == driver.uid) {
+      _driver = driver;
     }
+    notifyListeners();
+
+    final db = _db;
+    if (db == null) return;
+
+    db.collection('users').doc(driver.uid).set(driver.toMap(), SetOptions(merge: true)).then(
+      (_) {},
+      onError: (e) => debugPrint("Error updating driver: $e"),
+    );
   }
 
   Future<void> updateProfileImage(String base64Img) async {
@@ -110,23 +86,12 @@ class DriverProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Prioritize Firestore data for the actual logged-in user
-      final firestoreDriver = await _firestoreService.getDriverData(driverId);
-      
-      if (firestoreDriver != null) {
-        _driver = firestoreDriver;
-        _localDrivers[driverId] = _driver!;
-        _subscribeToRealtimeStreams();
+      if (_localDrivers.containsKey(driverId)) {
+        _driver = _localDrivers[driverId];
       } else {
-        // Only fallback to mock if absolutely necessary (e.g., demo/no internet)
-        // but try to keep it as realistic as possible
-        if (_localDrivers.containsKey(driverId)) {
-          _driver = _localDrivers[driverId];
-          _subscribeToRealtimeStreams();
-        } else {
-          _loadMockData(driverId);
-        }
+        _loadMockData(driverId);
       }
+      _subscribeToRealtimeStreams();
     } catch (e) {
       debugPrint("Driver init error: $e");
       _loadMockData(driverId);
@@ -137,72 +102,31 @@ class DriverProvider extends ChangeNotifier {
   }
 
   void _loadMockData(String driverId) {
-    _driver = DriverModel(
-      uid: driverId,
-      name: driverId.contains('drv') ? 'Nasir Ali' : 'Registered Driver',
-      email: driverId.contains('drv') ? 'nasir.ali@uog.edu.pk' : 'driver@uog.edu.pk',
-      phone: '+92 300 1234567',
-      role: 'driver',
-      driverId: 'ID-2024-005',
-      licenseNumber: 'LNC-998877',
-      cnicOrLicense: '34101-1234567-1',
-      licenseExpiryDate: DateTime.now().add(const Duration(days: 365)),
-      address: 'Main Street, Gwadar',
-      experienceYears: 10,
-      status: 'Active',
-      profileImg: '',
-      assignedBusId: 'bus_01',
-      assignedBusNumber: 'UOG-101',
-      assignedRouteId: 'route_01',
-      assignedRouteName: 'Gwadar City Center - Route A',
-      isOnDuty: false,
-    );
-
-    _assignedRoute = RouteModel(
-      id: 'route_01',
-      universityId: 'uog',
-      routeName: 'Gwadar City Center',
-      routeNumber: 'A',
-      startLocation: 'City Center',
-      endLocation: 'University Main Gate',
-      viaStops: ['Bus Stand', 'Fish Harbor'],
-      stops: [
-        RouteStop(stopName: 'Bus Stand', lat: 25.12, lng: 62.32, order: 1),
-        RouteStop(stopName: 'Fish Harbor', lat: 25.13, lng: 62.33, order: 2),
-        RouteStop(stopName: 'University Gate', lat: 25.14, lng: 62.34, order: 3),
-      ],
-      distanceKm: '15 km',
-      estimatedTime: '35 min',
-    );
-
-    _todaySchedules = [
-      ScheduleModel(
-        id: 'sch_01',
+    // Prefer already-registered driver profile; otherwise create a blank shell
+    if (_localDrivers.containsKey(driverId)) {
+      _driver = _localDrivers[driverId];
+    } else {
+      _driver = DriverModel(
+        uid: driverId,
+        name: 'Driver',
+        email: '',
+        phone: '',
+        role: 'driver',
         driverId: driverId,
-        driverName: 'Nasir Ali',
-        routeId: 'route_01',
-        routeName: 'Route A',
-        date: DateTime.now(),
-        departureTime: '07:30 AM',
-        arrivalTime: '08:15 AM',
-        shift: 'Morning',
-        vehicleNo: 'UOG-101',
-        status: 'Scheduled',
-      )
-    ];
-
-    _notices = [
-      NoticeModel(
-        id: 'n_01',
-        title: 'Route A Diversion',
-        description: 'Please follow the bypass road due to construction at Fish Harbor.',
-        date: DateTime.now(),
-        type: NoticeType.delay,
-        postedBy: 'Transport Admin',
-      ),
-    ];
-
-    _localDrivers[_driver!.uid] = _driver!;
+        licenseNumber: '',
+        profileImg: '',
+        assignedBusId: '',
+        assignedBusNumber: 'Not Assigned',
+        assignedRouteId: '',
+        assignedRouteName: 'Not Assigned',
+        isOnDuty: false,
+        status: 'Active',
+      );
+      _localDrivers[driverId] = _driver!;
+    }
+    _assignedRoute = null;
+    _todaySchedules = [];
+    _notices = [];
     notifyListeners();
   }
 
@@ -242,25 +166,33 @@ class DriverProvider extends ChangeNotifier {
 
     try {
       if (newStatus) {
-        bool hasPermission = await _locationService.checkPermissions();
+        bool hasPermission = true;
+        try {
+          hasPermission = await _locationService.checkPermissions();
+        } catch (_) {
+          // Web/desktop may not support geolocation; allow duty anyway
+          hasPermission = true;
+        }
         if (!hasPermission) throw Exception('Location permissions required');
         
         _driver = _driver!.copyWith(
           isOnDuty: true,
           lastDutyStart: DateTime.now(),
         );
+        _localDrivers[_driver!.uid] = _driver!;
         
         _startLocationTracking();
         _startTimer();
-        await _firestoreService.updateDriverStatus(_driver!.uid, true);
+        _firestoreService.updateDriverStatus(_driver!.uid, true);
       } else {
         _driver = _driver!.copyWith(
           isOnDuty: false,
           lastDutyStart: null,
         );
+        _localDrivers[_driver!.uid] = _driver!;
         _stopLocationTracking();
         _stopTimer();
-        await _firestoreService.updateDriverStatus(_driver!.uid, false);
+        _firestoreService.updateDriverStatus(_driver!.uid, false);
       }
     } catch (e) {
       _error = e.toString();
@@ -274,17 +206,15 @@ class DriverProvider extends ChangeNotifier {
     if (Firebase.apps.isEmpty) return;
     _positionSubscription?.cancel();
     _positionSubscription = _locationService.getPositionStream().listen((pos) {
-      if (pos is Position) {
-        _currentPosition = pos;
-        _firestoreService.updateLiveLocation(_driver!.uid, {
-          'lat': pos.latitude,
-          'lng': pos.longitude,
-          'speed': pos.speed,
-          'isOnDuty': true,
-          'lastUpdated': DateTime.now(),
-        });
-        notifyListeners();
-      }
+      _currentPosition = pos;
+      _firestoreService.updateLiveLocation(_driver!.uid, {
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'speed': pos.speed,
+        'isOnDuty': true,
+        'lastUpdated': DateTime.now(),
+      });
+      notifyListeners();
     });
   }
 

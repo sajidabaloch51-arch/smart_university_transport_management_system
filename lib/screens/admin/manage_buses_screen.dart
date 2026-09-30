@@ -37,6 +37,7 @@ class ManageBusesScreen extends StatelessWidget {
                 bus: buses[index],
                 onEdit: () => context.push('/add-edit-bus', extra: buses[index]),
                 onDelete: () => busProvider.deleteBus(buses[index].id),
+                onToggleActive: () => busProvider.toggleBusActive(buses[index].id),
               );
             },
           );

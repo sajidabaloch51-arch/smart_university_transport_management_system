@@ -48,7 +48,7 @@ class LiveTrackingScreen extends StatelessWidget {
                         ),
                         Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
                           child: const Icon(Icons.directions_bus, color: AppColors.primary, size: 30),
                         ),
                       ],

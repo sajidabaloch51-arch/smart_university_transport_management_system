@@ -33,7 +33,7 @@ class NoticeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: statusColor.withOpacity(0.3), width: 1),
+        side: BorderSide(color: statusColor.withValues(alpha: 0.3), width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

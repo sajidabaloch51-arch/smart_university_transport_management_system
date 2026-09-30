@@ -79,7 +79,7 @@ class StudentDashboard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: AppColors.primary.withValues(alpha: 0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -247,7 +247,7 @@ class StudentDashboard extends StatelessWidget {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: AppColors.primary.withOpacity(0.2)),
+            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),

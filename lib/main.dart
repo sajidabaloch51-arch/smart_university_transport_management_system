@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'config/app_router.dart';
 import 'theme/app_theme.dart';
 import 'constants/strings.dart';
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/admin_provider.dart';
@@ -25,8 +26,9 @@ void main() async {
 Future<void> _initializeFirebase() async {
   try {
     if (Firebase.apps.isEmpty) {
-      // Use a timeout to ensure we don't hang indefinitely
-      await Firebase.initializeApp().timeout(const Duration(seconds: 5));
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(const Duration(seconds: 5));
     }
   } catch (e) {
     debugPrint("Firebase initialization error or timeout: $e");

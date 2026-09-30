@@ -34,7 +34,7 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
                   controller: _searchController,
                   onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
                   decoration: InputDecoration(
-                    hintText: 'Search by name, ID, or CNIC...',
+                    hintText: 'Search by name or ID...',
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: Colors.white,
@@ -77,8 +77,7 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
 
           final drivers = snapshot.data?.where((d) {
             final matchesSearch = d.name.toLowerCase().contains(_searchQuery) || 
-                                 d.driverId.toLowerCase().contains(_searchQuery) ||
-                                 (d.cnicOrLicense?.toLowerCase().contains(_searchQuery) ?? false);
+                                 d.driverId.toLowerCase().contains(_searchQuery);
             final matchesStatus = _statusFilter == 'All' || d.status == _statusFilter;
             return matchesSearch && matchesStatus;
           }).toList() ?? [];

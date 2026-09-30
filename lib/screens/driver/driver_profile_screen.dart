@@ -150,9 +150,6 @@ class DriverProfileScreen extends StatelessWidget {
         children: [
           _infoTile(Icons.email_outlined, 'Email Address', driver.email),
           _infoTile(Icons.phone_outlined, 'Phone Number', driver.phone),
-          _infoTile(Icons.perm_identity, 'CNIC / License', driver.cnicOrLicense ?? 'Not Provided'),
-          _infoTile(Icons.calendar_month, 'License Expiry', driver.licenseExpiryDate != null ? "${driver.licenseExpiryDate!.day}/${driver.licenseExpiryDate!.month}/${driver.licenseExpiryDate!.year}" : 'Not Provided'),
-          _infoTile(Icons.home_outlined, 'Address', driver.address ?? 'Not Provided'),
           _infoTile(Icons.history, 'Experience', '${driver.experienceYears ?? 0} Years'),
           _infoTile(Icons.info_outline, 'Account Status', driver.status),
           const Divider(height: 40),
@@ -222,7 +219,6 @@ class DriverProfileScreen extends StatelessWidget {
 
   void _showRequestUpdateDialog(BuildContext context) {
     final phoneController = TextEditingController();
-    final addressController = TextEditingController();
     
     showDialog(
       context: context,
@@ -234,7 +230,6 @@ class DriverProfileScreen extends StatelessWidget {
             const Text('Submit a request to update your personal details. Admin will review and update.'),
             const SizedBox(height: 16),
             TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'New Phone Number')),
-            TextField(controller: addressController, decoration: const InputDecoration(labelText: 'New Address')),
           ],
         ),
         actions: [

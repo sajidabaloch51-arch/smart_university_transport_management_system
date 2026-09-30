@@ -42,11 +42,16 @@ class ManageRoutesScreen extends StatelessWidget {
                     child: Text(route.routeNumber, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
                   ),
                   title: Text(route.routeName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('${route.startLocation} ↔ ${route.endLocation}\n${route.viaStops.length} via stops | ${route.distanceKm}'),
+                  subtitle: Text('${route.startLocation} ↔ ${route.endLocation}\n${route.viaStops.length} via stops | ${route.isActive ? "ON" : "OFF"}'),
                   isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Switch(
+                        value: route.isActive,
+                        activeThumbColor: Colors.green,
+                        onChanged: (_) => routeProvider.toggleRouteActive(route.id),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.edit, size: 20), 
                         onPressed: () => context.push('/add-edit-route', extra: route)
