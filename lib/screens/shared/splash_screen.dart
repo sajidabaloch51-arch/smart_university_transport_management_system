@@ -26,22 +26,22 @@ class _SplashScreenState extends State<SplashScreen> {
     await prefs.setBool('is_logged_in', false);
     await prefs.remove('user_role');
     await prefs.remove('uid');
-    if (mounted) {
-      context.read<AuthProvider>().logout();
-    }
+    if (!mounted) return;
+    context.read<AuthProvider>().logout();
   }
 
-  void _navigateToNext() async {
+  Future<void> _navigateToNext() async {
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     final bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
     final String? role = prefs.getString('user_role');
     final String? uid = prefs.getString('uid');
 
     if (isLoggedIn && role != null && uid != null) {
-      // Students must still be approved before restoring session
       if (role == 'student') {
         final access = await StudentAccessGuard.evaluate(
           studentProvider: context.read<StudentProvider>(),
@@ -55,10 +55,10 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
 
-      if (mounted) {
-        context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
-      }
-      
+      if (!mounted) return;
+      context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
+
+      if (!mounted) return;
       switch (role) {
         case 'admin':
           context.go('/admin-dashboard');
@@ -70,6 +70,7 @@ class _SplashScreenState extends State<SplashScreen> {
           context.go('/student-dashboard');
       }
     } else {
+      if (!mounted) return;
       context.go('/onboarding');
     }
   }
@@ -86,7 +87,11 @@ class _SplashScreenState extends State<SplashScreen> {
             SizedBox(height: 24),
             Text(
               AppStrings.appName,
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
             Text(
               AppStrings.appSubtitle,

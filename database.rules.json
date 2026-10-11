@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "liveBusLocations": {
+      "$driverId": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}

@@ -144,7 +144,7 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (context.canPop()) {
           context.pop();

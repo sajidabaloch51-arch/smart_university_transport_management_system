@@ -232,7 +232,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (context.canPop()) {
           context.pop();

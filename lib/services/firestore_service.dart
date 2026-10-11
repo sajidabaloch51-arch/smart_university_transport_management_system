@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/user_model.dart';
 import '../models/student_model.dart';
 import '../models/driver_model.dart';
+import '../models/bus_model.dart';
 import '../models/route_model.dart';
 import '../models/notice_model.dart';
 import '../models/schedule_model.dart';
@@ -14,7 +16,9 @@ class FirestoreService {
       if (Firebase.apps.isNotEmpty) {
         return FirebaseFirestore.instance;
       }
-    } catch (e) {}
+    } catch (_) {
+      // Firebase not ready yet
+    }
     return null;
   }
 
@@ -26,7 +30,7 @@ class FirestoreService {
     try {
       return await call(db).timeout(const Duration(seconds: 2));
     } catch (e) {
-      print("Firebase Timeout/Error: $e");
+      debugPrint("Firebase Timeout/Error: $e");
       return null;
     }
   }
@@ -38,7 +42,7 @@ class FirestoreService {
     try {
       await db.collection('users').doc(user.uid).set(user.toMap());
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -97,7 +101,7 @@ class FirestoreService {
         'lastDutyStart': isOnDuty ? FieldValue.serverTimestamp() : null,
       });
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -135,7 +139,7 @@ class FirestoreService {
     try {
       await db.collection('routes').doc(route.id).set(route.toMap());
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -160,14 +164,34 @@ class FirestoreService {
     final db = _db;
     if (db == null) return const Stream.empty();
 
-    return db
-        .collection('notices')
-        .where('universityId', isEqualTo: universityId)
-        .orderBy('date', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
-            .toList());
+    // Prefer university filter; fall back to all notices ordered by date.
+    try {
+      return db
+          .collection('notices')
+          .where('universityId', isEqualTo: universityId)
+          .orderBy('date', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
+              .toList());
+    } catch (_) {
+      return db
+          .collection('notices')
+          .orderBy('date', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
+              .toList());
+    }
+  }
+
+  // --- BUS OPERATIONS ---
+  Stream<List<BusModel>> streamBuses() {
+    final db = _db;
+    if (db == null) return const Stream.empty();
+    return db.collection('buses').snapshots().map((snapshot) => snapshot.docs
+        .map((doc) => BusModel.fromMap(doc.data(), doc.id))
+        .toList());
   }
 
   Future<void> addNotice(NoticeModel notice) async {
@@ -176,7 +200,7 @@ class FirestoreService {
     try {
       await db.collection('notices').doc(notice.id).set(notice.toMap());
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -187,7 +211,7 @@ class FirestoreService {
     try {
       await db.collection('feedback').add(feedback);
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 
@@ -204,7 +228,7 @@ class FirestoreService {
     try {
       await db.collection('liveLocations').doc(driverId).set(locationData, SetOptions(merge: true));
     } catch (e) {
-      print(e);
+      debugPrint('$e');
     }
   }
 }

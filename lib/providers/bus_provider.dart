@@ -7,55 +7,61 @@ class BusProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {}
+    } catch (_) {}
     return null;
   }
-  
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final List<BusModel> _mockBuses = [];
-
+  /// Live stream from Firestore `buses` collection.
   Stream<List<BusModel>> streamBuses() {
-    return Stream.value(List<BusModel>.from(_mockBuses));
+    final db = _db;
+    if (db == null) return Stream.value(const <BusModel>[]);
+
+    return db.collection('buses').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => BusModel.fromMap(doc.data(), doc.id))
+          .toList();
+    }).handleError((e) {
+      debugPrint('streamBuses error: $e');
+    });
   }
 
   Future<void> addBus(BusModel bus) async {
-    final index = _mockBuses.indexWhere((b) => b.id == bus.id);
-    if (index != -1) {
-      _mockBuses[index] = bus;
-    } else {
-      _mockBuses.add(bus);
-    }
-    notifyListeners();
-
     final db = _db;
-    if (db == null) return;
-    db.collection('buses').doc(bus.id).set(bus.toMap()).then(
-      (_) {},
-      onError: (e) => debugPrint('Error saving bus: $e'),
-    );
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await db.collection('buses').doc(bus.id).set(bus.toMap());
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> deleteBus(String id) async {
-    _mockBuses.removeWhere((b) => b.id == id);
-    notifyListeners();
-
     final db = _db;
     if (db == null) return;
-    db.collection('buses').doc(id).delete().then(
-      (_) {},
-      onError: (e) => debugPrint('Error deleting bus: $e'),
-    );
+    await db.collection('buses').doc(id).delete();
   }
 
   Future<void> toggleBusActive(String id) async {
-    final index = _mockBuses.indexWhere((b) => b.id == id);
-    if (index == -1) return;
-    final bus = _mockBuses[index];
+    final db = _db;
+    if (db == null) return;
+    final doc = await db.collection('buses').doc(id).get();
+    if (!doc.exists || doc.data() == null) return;
+    final bus = BusModel.fromMap(doc.data()!, doc.id);
     await addBus(BusModel(
       id: bus.id,
       busNumber: bus.busNumber,
+      capacity: bus.capacity,
+      busModel: bus.busModel,
       registrationNumber: bus.registrationNumber,
       assignedDriverId: bus.assignedDriverId,
       assignedDriverName: bus.assignedDriverName,

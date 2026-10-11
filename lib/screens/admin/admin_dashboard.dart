@@ -34,7 +34,7 @@ class AdminDashboard extends StatelessWidget {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Use Logout button to exit session'), duration: Duration(seconds: 1)),

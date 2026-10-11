@@ -5,6 +5,7 @@ import 'config/app_router.dart';
 import 'theme/app_theme.dart';
 import 'constants/strings.dart';
 import 'firebase_options.dart';
+import 'services/firebase_bootstrap.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/admin_provider.dart';
@@ -37,7 +38,24 @@ void main() async {
   };
 
   await _initializeFirebase();
+  // Non-blocking health check (logs guidance if Firestore/RTDB missing).
+  _probeBackend();
   runApp(const SUTMSApp());
+}
+
+Future<void> _probeBackend() async {
+  final firestoreIssue = await FirebaseBootstrap.probeFirestore();
+  if (firestoreIssue != null) {
+    debugPrint('⚠️ Firestore: $firestoreIssue');
+  } else {
+    debugPrint('✅ Firestore connected (sutms-uog)');
+  }
+  final rtdbIssue = await FirebaseBootstrap.probeRealtimeDatabase();
+  if (rtdbIssue != null) {
+    debugPrint('⚠️ Realtime Database: $rtdbIssue');
+  } else {
+    debugPrint('✅ Realtime Database connected');
+  }
 }
 
 /// Safe Firebase bootstrap: Android may already create [DEFAULT] via google-services.

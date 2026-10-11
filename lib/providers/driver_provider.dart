@@ -50,16 +50,35 @@ class DriverProvider extends ChangeNotifier {
       if (Firebase.apps.isNotEmpty) {
         return FirebaseFirestore.instance;
       }
-    } catch (e) {}
+    } catch (_) {
+      // Firebase not ready yet
+    }
     return null;
   }
 
   Stream<List<DriverModel>> streamDrivers() {
-    return Stream.value(_localDrivers.values.toList());
+    final db = _db;
+    if (db == null) {
+      return Stream.value(_localDrivers.values.toList());
+    }
+    return db
+        .collection('users')
+        .where('role', isEqualTo: 'driver')
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
+          .toList();
+      for (final d in list) {
+        _localDrivers[d.uid] = d;
+      }
+      return list;
+    }).handleError((e) {
+      debugPrint('streamDrivers error: $e');
+    });
   }
 
   Future<void> updateDriver(DriverModel driver) async {
-    // Update local cache first so registration/login feels instant
     _localDrivers[driver.uid] = driver;
     if (_driver?.uid == driver.uid) {
       _driver = driver;
@@ -67,12 +86,16 @@ class DriverProvider extends ChangeNotifier {
     notifyListeners();
 
     final db = _db;
-    if (db == null) return;
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
 
-    db.collection('users').doc(driver.uid).set(driver.toMap(), SetOptions(merge: true)).then(
-      (_) {},
-      onError: (e) => debugPrint("Error updating driver: $e"),
-    );
+    await db
+        .collection('users')
+        .doc(driver.uid)
+        .set(driver.toMap(), SetOptions(merge: true));
   }
 
   Future<void> updateProfileImage(String base64Img) async {
@@ -82,14 +105,25 @@ class DriverProvider extends ChangeNotifier {
     await updateDriver(updatedDriver);
   }
 
-  /// Initialize driver data
+  /// Initialize driver data from Firestore (local cache as fallback).
   Future<void> init(String driverId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      if (_localDrivers.containsKey(driverId)) {
+      final db = _db;
+      if (db != null) {
+        final doc = await db.collection('users').doc(driverId).get();
+        if (doc.exists && doc.data() != null) {
+          _driver = DriverModel.fromMap(doc.data()!, doc.id);
+          _localDrivers[driverId] = _driver!;
+        } else if (_localDrivers.containsKey(driverId)) {
+          _driver = _localDrivers[driverId];
+        } else {
+          _loadMockData(driverId);
+        }
+      } else if (_localDrivers.containsKey(driverId)) {
         _driver = _localDrivers[driverId];
       } else {
         _loadMockData(driverId);

@@ -70,7 +70,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (_selectedIndex != 0) {
           _onTabChanged(0);

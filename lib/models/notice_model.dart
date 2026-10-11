@@ -55,6 +55,7 @@ class NoticeModel {
       'type': type.name,
       'postedBy': postedBy,
       'targetAudience': targetAudience,
+      'universityId': 'uog',
     };
   }
 

@@ -7,45 +7,47 @@ class ScheduleProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {}
+    } catch (_) {}
     return null;
   }
-  
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final List<ScheduleModel> _mockSchedules = [];
-
+  /// Live stream from Firestore `schedules`.
   Stream<List<ScheduleModel>> streamSchedules() {
-    return Stream.value(List<ScheduleModel>.from(_mockSchedules));
+    final db = _db;
+    if (db == null) return Stream.value(const <ScheduleModel>[]);
+
+    return db.collection('schedules').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ScheduleModel.fromMap(doc.data(), doc.id))
+          .toList();
+    }).handleError((e) {
+      debugPrint('streamSchedules error: $e');
+    });
   }
 
   Future<void> addSchedule(ScheduleModel schedule) async {
-    final index = _mockSchedules.indexWhere((s) => s.id == schedule.id);
-    if (index != -1) {
-      _mockSchedules[index] = schedule;
-    } else {
-      _mockSchedules.add(schedule);
-    }
-    notifyListeners();
-
     final db = _db;
-    if (db == null) return;
-    db.collection('schedules').doc(schedule.id).set(schedule.toMap()).then(
-      (_) {},
-      onError: (e) => debugPrint('Error saving schedule: $e'),
-    );
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await db.collection('schedules').doc(schedule.id).set(schedule.toMap());
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> deleteSchedule(String id) async {
-    _mockSchedules.removeWhere((s) => s.id == id);
-    notifyListeners();
-
     final db = _db;
     if (db == null) return;
-    db.collection('schedules').doc(id).delete().then(
-      (_) {},
-      onError: (e) => debugPrint('Error deleting schedule: $e'),
-    );
+    await db.collection('schedules').doc(id).delete();
   }
 }

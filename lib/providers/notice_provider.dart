@@ -7,56 +7,65 @@ class NoticeProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (e) {}
+    } catch (_) {}
     return null;
   }
-  
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final List<NoticeModel> _mockNotices = [];
+  List<NoticeModel> _cache = [];
+  List<NoticeModel> get notices => List.unmodifiable(_cache);
 
-  List<NoticeModel> get notices => List.unmodifiable(_mockNotices);
-
+  /// Live stream from Firestore `notices`.
   Stream<List<NoticeModel>> streamNotices() {
-    return Stream.value(List<NoticeModel>.from(_mockNotices));
+    final db = _db;
+    if (db == null) return Stream.value(const <NoticeModel>[]);
+
+    return db
+        .collection('notices')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      _cache = snapshot.docs
+          .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
+          .toList();
+      return _cache;
+    }).handleError((e) {
+      debugPrint('streamNotices error: $e');
+    });
   }
 
   Stream<List<NoticeModel>> streamNoticesForRole(String role) {
-    final filtered = _mockNotices.where((n) => n.isVisibleTo(role)).toList();
-    return Stream.value(filtered);
+    return streamNotices().map(
+      (list) => list.where((n) => n.isVisibleTo(role)).toList(),
+    );
   }
 
   List<NoticeModel> noticesForRole(String role) {
-    return _mockNotices.where((n) => n.isVisibleTo(role)).toList();
+    return _cache.where((n) => n.isVisibleTo(role)).toList();
   }
 
   Future<void> addNotice(NoticeModel notice) async {
-    final index = _mockNotices.indexWhere((n) => n.id == notice.id);
-    if (index != -1) {
-      _mockNotices[index] = notice;
-    } else {
-      _mockNotices.insert(0, notice);
-    }
-    notifyListeners();
-
     final db = _db;
-    if (db == null) return;
-    db.collection('notices').doc(notice.id).set(notice.toMap()).then(
-      (_) {},
-      onError: (e) => debugPrint('Error saving notice: $e'),
-    );
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await db.collection('notices').doc(notice.id).set(notice.toMap());
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> deleteNotice(String id) async {
-    _mockNotices.removeWhere((n) => n.id == id);
-    notifyListeners();
-
     final db = _db;
     if (db == null) return;
-    db.collection('notices').doc(id).delete().then(
-      (_) {},
-      onError: (e) => debugPrint('Error deleting notice: $e'),
-    );
+    await db.collection('notices').doc(id).delete();
   }
 }

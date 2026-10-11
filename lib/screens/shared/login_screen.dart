@@ -118,9 +118,12 @@ class _LoginScreenState extends State<LoginScreen> {
         String targetRole = widget.role ?? 'student';
         if (email.contains('admin')) {
           targetRole = 'admin';
-        } else if (email.contains('driver')) targetRole = 'driver';
-        
+        } else if (email.contains('driver')) {
+          targetRole = 'driver';
+        }
+
         await prefs.setString('user_role', targetRole);
+        if (!mounted) return;
 
         // Students must be registered + approved (uni DB or admin)
         if (targetRole == 'student') {
@@ -130,8 +133,8 @@ class _LoginScreenState extends State<LoginScreen> {
           );
 
           if (!access.allowed) {
-            setState(() => _isLoading = false);
             if (!mounted) return;
+            setState(() => _isLoading = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(access.message ?? 'Access denied'),
@@ -142,11 +145,16 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
 
-        context.read<AuthProvider>().setAuthenticated(true, role: targetRole, uid: uid);
+        if (!mounted) return;
+        context.read<AuthProvider>().setAuthenticated(
+              true,
+              role: targetRole,
+              uid: uid,
+            );
 
         setState(() => _isLoading = false);
 
-        // Navigation
+        if (!mounted) return;
         if (targetRole == 'driver') {
           context.read<DriverProvider>().init(uid);
           context.go('/driver-dashboard');
@@ -167,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (context.canPop()) {
           context.pop();
