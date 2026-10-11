@@ -13,25 +13,51 @@ import 'providers/bus_provider.dart';
 import 'providers/route_provider.dart';
 import 'providers/schedule_provider.dart';
 import 'providers/notice_provider.dart';
+import 'providers/live_tracking_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase in a non-blocking way for the initial UI render
-  _initializeFirebase();
 
+  // Lightweight error UI — never inject a full Scaffold into the render tree
+  // (that caused parent/child assertion crashes on device).
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Something went wrong',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+          ),
+        ),
+      ),
+    );
+  };
+
+  await _initializeFirebase();
   runApp(const SUTMSApp());
 }
 
+/// Safe Firebase bootstrap: Android may already create [DEFAULT] via google-services.
 Future<void> _initializeFirebase() async {
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 5));
+    if (Firebase.apps.isNotEmpty) {
+      // Native / prior init already registered the default app.
+      return;
     }
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    // Race or native auto-init: treat as success.
+    if (e.code == 'duplicate-app') return;
+    debugPrint('Firebase initialization failed: ${e.code} ${e.message}');
   } catch (e) {
-    debugPrint("Firebase initialization error or timeout: $e");
+    final message = e.toString();
+    if (message.contains('duplicate-app')) return;
+    debugPrint('Firebase initialization failed: $e');
   }
 }
 
@@ -50,34 +76,13 @@ class SUTMSApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RouteProvider()),
         ChangeNotifierProvider(create: (_) => ScheduleProvider()),
         ChangeNotifierProvider(create: (_) => NoticeProvider()),
+        ChangeNotifierProvider(create: (_) => LiveTrackingProvider()),
       ],
       child: MaterialApp.router(
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         routerConfig: AppRouter.router,
-        builder: (context, child) {
-          ErrorWidget.builder = (details) {
-            return Scaffold(
-              body: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 50),
-                      const SizedBox(height: 16),
-                      const Text("An unexpected error occurred", style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(details.exception.toString(), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          };
-          return child!;
-        },
       ),
     );
   }

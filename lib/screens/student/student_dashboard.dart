@@ -177,7 +177,7 @@ class StudentDashboard extends StatelessWidget {
                         value: '', 
                         icon: Icons.location_searching_rounded, 
                         color: const Color(0xFF10B981), // Emerald
-                        onTap: () => context.push('/live-tracking'),
+                        onTap: () => context.push('/live-tracking', extra: student),
                       ),
                       DashboardCard(
                         title: 'Notifications', 

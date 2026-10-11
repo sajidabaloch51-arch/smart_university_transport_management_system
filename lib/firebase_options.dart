@@ -30,6 +30,10 @@ class DefaultFirebaseOptions {
     }
   }
 
+  // Enable Realtime Database in Firebase Console and match this URL if different.
+  static const String databaseURL =
+      'https://sutms-uog-default-rtdb.firebaseio.com';
+
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyDtouw9raLD-fu9yAotY71sksxSEG-8jTg',
     appId: '1:100031780267:web:5074df095acfc7be296eee',
@@ -37,6 +41,7 @@ class DefaultFirebaseOptions {
     projectId: 'sutms-uog',
     authDomain: 'sutms-uog.firebaseapp.com',
     storageBucket: 'sutms-uog.firebasestorage.app',
+    databaseURL: databaseURL,
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -45,6 +50,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '100031780267',
     projectId: 'sutms-uog',
     storageBucket: 'sutms-uog.firebasestorage.app',
+    databaseURL: databaseURL,
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -54,6 +60,7 @@ class DefaultFirebaseOptions {
     projectId: 'sutms-uog',
     storageBucket: 'sutms-uog.firebasestorage.app',
     iosBundleId: 'com.example.sutms',
+    databaseURL: databaseURL,
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -63,6 +70,7 @@ class DefaultFirebaseOptions {
     projectId: 'sutms-uog',
     storageBucket: 'sutms-uog.firebasestorage.app',
     iosBundleId: 'com.example.sutms',
+    databaseURL: databaseURL,
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -72,5 +80,6 @@ class DefaultFirebaseOptions {
     projectId: 'sutms-uog',
     authDomain: 'sutms-uog.firebaseapp.com',
     storageBucket: 'sutms-uog.firebasestorage.app',
+    databaseURL: databaseURL,
   );
 }

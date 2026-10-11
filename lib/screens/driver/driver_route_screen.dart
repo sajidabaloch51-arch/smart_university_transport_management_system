@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
+import '../../services/maps_launcher_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../models/route_model.dart';
 
@@ -30,17 +31,9 @@ class DriverRouteScreen extends StatelessWidget {
               _buildTimeline(route.viaStops),
               const SizedBox(height: 40),
               CustomButton(
-                text: 'Navigate with Google Maps', 
+                text: 'Navigate with Google Maps',
                 icon: Icons.navigation,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Launching Google Maps Navigation...'),
-                      backgroundColor: Colors.blue,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onPressed: () => _launchGoogleMapsNavigation(context, provider),
               ),
               const SizedBox(height: 16),
               CustomButton(
@@ -82,6 +75,66 @@ class DriverRouteScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _launchGoogleMapsNavigation(
+    BuildContext context,
+    DriverProvider provider,
+  ) async {
+    final route = provider.assignedRoute;
+    final pos = provider.currentPosition;
+
+    // Prefer last route stop as destination; else first stop with coords
+    double? destLat;
+    double? destLng;
+    if (route != null) {
+      final stops = [...route.stops]..sort((a, b) => a.order.compareTo(b.order));
+      final withCoords = stops.where((s) => s.lat != 0 && s.lng != 0).toList();
+      if (withCoords.isNotEmpty) {
+        destLat = withCoords.last.lat;
+        destLng = withCoords.last.lng;
+      }
+    }
+
+    if (destLat == null || destLng == null) {
+      if (pos != null) {
+        await MapsLauncherService.openLocation(
+          lat: pos.latitude,
+          lng: pos.longitude,
+          label: route?.routeName ?? 'My route',
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No route GPS points yet. Admin must add lat/lng on the route, or start duty for GPS.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final originLat = pos?.latitude ?? destLat;
+    final originLng = pos?.longitude ?? destLng;
+    final ok = await MapsLauncherService.openDirections(
+      originLat: originLat,
+      originLng: originLng,
+      destLat: destLat,
+      destLng: destLng,
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Opening Google Maps navigation…'
+              : 'Could not open Google Maps. Is it installed?',
+        ),
+        backgroundColor: ok ? Colors.blue : Colors.red,
       ),
     );
   }

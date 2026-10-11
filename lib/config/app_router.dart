@@ -9,7 +9,7 @@ import '../screens/student/student_dashboard.dart';
 import '../screens/student/student_home_screen.dart';
 import '../screens/student/route_screen.dart';
 import '../screens/student/route_detail_screen.dart';
-import '../screens/student/live_map_screen.dart';
+import '../screens/student/live_bus_tracking_screen.dart';
 import '../screens/student/notice_screen.dart';
 import '../screens/student/notice_detail_screen.dart';
 import '../screens/student/feedback_screen.dart';
@@ -105,7 +105,12 @@ class AppRouter {
       GoRoute(path: '/student-home', builder: (context, state) => const StudentHomeScreen()),
       GoRoute(path: '/student-routes', builder: (context, state) => const RouteScreen()),
       GoRoute(path: '/route-detail/:id', builder: (context, state) => RouteDetailScreen(routeId: state.pathParameters['id'] ?? 'A')),
-      GoRoute(path: '/live-tracking', builder: (context, state) => const LiveMapScreen()),
+      GoRoute(
+        path: '/live-tracking',
+        builder: (context, state) => LiveBusTrackingScreen(
+          student: state.extra is StudentModel ? state.extra as StudentModel : null,
+        ),
+      ),
       GoRoute(path: '/notices', builder: (context, state) => const NoticeScreen()),
       GoRoute(path: '/notice-detail', builder: (context, state) {
         final notice = state.extra as NoticeModel?;

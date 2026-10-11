@@ -82,7 +82,21 @@ class StudentProvider extends ChangeNotifier {
   }
 
   Future<StudentModel?> getStudent(String uid) async {
+    if (uid.isEmpty) return null;
     if (_localStudents.containsKey(uid)) return _localStudents[uid];
+
+    final db = _db;
+    if (db == null) return null;
+    try {
+      final doc = await db.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final student = StudentModel.fromMap(doc.data()!, doc.id);
+        _localStudents[uid] = student;
+        return student;
+      }
+    } catch (e) {
+      debugPrint('getStudent failed: $e');
+    }
     return null;
   }
 

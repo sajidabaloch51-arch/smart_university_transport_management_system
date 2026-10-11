@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'live_map_screen.dart';
+import 'live_bus_tracking_screen.dart';
 import 'route_screen.dart';
 import 'notice_screen.dart';
 import 'profile_screen.dart';
@@ -22,7 +22,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   final List<Widget> _screens = [
     const HomeTab(),
     const RouteScreen(),
-    const LiveMapScreen(),
+    const LiveBusTrackingScreen(),
     const NoticeScreen(),
     const ProfileScreen(),
   ];

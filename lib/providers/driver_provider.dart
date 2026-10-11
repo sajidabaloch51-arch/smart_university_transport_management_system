@@ -7,12 +7,15 @@ import '../models/driver_model.dart';
 import '../models/route_model.dart';
 import '../models/notice_model.dart';
 import '../models/schedule_model.dart';
+import '../models/bus_live_location_model.dart';
 import '../services/firestore_service.dart';
 import '../services/location_service.dart';
+import '../services/realtime_location_service.dart';
 
 class DriverProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final LocationService _locationService = LocationService();
+  final RealtimeLocationService _realtimeLocation = RealtimeLocationService();
 
   DriverModel? _driver;
   RouteModel? _assignedRoute;
@@ -183,7 +186,15 @@ class DriverProvider extends ChangeNotifier {
         
         _startLocationTracking();
         _startTimer();
-        _firestoreService.updateDriverStatus(_driver!.uid, true);
+        await _firestoreService.updateDriverStatus(_driver!.uid, true);
+        // Seed RTDB immediately so students see Live before first GPS tick
+        await _publishLiveLocation(
+          lat: _currentPosition?.latitude ?? 0,
+          lng: _currentPosition?.longitude ?? 0,
+          speed: _currentPosition?.speed ?? 0,
+          heading: _currentPosition?.heading ?? 0,
+          isOnDuty: true,
+        );
       } else {
         _driver = _driver!.copyWith(
           isOnDuty: false,
@@ -192,7 +203,13 @@ class DriverProvider extends ChangeNotifier {
         _localDrivers[_driver!.uid] = _driver!;
         _stopLocationTracking();
         _stopTimer();
-        _firestoreService.updateDriverStatus(_driver!.uid, false);
+        await _firestoreService.updateDriverStatus(_driver!.uid, false);
+        await _realtimeLocation.markOffline(_driver!.uid);
+        // Keep Firestore mirror in sync
+        await _firestoreService.updateLiveLocation(_driver!.uid, {
+          'isOnDuty': false,
+          'lastUpdated': DateTime.now(),
+        });
       }
     } catch (e) {
       _error = e.toString();
@@ -205,17 +222,88 @@ class DriverProvider extends ChangeNotifier {
   void _startLocationTracking() {
     if (Firebase.apps.isEmpty) return;
     _positionSubscription?.cancel();
+
+    // One-shot fix so first publish has real coords
+    _locationService.getCurrentLocation().then((pos) {
+      _currentPosition = pos;
+      _publishLiveLocation(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        speed: pos.speed,
+        heading: pos.heading,
+        isOnDuty: true,
+      );
+      notifyListeners();
+    }).catchError((e) {
+      debugPrint('Initial GPS fix failed: $e');
+    });
+
     _positionSubscription = _locationService.getPositionStream().listen((pos) {
       _currentPosition = pos;
-      _firestoreService.updateLiveLocation(_driver!.uid, {
-        'lat': pos.latitude,
-        'lng': pos.longitude,
-        'speed': pos.speed,
-        'isOnDuty': true,
-        'lastUpdated': DateTime.now(),
-      });
+      _publishLiveLocation(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        speed: pos.speed,
+        heading: pos.heading,
+        isOnDuty: true,
+      );
+      notifyListeners();
+    }, onError: (e) {
+      debugPrint('GPS stream error: $e');
+      _error = 'Location stream failed: $e';
       notifyListeners();
     });
+  }
+
+  Future<void> _publishLiveLocation({
+    required double lat,
+    required double lng,
+    required double speed,
+    required double heading,
+    required bool isOnDuty,
+  }) async {
+    if (_driver == null) return;
+
+    final payload = BusLiveLocationModel(
+      driverId: _driver!.uid,
+      driverName: _driver!.name,
+      busId: _driver!.assignedBusId,
+      busNumber: _driver!.assignedBusNumber,
+      routeId: _driver!.assignedRouteId,
+      routeName: _driver!.assignedRouteName,
+      lat: lat,
+      lng: lng,
+      speed: speed,
+      heading: heading,
+      isOnDuty: isOnDuty,
+      lastUpdatedMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    // Primary: Firebase Realtime Database (students listen here)
+    try {
+      await _realtimeLocation.publishLocation(payload);
+    } catch (e) {
+      debugPrint('RTDB publish failed: $e');
+    }
+
+    // Secondary mirror: Firestore (legacy screens / fallback)
+    try {
+      await _firestoreService.updateLiveLocation(_driver!.uid, {
+        'lat': lat,
+        'lng': lng,
+        'speed': speed,
+        'heading': heading,
+        'isOnDuty': isOnDuty,
+        'routeId': _driver!.assignedRouteId,
+        'busId': _driver!.assignedBusId,
+        'busNumber': _driver!.assignedBusNumber,
+        'driverName': _driver!.name,
+        'routeName': _driver!.assignedRouteName,
+        'lastUpdated': DateTime.now(),
+      });
+    } catch (e) {
+      debugPrint('Firestore liveLocation mirror failed: $e');
+    }
   }
 
   void _stopLocationTracking() {

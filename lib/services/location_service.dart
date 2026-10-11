@@ -28,10 +28,10 @@ class LocationService {
   }
 
   /// Stream of location updates for live tracking
-  Stream<Position> getPositionStream() {
-    const LocationSettings locationSettings = LocationSettings(
+  Stream<Position> getPositionStream({int distanceFilterMeters = 5}) {
+    final locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Update every 10 meters to save battery
+      distanceFilter: distanceFilterMeters,
     );
     return Geolocator.getPositionStream(locationSettings: locationSettings);
   }

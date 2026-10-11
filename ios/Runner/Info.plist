@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SUTMS needs your location to show you on the live bus tracking map.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SUTMS needs location access so drivers can share live bus GPS while on duty.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>SUTMS needs location access so drivers can share live bus GPS while on duty.</string>
 </dict>
 </plist>
