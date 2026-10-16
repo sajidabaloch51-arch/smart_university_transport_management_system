@@ -18,8 +18,6 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   late TextEditingController _busNoController;
   late TextEditingController _regNoController;
 
-  String? _selectedDriver;
-  String? _selectedRoute;
   bool _isLoading = false;
   bool _isActive = true;
 
@@ -27,20 +25,9 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   void initState() {
     super.initState();
     _busNoController = TextEditingController(text: widget.bus?.busNumber ?? '');
-    _regNoController = TextEditingController(text: widget.bus?.registrationNumber ?? '');
+    _regNoController =
+        TextEditingController(text: widget.bus?.registrationNumber ?? '');
     _isActive = widget.bus?.isActive ?? true;
-    
-    // Safety check for dropdown values
-    const drivers = ['Nasir Ali', 'Ali Ahmed'];
-    const routes = ['Route A', 'Route B'];
-    
-    _selectedDriver = drivers.contains(widget.bus?.assignedDriverName) 
-        ? widget.bus?.assignedDriverName 
-        : null;
-        
-    _selectedRoute = routes.contains(widget.bus?.assignedRouteName) 
-        ? widget.bus?.assignedRouteName 
-        : null;
   }
 
   @override
@@ -51,35 +38,44 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
   }
 
   void _saveBus() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      final bus = BusModel(
-        id: widget.bus?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        busNumber: _busNoController.text.trim(),
-        registrationNumber: _regNoController.text.trim().isNotEmpty
-            ? _regNoController.text.trim()
-            : (widget.bus?.registrationNumber ?? ''),
-        assignedDriverId: '',
-        assignedDriverName: _selectedDriver ?? 'Not Assigned',
-        assignedRouteId: '',
-        assignedRouteName: _selectedRoute ?? 'Not Assigned',
-        isActive: _isActive,
-      );
+    setState(() => _isLoading = true);
 
-      try {
-        await Provider.of<BusProvider>(context, listen: false).addBus(bus);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Bus ${widget.bus == null ? 'registered' : 'updated'} successfully'), backgroundColor: Colors.green),
-          );
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+    // Only store real values — no empty IDs / "Not Assigned" / null clutter.
+    final bus = BusModel(
+      id: widget.bus?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      busNumber: _busNoController.text.trim(),
+      registrationNumber: _regNoController.text.trim(),
+      assignedDriverId: widget.bus?.assignedDriverId ?? '',
+      assignedDriverName: widget.bus?.assignedDriverName ?? '',
+      assignedRouteId: widget.bus?.assignedRouteId ?? '',
+      assignedRouteName: widget.bus?.assignedRouteName ?? '',
+      isActive: _isActive,
+    );
+
+    try {
+      await Provider.of<BusProvider>(context, listen: false).addBus(bus);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Bus ${widget.bus == null ? 'registered' : 'updated'} successfully',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -94,21 +90,27 @@ class _AddEditBusScreenState extends State<AddEditBusScreen> {
           child: Column(
             children: [
               CustomTextField(
-                controller: _busNoController, 
+                controller: _busNoController,
                 labelText: 'Bus Number (e.g., UOG-001)',
                 validator: (v) => v!.isEmpty ? 'Required' : null,
+              ),
+              CustomTextField(
+                controller: _regNoController,
+                labelText: 'Registration Number (optional)',
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Bus Active'),
-                subtitle: Text(_isActive ? 'Bus is ON / available' : 'Bus is OFF / inactive'),
+                subtitle: Text(
+                  _isActive ? 'Bus is ON / available' : 'Bus is OFF / inactive',
+                ),
                 value: _isActive,
                 activeThumbColor: Colors.green,
                 onChanged: (val) => setState(() => _isActive = val),
               ),
               const SizedBox(height: 24),
               CustomButton(
-                text: widget.bus == null ? 'REGISTER BUS' : 'UPDATE BUS', 
+                text: widget.bus == null ? 'REGISTER BUS' : 'UPDATE BUS',
                 isLoading: _isLoading,
                 onPressed: _saveBus,
               ),

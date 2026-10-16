@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../core/validators/app_validators.dart';
+import '../../utils/email_validator.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -15,7 +17,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
 
   void _resetPassword() async {
-    if (_emailController.text.isEmpty) return;
+    if (AppEmailValidator.validate(_emailController.text) != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppEmailValidator.errorMessage)),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     
@@ -54,7 +61,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             CustomTextField(
               controller: _emailController,
               labelText: 'Email Address',
+              hintText: AppEmailValidator.hint,
+              helperText: AppEmailValidator.hint,
               prefixIcon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              validator: AppValidators.validateEmail,
             ),
             const SizedBox(height: 30),
             CustomButton(

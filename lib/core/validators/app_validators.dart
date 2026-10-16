@@ -1,11 +1,9 @@
+import '../../utils/email_validator.dart';
+
 class AppValidators {
-  static String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) return 'Email is required';
-    // Gmail Only Regex
-    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$');
-    if (!emailRegex.hasMatch(value)) return 'Enter a valid Gmail address (e.g., student@gmail.com)';
-    return null;
-  }
+  /// Delegates to [AppEmailValidator] — @uog.edu.pk or @gmail.com only.
+  static String? validateEmail(String? value) =>
+      AppEmailValidator.validate(value);
 
   static String? validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';
@@ -65,7 +63,16 @@ class AppValidators {
 
   static String? validateRollNo(String? value) {
     if (value == null || value.isEmpty) return 'Roll No is required';
-    if (value.length < 3) return 'Roll No must be at least 3 characters long';
+    final cleaned = value
+        .trim()
+        .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
+        .replaceAll(RegExp(r'\s+'), '');
+    if (cleaned.isEmpty) return 'Roll No is required';
+    if (cleaned.length < 2) return 'Roll No must be at least 2 characters';
+    // Keep as string (leading zeros allowed). Alphanumeric / hyphen only.
+    if (!RegExp(r'^[A-Za-z0-9-]+$').hasMatch(cleaned)) {
+      return 'Roll No may only contain letters, digits, and hyphens';
+    }
     return null;
   }
 

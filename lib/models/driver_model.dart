@@ -30,7 +30,7 @@ class DriverModel extends UserModel {
     this.address,
     this.experienceYears,
     this.status = 'Active',
-    required this.profileImg,
+    this.profileImg = '',
     required this.assignedBusId,
     required this.assignedBusNumber,
     required this.assignedRouteId,
@@ -67,25 +67,30 @@ class DriverModel extends UserModel {
     );
   }
 
+  /// Lean Firestore payload — drops unused license/address clutter.
   @override
   Map<String, dynamic> toMap() {
-    final map = super.toMap();
-    map.addAll({
+    final map = <String, dynamic>{
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'role': role,
+      'isActive': isActive,
       'driverId': driverId,
-      'licenseNumber': licenseNumber,
-      'cnicOrLicense': cnicOrLicense,
-      'licenseExpiryDate': licenseExpiryDate != null ? Timestamp.fromDate(licenseExpiryDate!) : null,
-      'address': address,
-      'experienceYears': experienceYears,
       'status': status,
-      'profileImg': profileImg,
       'assignedBusId': assignedBusId,
       'assignedBusNumber': assignedBusNumber,
       'assignedRouteId': assignedRouteId,
       'assignedRouteName': assignedRouteName,
       'isOnDuty': isOnDuty,
-      'lastDutyStart': lastDutyStart != null ? Timestamp.fromDate(lastDutyStart!) : null,
-    });
+    };
+
+    if (profileImg.isNotEmpty) map['profileImg'] = profileImg;
+    if (experienceYears != null) map['experienceYears'] = experienceYears;
+    if (lastDutyStart != null) {
+      map['lastDutyStart'] = Timestamp.fromDate(lastDutyStart!);
+    }
     return map;
   }
 

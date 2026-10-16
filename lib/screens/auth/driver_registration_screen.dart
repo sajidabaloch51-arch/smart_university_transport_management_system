@@ -10,6 +10,7 @@ import '../../core/validators/app_validators.dart';
 import '../../models/driver_model.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
+import '../../utils/email_validator.dart';
 
 class DriverRegistrationScreen extends StatefulWidget {
   const DriverRegistrationScreen({super.key});
@@ -61,15 +62,15 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
         profileImageBase64 = base64Encode(_webImage!);
       }
 
-      final driverId = "${_emailController.text.trim().split('@')[0]}_id";
+      final email = AppEmailValidator.normalize(_emailController.text);
+      final driverId = "${email.split('@')[0]}_id";
       final driver = DriverModel(
         uid: driverId,
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
+        email: email,
         phone: _phoneController.text.trim(),
         role: 'driver',
         driverId: driverId,
-        licenseNumber: '',
         profileImg: profileImageBase64,
         assignedBusId: '',
         assignedBusNumber: 'Not Assigned',
@@ -101,23 +102,36 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                 children: [
                   Icon(Icons.check_circle, color: Colors.green, size: 28),
                   SizedBox(width: 10),
-                  Text("Driver Registered"),
+                  Expanded(
+                    child: Text(
+                      'Driver Registered',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               content: const Text(
                 "Your driver account has been successfully registered. "
                 "Please log in with your credentials to start your duty and manage trips."
               ),
+              actionsAlignment: MainAxisAlignment.center,
               actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8, bottom: 8),
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/login', extra: 'driver'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    child: ElevatedButton(
+                      onPressed: () => context.go('/login', extra: 'driver'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
-                    child: const Text("PROCEED TO LOGIN", style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -225,6 +239,8 @@ class _DriverRegistrationScreenState extends State<DriverRegistrationScreen> {
                   CustomTextField(
                     controller: _emailController,
                     labelText: "Email Address",
+                    hintText: AppEmailValidator.hint,
+                    helperText: AppEmailValidator.hint,
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     validator: AppValidators.validateEmail,

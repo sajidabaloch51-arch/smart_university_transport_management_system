@@ -21,6 +21,8 @@ class StudentModel extends UserModel {
   final String? assignedDepartureTime;
   final String? assignedArrivalTime;
   final String verificationStatus; // pending, approved, rejected
+  /// Salted hash only when Firebase Auth is unavailable — never plaintext.
+  final String? passwordHash;
 
   StudentModel({
     required super.uid,
@@ -29,13 +31,13 @@ class StudentModel extends UserModel {
     required super.phone,
     required super.role,
     required this.regNumber,
-    required this.fatherName,
-    required this.gender,
-    required this.dob,
+    this.fatherName = '',
+    this.gender = '',
+    this.dob = '',
     required this.department,
-    required this.semester,
-    required this.profileImage,
-    required this.routeAddress,
+    this.semester = '',
+    this.profileImage = '',
+    this.routeAddress = '',
     required this.rollNo,
     this.assignedRouteId,
     this.assignedRouteName,
@@ -48,6 +50,7 @@ class StudentModel extends UserModel {
     this.assignedDepartureTime,
     this.assignedArrivalTime,
     this.verificationStatus = 'pending',
+    this.passwordHash,
   });
 
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -70,41 +73,62 @@ class StudentModel extends UserModel {
       assignedRouteName: map['assignedRouteName'],
       assignedBusId: map['assignedBusId'],
       assignedBusName: map['assignedBusName'],
-      assignedBusCode: map['assignedBusCode'],
+      assignedBusCode: map['assignedBusCode'] ?? map['assignedBusName'],
       assignedDriverId: map['assignedDriverId'],
       assignedDriverName: map['assignedDriverName'],
       assignedDriverPhone: map['assignedDriverPhone'],
       assignedDepartureTime: map['assignedDepartureTime'],
       assignedArrivalTime: map['assignedArrivalTime'],
       verificationStatus: map['verificationStatus'] ?? 'pending',
+      passwordHash: map['passwordHash'] as String?,
     );
   }
 
+  /// Lean Firestore payload — only fields the app UI uses.
+  /// Never stores passwords (Firebase Auth handles credentials).
   @override
   Map<String, dynamic> toMap() {
-    final map = super.toMap();
-    map.addAll({
+    final rollKey = rollNo
+        .trim()
+        .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
+        .replaceAll(RegExp(r'\s+'), '')
+        .toUpperCase();
+    final map = <String, dynamic>{
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'role': role,
+      'isActive': isActive,
       'regNumber': regNumber,
-      'fatherName': fatherName,
-      'gender': gender,
-      'dob': dob,
       'department': department,
-      'semester': semester,
-      'profileImage': profileImage,
-      'routeAddress': routeAddress,
-      'rollNo': rollNo,
-      'assignedRouteId': assignedRouteId,
-      'assignedRouteName': assignedRouteName,
-      'assignedBusId': assignedBusId,
-      'assignedBusName': assignedBusName,
-      'assignedBusCode': assignedBusCode,
-      'assignedDriverId': assignedDriverId,
-      'assignedDriverName': assignedDriverName,
-      'assignedDriverPhone': assignedDriverPhone,
-      'assignedDepartureTime': assignedDepartureTime,
-      'assignedArrivalTime': assignedArrivalTime,
+      'rollNo': rollNo.trim(),
+      'rollNoKey': rollKey,
       'verificationStatus': verificationStatus,
-    });
+    };
+
+    void put(String key, dynamic value) {
+      if (value == null) return;
+      if (value is String && value.isEmpty) return;
+      map[key] = value;
+    }
+
+    put('fatherName', fatherName);
+    put('gender', gender);
+    put('dob', dob);
+    put('semester', semester);
+    put('profileImage', profileImage);
+    put('routeAddress', routeAddress);
+    put('assignedRouteId', assignedRouteId);
+    put('assignedRouteName', assignedRouteName);
+    put('assignedBusId', assignedBusId);
+    put('assignedBusCode', assignedBusCode ?? assignedBusName);
+    put('assignedDriverId', assignedDriverId);
+    put('assignedDriverName', assignedDriverName);
+    put('assignedDriverPhone', assignedDriverPhone);
+    put('assignedDepartureTime', assignedDepartureTime);
+    put('assignedArrivalTime', assignedArrivalTime);
+    put('passwordHash', passwordHash);
     return map;
   }
 }

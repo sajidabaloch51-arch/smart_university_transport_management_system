@@ -147,50 +147,55 @@ class StudentDashboard extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: isDesktop ? 1.6 : 1.35,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    // Taller cells so Quick Action labels don't overflow.
+                    childAspectRatio: isDesktop ? 1.4 : (isTablet ? 1.15 : 1.05),
                     children: [
                       DashboardCard(
-                        title: 'Student Profile', 
-                        value: '', 
-                        icon: Icons.person_outline_rounded, 
-                        color: const Color(0xFF6366F1), // Indigo
+                        title: 'Profile',
+                        value: '',
+                        icon: Icons.person_outline_rounded,
+                        color: const Color(0xFF6366F1),
                         onTap: () => context.push('/personal-info'),
                       ),
                       DashboardCard(
-                        title: 'Bus/Routes', 
-                        value: '', 
-                        icon: Icons.directions_bus_rounded, 
-                        color: const Color(0xFF0EA5E9), // Sky
+                        title: 'Routes',
+                        value: '',
+                        icon: Icons.directions_bus_rounded,
+                        color: const Color(0xFF0EA5E9),
                         onTap: () => context.push('/student-routes'),
                       ),
                       DashboardCard(
-                        title: 'Transport Schedule', 
-                        value: '', 
-                        icon: Icons.event_note_rounded, 
-                        color: const Color(0xFFF59E0B), // Amber
-                        onTap: () => context.push('/schedule', extra: student?.assignedRouteId),
+                        title: 'Schedule',
+                        value: '',
+                        icon: Icons.event_note_rounded,
+                        color: const Color(0xFFF59E0B),
+                        onTap: () => context.push(
+                          '/schedule',
+                          extra: student?.assignedRouteId,
+                        ),
                       ),
                       DashboardCard(
-                        title: 'Live Tracking', 
-                        value: '', 
-                        icon: Icons.location_searching_rounded, 
-                        color: const Color(0xFF10B981), // Emerald
-                        onTap: () => context.push('/live-tracking', extra: student),
+                        title: 'Live Track',
+                        value: '',
+                        icon: Icons.location_searching_rounded,
+                        color: const Color(0xFF10B981),
+                        onTap: () =>
+                            context.push('/live-tracking', extra: student),
                       ),
                       DashboardCard(
-                        title: 'Notifications', 
-                        value: '', 
-                        icon: Icons.notifications_active_rounded, 
-                        color: const Color(0xFFEF4444), // Red
+                        title: 'Notices',
+                        value: '',
+                        icon: Icons.notifications_active_rounded,
+                        color: const Color(0xFFEF4444),
                         onTap: () => context.push('/notices'),
                       ),
                       DashboardCard(
-                        title: 'Feedback', 
-                        value: '', 
-                        icon: Icons.rate_review_rounded, 
-                        color: const Color(0xFF8B5CF6), // Violet
+                        title: 'Feedback',
+                        value: '',
+                        icon: Icons.rate_review_rounded,
+                        color: const Color(0xFF8B5CF6),
                         onTap: () => context.push('/feedback'),
                       ),
                     ],

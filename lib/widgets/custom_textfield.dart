@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class CustomTextField extends StatefulWidget {
   final String labelText;
+  final String? hintText;
+  final String? helperText;
   final IconData? prefixIcon;
   final bool isPassword;
   final TextEditingController? controller;
@@ -16,6 +18,8 @@ class CustomTextField extends StatefulWidget {
   const CustomTextField({
     super.key,
     required this.labelText,
+    this.hintText,
+    this.helperText,
     this.prefixIcon,
     this.isPassword = false,
     this.controller,
@@ -57,6 +61,8 @@ class _CustomTextFieldState extends State<CustomTextField> {
         autofillHints: widget.autofillHints,
         decoration: InputDecoration(
           labelText: widget.labelText,
+          hintText: widget.hintText,
+          helperText: widget.helperText,
           prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
           suffixIcon: widget.isPassword
               ? IconButton(

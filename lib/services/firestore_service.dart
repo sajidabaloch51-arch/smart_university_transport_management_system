@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import '../constants/demo_credentials.dart';
 import '../models/user_model.dart';
 import '../models/student_model.dart';
 import '../models/driver_model.dart';
@@ -8,6 +9,7 @@ import '../models/bus_model.dart';
 import '../models/route_model.dart';
 import '../models/notice_model.dart';
 import '../models/schedule_model.dart';
+import '../utils/email_validator.dart';
 
 class FirestoreService {
   // Safe getter for FirebaseFirestore
@@ -50,10 +52,106 @@ class FirestoreService {
     return await _withTimeout<UserModel>((db) async {
       var doc = await db.collection('users').doc(uid).get();
       if (doc.exists) {
-        return UserModel.fromMap(doc.data()!);
+        final data = Map<String, dynamic>.from(doc.data()!);
+        data['uid'] = data['uid']?.toString().isNotEmpty == true ? data['uid'] : doc.id;
+        return UserModel.fromMap(data);
       }
       return null;
     });
+  }
+
+  /// Looks up a user document by email (case-insensitive match on stored email).
+  Future<UserModel?> findUserByEmail(String email) async {
+    final profile = await getUserAuthProfile(email);
+    if (profile == null) return null;
+    return UserModel(
+      uid: profile.uid,
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      role: profile.role,
+      isActive: profile.isActive,
+    );
+  }
+
+  /// True only if [email] is on the university admin allowlist (or demo admin).
+  Future<bool> isApprovedAdminEmail(String email) async {
+    final normalized = AppEmailValidator.normalize(email);
+    if (normalized.isEmpty) return false;
+    if (normalized ==
+        AppEmailValidator.normalize(DemoCredentials.adminEmail)) {
+      return true;
+    }
+
+    final db = _db;
+    if (db == null) return false;
+
+    try {
+      final byId = await db
+          .collection('approvedAdmins')
+          .doc(normalized)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (byId.exists) return true;
+
+      final snap = await db
+          .collection('approvedAdmins')
+          .where('email', isEqualTo: normalized)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      return snap.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('isApprovedAdminEmail failed: $e');
+      return normalized ==
+          AppEmailValidator.normalize(DemoCredentials.adminEmail);
+    }
+  }
+
+  /// Login profile including optional passwordHash (demo / Auth fallback).
+  Future<UserAuthProfile?> getUserAuthProfile(String email) async {
+    final normalized = AppEmailValidator.normalize(email);
+    if (normalized.isEmpty) return null;
+    final db = _db;
+    if (db == null) return null;
+
+    try {
+      var snap = await db
+          .collection('users')
+          .where('email', isEqualTo: normalized)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 12));
+
+      if (snap.docs.isEmpty) {
+        snap = await db
+            .collection('users')
+            .where('email', isEqualTo: email.trim())
+            .limit(1)
+            .get()
+            .timeout(const Duration(seconds: 12));
+      }
+
+      // Demo IDs: admin@… → admin_id
+      if (snap.docs.isEmpty) {
+        final local = normalized.split('@').first;
+        final doc = await db
+            .collection('users')
+            .doc('${local}_id')
+            .get()
+            .timeout(const Duration(seconds: 8));
+        if (doc.exists && doc.data() != null) {
+          return UserAuthProfile.fromMap(doc.data()!, doc.id);
+        }
+        return null;
+      }
+
+      final doc = snap.docs.first;
+      return UserAuthProfile.fromMap(doc.data(), doc.id);
+    } catch (e) {
+      debugPrint('getUserAuthProfile failed: $e');
+      return null;
+    }
   }
 
   Stream<List<UserModel>> getUsers(String role) {
@@ -230,5 +328,40 @@ class FirestoreService {
     } catch (e) {
       debugPrint('$e');
     }
+  }
+}
+
+/// Minimal login profile read from Firestore `users`.
+class UserAuthProfile {
+  final String uid;
+  final String name;
+  final String email;
+  final String phone;
+  final String role;
+  final bool isActive;
+  final String? passwordHash;
+
+  UserAuthProfile({
+    required this.uid,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.role,
+    required this.isActive,
+    this.passwordHash,
+  });
+
+  factory UserAuthProfile.fromMap(Map<String, dynamic> map, String docId) {
+    return UserAuthProfile(
+      uid: (map['uid']?.toString().isNotEmpty == true)
+          ? map['uid'].toString()
+          : docId,
+      name: (map['name'] ?? '').toString(),
+      email: (map['email'] ?? '').toString(),
+      phone: (map['phone'] ?? '').toString(),
+      role: (map['role'] ?? 'student').toString(),
+      isActive: map['isActive'] ?? true,
+      passwordHash: map['passwordHash'] as String?,
+    );
   }
 }

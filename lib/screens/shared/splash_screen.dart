@@ -31,7 +31,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToNext() async {
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Tiny delay so splash paints once; avoid long network waits on cold start.
+    await Future.delayed(const Duration(milliseconds: 150));
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -42,19 +43,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final String? uid = prefs.getString('uid');
 
     if (isLoggedIn && role != null && uid != null) {
-      if (role == 'student') {
-        final access = await StudentAccessGuard.evaluate(
-          studentProvider: context.read<StudentProvider>(),
-          uid: uid,
-        );
-        if (!access.allowed) {
-          await _clearSession(prefs);
-          if (!mounted) return;
-          context.go('/login', extra: 'student');
-          return;
-        }
-      }
-
+      // Restore session immediately; student approval is checked on login / dashboard.
       if (!mounted) return;
       context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
 
@@ -67,6 +56,22 @@ class _SplashScreenState extends State<SplashScreen> {
           context.go('/driver-dashboard');
           break;
         default:
+          // Lightweight check only for students (timeout-friendly).
+          try {
+            final access = await StudentAccessGuard.evaluate(
+              studentProvider: context.read<StudentProvider>(),
+              uid: uid,
+            ).timeout(const Duration(seconds: 4));
+            if (!access.allowed) {
+              await _clearSession(prefs);
+              if (!mounted) return;
+              context.go('/login', extra: 'student');
+              return;
+            }
+          } catch (_) {
+            // Network slow/offline — still open dashboard; guards run later.
+          }
+          if (!mounted) return;
           context.go('/student-dashboard');
       }
     } else {

@@ -8,6 +8,7 @@ import '../../providers/student_provider.dart';
 import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
+import '../../utils/email_validator.dart';
 
 class AddEditStudentScreen extends StatefulWidget {
   final StudentModel? student;
@@ -95,7 +96,7 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
 
     final student = StudentModel(
       uid: widget.student?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      email: _emailController.text.trim(),
+      email: AppEmailValidator.normalize(_emailController.text),
       name: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
       role: 'student',
@@ -251,6 +252,8 @@ class _AddEditStudentScreenState extends State<AddEditStudentScreen> {
             CustomTextField(
               controller: _emailController, 
               labelText: 'Email Address',
+              hintText: AppEmailValidator.hint,
+              helperText: AppEmailValidator.hint,
               prefixIcon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
               validator: AppValidators.validateEmail,

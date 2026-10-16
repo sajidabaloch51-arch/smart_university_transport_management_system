@@ -84,57 +84,70 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             // Navigation Row at the bottom
             Align(
               alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.all(30.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Dots
-                    Row(
-                      children: List.generate(
-                        _pages.length,
-                        (index) => Container(
-                          height: 10,
-                          width: _currentPage == index ? 25 : 10,
-                          margin: const EdgeInsets.only(right: 5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(5),
-                            color: _currentPage == index ? AppColors.primary : Colors.grey.shade300,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Button
-                    Material(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(10),
-                      child: InkWell(
-                        onTap: () {
-                          if (_currentPage == _pages.length - 1) {
-                            context.go('/role-selection');
-                          } else {
-                            _pageController.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          child: Text(
-                            _currentPage == _pages.length - 1 ? "GET STARTED" : "NEXT",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: List.generate(
+                            _pages.length,
+                            (index) => Container(
+                              height: 10,
+                              width: _currentPage == index ? 25 : 10,
+                              margin: const EdgeInsets.only(right: 5),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(5),
+                                color: _currentPage == index
+                                    ? AppColors.primary
+                                    : Colors.grey.shade300,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Flexible(
+                        child: Material(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            onTap: () {
+                              if (_currentPage == _pages.length - 1) {
+                                context.go('/role-selection');
+                              } else {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _currentPage == _pages.length - 1
+                                      ? 'GET STARTED'
+                                      : 'NEXT',
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

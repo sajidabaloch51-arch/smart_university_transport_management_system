@@ -24,7 +24,7 @@ class FirebaseBootstrap {
     try {
       // Lightweight read against a reserved meta doc (may not exist — that's OK).
       await db.collection('_meta').doc('health').get().timeout(
-            const Duration(seconds: 8),
+            const Duration(seconds: 3),
           );
       return null;
     } on FirebaseException catch (e) {
@@ -51,7 +51,7 @@ class FirebaseBootstrap {
     if (!isFirebaseReady) return 'Firebase is not initialized.';
     try {
       final ref = FirebaseDatabase.instance.ref('.info/connected');
-      final snap = await ref.get().timeout(const Duration(seconds: 8));
+      final snap = await ref.get().timeout(const Duration(seconds: 3));
       final connected = snap.value == true;
       if (!connected) {
         return 'Realtime Database not connected. Enable RTDB in Firebase Console '

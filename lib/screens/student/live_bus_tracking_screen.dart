@@ -366,27 +366,32 @@ class _LiveBusTrackingScreenState extends State<LiveBusTrackingScreen> {
             ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'open_gmaps',
-            backgroundColor: const Color(0xFF34A853),
-            onPressed: _openInGoogleMaps,
-            icon: const Icon(Icons.map),
-            label: const Text('Open in Google Maps'),
-          ),
-          const SizedBox(height: 10),
-          FloatingActionButton.extended(
-            heroTag: 'fit_route',
-            onPressed: () {
-              if (_tracker != null) _fitCamera(_tracker!);
-            },
-            icon: const Icon(Icons.center_focus_strong),
-            label: const Text('Fit route'),
-          ),
-        ],
+      floatingActionButton: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = MediaQuery.sizeOf(context).width < 360;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'open_gmaps',
+                backgroundColor: const Color(0xFF34A853),
+                onPressed: _openInGoogleMaps,
+                icon: const Icon(Icons.map),
+                label: Text(narrow ? 'Maps' : 'Open in Google Maps'),
+              ),
+              const SizedBox(height: 10),
+              FloatingActionButton.extended(
+                heroTag: 'fit_route',
+                onPressed: () {
+                  if (_tracker != null) _fitCamera(_tracker!);
+                },
+                icon: const Icon(Icons.center_focus_strong),
+                label: const Text('Fit route'),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
     );
@@ -424,39 +429,55 @@ class _InfoCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isLive ? Colors.green.shade50 : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isLive ? Colors.green : Colors.grey,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.circle,
-                        size: 10,
+                    decoration: BoxDecoration(
+                      color:
+                          isLive ? Colors.green.shade50 : Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
                         color: isLive ? Colors.green : Colors.grey,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isLive ? Colors.green.shade800 : Colors.black54,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.circle,
+                          size: 10,
+                          color: isLive ? Colors.green : Colors.grey,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            statusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isLive
+                                  ? Colors.green.shade800
+                                  : Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  'Updated $lastUpdated',
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Updated $lastUpdated',
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
                 ),
               ],
             ),

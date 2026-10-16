@@ -1,52 +1,121 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+
+import '../utils/email_validator.dart';
 
 class AuthService {
   FirebaseAuth? get _auth {
     try {
       if (Firebase.apps.isNotEmpty) return FirebaseAuth.instance;
-    } catch (e) {}
+    } catch (_) {}
     return null;
   }
 
-  // Sign in
-  Future<User?> signIn(String email, String password) async {
+  bool get isAvailable => _auth != null;
+
+  User? get currentUser => _auth?.currentUser;
+
+  Future<User> signIn(String email, String password) async {
     final auth = _auth;
-    if (auth == null) return null;
+    if (auth == null) {
+      throw AuthServiceException(
+        'Authentication is unavailable. Check Firebase setup and internet.',
+      );
+    }
 
     try {
-      UserCredential result = await auth.signInWithEmailAndPassword(
-        email: email,
+      final result = await auth.signInWithEmailAndPassword(
+        email: AppEmailValidator.normalize(email),
         password: password,
       );
-      return result.user;
+      final user = result.user;
+      if (user == null) {
+        throw AuthServiceException('Sign-in failed. Please try again.');
+      }
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw AuthServiceException(_mapAuthCode(e.code, e.message));
     } catch (e) {
-      print(e.toString());
-      return null;
+      if (e is AuthServiceException) rethrow;
+      debugPrint('signIn error: $e');
+      throw AuthServiceException('Sign-in failed. Check your connection.');
     }
   }
 
-  // Create User (Admin Action)
-  Future<UserCredential?> createUser(String email, String password) async {
+  /// Creates Firebase Auth user (password hashed/stored by Firebase — never in Firestore).
+  Future<User> createUser(String email, String password) async {
     final auth = _auth;
-    if (auth == null) return null;
+    if (auth == null) {
+      throw AuthServiceException(
+        'Authentication is unavailable. Check Firebase setup and internet.',
+      );
+    }
 
     try {
-      return await auth.createUserWithEmailAndPassword(
-        email: email,
+      final result = await auth.createUserWithEmailAndPassword(
+        email: AppEmailValidator.normalize(email),
         password: password,
       );
+      final user = result.user;
+      if (user == null) {
+        throw AuthServiceException('Could not create account. Please try again.');
+      }
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw AuthServiceException(_mapAuthCode(e.code, e.message));
     } catch (e) {
-      print(e.toString());
-      return null;
+      if (e is AuthServiceException) rethrow;
+      debugPrint('createUser error: $e');
+      throw AuthServiceException('Could not create account. Check your connection.');
     }
   }
 
-  // Sign out
   Future<void> signOut() async {
     await _auth?.signOut();
   }
 
-  // Current User
-  User? get currentUser => _auth?.currentUser;
+  String _mapAuthCode(String code, String? message) {
+    final msg = (message ?? '').toLowerCase();
+    if (code == 'internal-error' ||
+        msg.contains('configuration_not_found') ||
+        msg.contains('configuration not found')) {
+      return 'Firebase Auth Email/Password is not enabled. '
+          'Open Firebase Console → Authentication → Sign-in method → '
+          'enable Email/Password, then try again.';
+    }
+    switch (code) {
+      case 'email-already-in-use':
+        return 'This email is already registered. Please log in instead.';
+      case 'invalid-email':
+        return 'Invalid email address.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters with mixed rules.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Incorrect email or password.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait and try again.';
+      default:
+        return message ?? 'Authentication error ($code).';
+    }
+  }
+
+  static bool isConfigurationError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('configuration_not_found') ||
+        text.contains('configuration not found') ||
+        text.contains('email/password is not enabled');
+  }
+}
+
+class AuthServiceException implements Exception {
+  final String message;
+  AuthServiceException(this.message);
+
+  @override
+  String toString() => message;
 }

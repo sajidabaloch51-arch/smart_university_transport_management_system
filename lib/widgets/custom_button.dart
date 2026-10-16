@@ -28,19 +28,40 @@ class CustomButton extends StatelessWidget {
           backgroundColor: color ?? AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         ),
         child: isLoading
             ? const SizedBox(
-                height: 25, width: 25, 
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                height: 25,
+                width: 25,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
               )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[Icon(icon), const SizedBox(width: 10)],
-                  Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon),
+                      const SizedBox(width: 10),
+                    ],
+                    Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
       ),
     );

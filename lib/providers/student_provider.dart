@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/student_model.dart';
+import '../services/university_db_service.dart';
 
 class StudentProvider extends ChangeNotifier {
   FirebaseFirestore? get _db {
@@ -12,6 +13,51 @@ class StudentProvider extends ChangeNotifier {
   }
 
   bool get isLoading => false;
+
+  /// Returns an existing student if this roll number is already registered.
+  Future<StudentModel?> findByRollNo(String rollNo) async {
+    final key = UniversityDBService.normalizeRollNo(rollNo);
+    if (key.isEmpty) return null;
+    final db = _db;
+    if (db == null) return null;
+
+    try {
+      // Prefer indexed rollNoKey (string — preserves leading zeros).
+      var snap = await db
+          .collection('users')
+          .where('rollNoKey', isEqualTo: key)
+          .limit(5)
+          .get()
+          .timeout(const Duration(seconds: 12));
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if ((data['role'] ?? '') == 'student') {
+          return StudentModel.fromMap(data, doc.id);
+        }
+      }
+
+      // Fallback for older docs without rollNoKey
+      final all = await db
+          .collection('users')
+          .where('role', isEqualTo: 'student')
+          .get()
+          .timeout(const Duration(seconds: 12));
+      for (final doc in all.docs) {
+        final data = doc.data();
+        final existing = UniversityDBService.normalizeRollNo(
+          (data['rollNo'] ?? '').toString(),
+        );
+        if (existing == key) {
+          return StudentModel.fromMap(data, doc.id);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('findByRollNo failed: $e');
+      rethrow;
+    }
+  }
 
   /// Approved students from Firestore `users` where role == student.
   Stream<List<StudentModel>> streamStudents() {

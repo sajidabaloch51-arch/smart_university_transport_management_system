@@ -11,12 +11,16 @@ class VerifyStudentDetailsScreen extends StatefulWidget {
   const VerifyStudentDetailsScreen({super.key, required this.student});
 
   @override
-  State<VerifyStudentDetailsScreen> createState() => _VerifyStudentDetailsScreenState();
+  State<VerifyStudentDetailsScreen> createState() =>
+      _VerifyStudentDetailsScreenState();
 }
 
-class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen> {
+class _VerifyStudentDetailsScreenState
+    extends State<VerifyStudentDetailsScreen> {
   UniversityStudentRecord? _officialRecord;
   bool _isChecking = true;
+  String? _lookupError;
+  bool _isActing = false;
 
   @override
   void initState() {
@@ -24,11 +28,34 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
     _checkRecord();
   }
 
-  void _checkRecord() {
+  Future<void> _checkRecord() async {
     setState(() {
-      _officialRecord = UniversityDBService.lookupRecord(widget.student.rollNo);
-      _isChecking = false;
+      _isChecking = true;
+      _lookupError = null;
     });
+    try {
+      final record = await UniversityDBService.findOfficialMatch(
+        rollNo: widget.student.rollNo,
+        registrationNo: widget.student.regNumber,
+      );
+      if (!mounted) return;
+      setState(() {
+        _officialRecord = record;
+        _isChecking = false;
+      });
+    } on OfficialLookupException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _lookupError = e.message;
+        _isChecking = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _lookupError = 'Could not load official records: $e';
+        _isChecking = false;
+      });
+    }
   }
 
   @override
@@ -66,7 +93,11 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
       padding: const EdgeInsets.only(left: 4, bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primary,
+        ),
       ),
     );
   }
@@ -84,13 +115,25 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
           children: [
             _infoRow(Icons.person_outline, 'Full Name', widget.student.name),
             const Divider(),
-            _infoRow(Icons.format_list_numbered, 'Roll No', widget.student.rollNo),
+            _infoRow(
+              Icons.format_list_numbered,
+              'Roll No',
+              widget.student.rollNo,
+            ),
             const Divider(),
-            _infoRow(Icons.badge_outlined, 'Registration Number', widget.student.regNumber.isEmpty ? "N/A" : widget.student.regNumber),
+            _infoRow(
+              Icons.badge_outlined,
+              'Registration Number',
+              widget.student.regNumber.isEmpty ? 'N/A' : widget.student.regNumber,
+            ),
             const Divider(),
             _infoRow(Icons.phone_outlined, 'Phone Number', widget.student.phone),
             const Divider(),
-            _infoRow(Icons.map_outlined, 'Route Address', widget.student.routeAddress),
+            _infoRow(
+              Icons.school_outlined,
+              'Department',
+              widget.student.department,
+            ),
           ],
         ),
       ),
@@ -98,6 +141,33 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
   }
 
   Widget _buildOfficialRecordCard() {
+    if (_lookupError != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.wifi_off, color: Colors.orange, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              _lookupError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(onPressed: _checkRecord, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
     if (_officialRecord == null) {
       return Container(
         width: double.infinity,
@@ -112,7 +182,7 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
             Icon(Icons.error_outline, color: Colors.red, size: 40),
             SizedBox(height: 12),
             Text(
-              'No matching record found in the university database.',
+              'No matching record found in the university database. You can still Approve or Reject manually.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
@@ -131,15 +201,27 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _infoRow(Icons.badge, 'Registration Number', _officialRecord!.regNumber),
+            _infoRow(
+              Icons.badge,
+              'Registration Number',
+              _officialRecord!.regNumber,
+            ),
             const Divider(),
             _infoRow(Icons.person, 'Student Name', _officialRecord!.name),
             const Divider(),
             _infoRow(Icons.school, 'Department', _officialRecord!.department),
             const Divider(),
-            _infoRow(Icons.calendar_today, 'Semester', _officialRecord!.semester),
+            _infoRow(
+              Icons.calendar_today,
+              'Semester',
+              _officialRecord!.semester,
+            ),
             const Divider(),
-            _infoRow(Icons.check_circle_outline, 'Enrollment Status', _officialRecord!.enrollmentStatus),
+            _infoRow(
+              Icons.check_circle_outline,
+              'Enrollment Status',
+              _officialRecord!.enrollmentStatus,
+            ),
           ],
         ),
       ),
@@ -147,38 +229,44 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
   }
 
   Widget _buildVerificationStatus() {
+    if (_lookupError != null) {
+      return _statusBanner(
+        'Network / lookup issue',
+        Colors.orange,
+        'Official records could not be loaded. You may still approve or reject manually.',
+      );
+    }
+
     if (_officialRecord == null) {
       return _statusBanner(
-        '❌ Roll No Not Found',
+        'Roll No Not Found',
         Colors.red,
-        'The provided roll number does not exist in the official records.',
+        'The roll number is not in official records. Manual admin decision required.',
       );
     }
 
-    // Check for mismatch
-    bool nameMatch = widget.student.name.toLowerCase() == _officialRecord!.name.toLowerCase();
+    final nameMatch = widget.student.name.toLowerCase().trim() ==
+        _officialRecord!.name.toLowerCase().trim();
     if (!nameMatch) {
       return _statusBanner(
-        '⚠️ Information Mismatch — Please Verify',
+        'Information Mismatch — Please Verify',
         Colors.orange,
-        'The submitted name does not match the name in the official records.',
+        'Submitted name does not match the official record. Review carefully before approving.',
       );
     }
 
-    // Check for inactive status
     if (_officialRecord!.enrollmentStatus != 'Active') {
       return _statusBanner(
-        '🔴 Student is Inactive / Has Left University',
+        'Student is Inactive / Has Left University',
         Colors.red,
-        'This student is marked as ${_officialRecord!.enrollmentStatus} in the official records.',
+        'Official status: ${_officialRecord!.enrollmentStatus}.',
       );
     }
 
-    // Verified
     return _statusBanner(
-      '✅ Verified — Active Student',
+      'Verified — Active Student',
       Colors.green,
-      'The submitted information matches the official active record.',
+      'Submitted information matches an official Active record.',
     );
   }
 
@@ -196,7 +284,11 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
         children: [
           Text(
             title,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -209,53 +301,85 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    bool canApprove = _officialRecord != null && 
-                     _officialRecord!.enrollmentStatus == 'Active' && 
-                     widget.student.name.toLowerCase() == _officialRecord!.name.toLowerCase();
-
+    // Manual verification always allowed for pending students.
     return Row(
       children: [
         Expanded(
           child: OutlinedButton(
-            onPressed: () => _handleAction(context, 'rejected'),
+            onPressed: _isActing
+                ? null
+                : () => _handleAction(context, 'rejected'),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red,
               side: const BorderSide(color: Colors.red),
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('REJECT REQUEST', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'REJECT',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: ElevatedButton(
-            onPressed: canApprove ? () => _handleAction(context, 'approved') : null,
+            onPressed: _isActing
+                ? null
+                : () => _handleAction(context, 'approved'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: const Text('APPROVE', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: _isActing
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'APPROVE',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
           ),
         ),
       ],
     );
   }
 
-  void _handleAction(BuildContext context, String status) async {
-    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-    await studentProvider.verifyStudent(widget.student.uid, status);
-    
-    if (mounted) {
+  Future<void> _handleAction(BuildContext context, String status) async {
+    setState(() => _isActing = true);
+    try {
+      final studentProvider =
+          Provider.of<StudentProvider>(context, listen: false);
+      await studentProvider.verifyStudent(widget.student.uid, status);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Request ${status == 'approved' ? 'Approved' : 'Rejected'}'),
+          content: Text(
+            status == 'approved'
+                ? 'Student approved — they can log in now.'
+                : 'Student registration rejected.',
+          ),
           backgroundColor: status == 'approved' ? Colors.green : Colors.red,
         ),
       );
       Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isActing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Action failed: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -270,8 +394,17 @@ class _VerifyStudentDetailsScreenState extends State<VerifyStudentDetailsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
           ),

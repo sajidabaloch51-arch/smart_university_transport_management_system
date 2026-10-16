@@ -15,20 +15,28 @@ class BusModel {
     required this.busNumber,
     this.capacity,
     this.busModel,
-    required this.registrationNumber,
-    required this.assignedDriverId,
-    required this.assignedDriverName,
-    required this.assignedRouteId,
-    required this.assignedRouteName,
+    this.registrationNumber = '',
+    this.assignedDriverId = '',
+    this.assignedDriverName = '',
+    this.assignedRouteId = '',
+    this.assignedRouteName = '',
     this.isActive = true,
   });
+
+  static bool _hasValue(String? value) {
+    if (value == null) return false;
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    if (v.toLowerCase() == 'not assigned') return false;
+    return true;
+  }
 
   factory BusModel.fromMap(Map<String, dynamic> map, String docId) {
     return BusModel(
       id: docId,
       busNumber: map['busNumber'] ?? '',
-      capacity: map['capacity'] ?? 0,
-      busModel: map['busModel'] ?? '',
+      capacity: map['capacity'] is int ? map['capacity'] as int : null,
+      busModel: map['busModel'] is String ? map['busModel'] as String : null,
       registrationNumber: map['registrationNumber'] ?? '',
       assignedDriverId: map['assignedDriverId'] ?? '',
       assignedDriverName: map['assignedDriverName'] ?? '',
@@ -38,17 +46,31 @@ class BusModel {
     );
   }
 
+  /// Lean Firestore payload — never writes empty / null / "Not Assigned" junk.
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'busNumber': busNumber,
-      'capacity': capacity,
-      'busModel': busModel,
-      'registrationNumber': registrationNumber,
-      'assignedDriverId': assignedDriverId,
-      'assignedDriverName': assignedDriverName,
-      'assignedRouteId': assignedRouteId,
-      'assignedRouteName': assignedRouteName,
       'isActive': isActive,
     };
+
+    if (_hasValue(registrationNumber)) {
+      map['registrationNumber'] = registrationNumber.trim();
+    }
+    if (_hasValue(assignedDriverId)) {
+      map['assignedDriverId'] = assignedDriverId.trim();
+    }
+    if (_hasValue(assignedDriverName)) {
+      map['assignedDriverName'] = assignedDriverName.trim();
+    }
+    if (_hasValue(assignedRouteId)) {
+      map['assignedRouteId'] = assignedRouteId.trim();
+    }
+    if (_hasValue(assignedRouteName)) {
+      map['assignedRouteName'] = assignedRouteName.trim();
+    }
+    if (capacity != null) map['capacity'] = capacity;
+    if (_hasValue(busModel)) map['busModel'] = busModel!.trim();
+
+    return map;
   }
 }

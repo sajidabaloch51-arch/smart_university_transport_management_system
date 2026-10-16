@@ -18,12 +18,8 @@ class StudentAccessResult {
 }
 
 class StudentAccessGuard {
-  /// Students may enter only when:
-  /// - they have a registered account, AND
-  /// - verificationStatus is `approved`
-  ///
-  /// Auto-approve happens only if Roll No exists in the university DB
-  /// and enrollment status is Active.
+  /// Students may enter only when verificationStatus is `approved`.
+  /// Pending students who appear in official Active records are auto-approved.
   static Future<StudentAccessResult> evaluate({
     required StudentProvider studentProvider,
     required String uid,
@@ -32,38 +28,51 @@ class StudentAccessGuard {
 
     if (student == null) {
       return const StudentAccessResult.denied(
-        'No student account found. Please register first and wait for verification.',
+        'No student account found. Please register first.',
       );
     }
 
     if (student.verificationStatus == 'rejected') {
       return const StudentAccessResult.denied(
-        'Your registration was rejected by the Admin. Contact transport office.',
+        'Your registration was rejected by Admin. Contact the transport office.',
       );
     }
 
-    final officialRecord = UniversityDBService.lookupRecord(student.rollNo);
+    if (student.verificationStatus == 'approved') {
+      return StudentAccessResult.allowed(student);
+    }
 
-    // Auto-approve only when official Active record exists
-    if (student.verificationStatus == 'pending' && officialRecord != null) {
-      if (officialRecord.enrollmentStatus != 'Active') {
-        return StudentAccessResult.denied(
-          'Your university enrollment status is "${officialRecord.enrollmentStatus}". Access denied.',
-        );
-      }
+    // pending — try official records (network errors must not look like "not found")
+    UniversityStudentRecord? officialRecord;
+    try {
+      officialRecord = await UniversityDBService.findOfficialMatch(
+        rollNo: student.rollNo,
+        registrationNo: student.regNumber,
+      );
+    } on OfficialLookupException catch (e) {
+      return StudentAccessResult.denied(e.message);
+    }
 
+    if (officialRecord != null &&
+        officialRecord.enrollmentStatus == 'Active') {
       final approved = StudentModel(
         uid: student.uid,
         name: student.name,
         email: student.email,
         phone: student.phone,
         role: student.role,
-        regNumber: student.regNumber,
+        regNumber: student.regNumber.isNotEmpty
+            ? student.regNumber
+            : officialRecord.regNumber,
         fatherName: student.fatherName,
         gender: student.gender,
         dob: student.dob,
-        department: student.department,
-        semester: student.semester,
+        department: student.department.isNotEmpty
+            ? student.department
+            : officialRecord.department,
+        semester: student.semester.isNotEmpty
+            ? student.semester
+            : officialRecord.semester,
         profileImage: student.profileImage,
         routeAddress: student.routeAddress,
         rollNo: student.rollNo,
@@ -83,18 +92,15 @@ class StudentAccessGuard {
       return StudentAccessResult.allowed(approved);
     }
 
-    // No university record → must wait for admin verification
-    if (student.verificationStatus != 'approved') {
-      if (officialRecord == null) {
-        return const StudentAccessResult.denied(
-          'Your Roll No was not found in university records. Account is pending Admin verification. You cannot login yet.',
-        );
-      }
-      return const StudentAccessResult.denied(
-        'Your account is pending Admin verification. Please wait for approval.',
+    if (officialRecord != null &&
+        officialRecord.enrollmentStatus != 'Active') {
+      return StudentAccessResult.denied(
+        'Your university enrollment status is "${officialRecord.enrollmentStatus}". Access denied.',
       );
     }
 
-    return StudentAccessResult.allowed(student);
+    return const StudentAccessResult.denied(
+      'Your account is awaiting admin approval. Please wait until an administrator verifies your registration.',
+    );
   }
 }

@@ -6,6 +6,7 @@ import 'theme/app_theme.dart';
 import 'constants/strings.dart';
 import 'firebase_options.dart';
 import 'services/firebase_bootstrap.dart';
+import 'services/firestore_seed_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/admin_provider.dart';
@@ -37,24 +38,33 @@ void main() async {
     );
   };
 
+  // Only wait for Firebase init — then show UI immediately.
   await _initializeFirebase();
-  // Non-blocking health check (logs guidance if Firestore/RTDB missing).
-  _probeBackend();
   runApp(const SUTMSApp());
+
+  // Probes + seed run in the background (do not block first frame).
+  // ignore: unawaited_futures
+  _probeAndSeedBackend();
 }
 
-Future<void> _probeBackend() async {
-  final firestoreIssue = await FirebaseBootstrap.probeFirestore();
-  if (firestoreIssue != null) {
-    debugPrint('⚠️ Firestore: $firestoreIssue');
-  } else {
+Future<void> _probeAndSeedBackend() async {
+  try {
+    final firestoreIssue = await FirebaseBootstrap.probeFirestore();
+    if (firestoreIssue != null) {
+      debugPrint('⚠️ Firestore: $firestoreIssue');
+      return;
+    }
     debugPrint('✅ Firestore connected (sutms-uog)');
-  }
-  final rtdbIssue = await FirebaseBootstrap.probeRealtimeDatabase();
-  if (rtdbIssue != null) {
-    debugPrint('⚠️ Realtime Database: $rtdbIssue');
-  } else {
-    debugPrint('✅ Realtime Database connected');
+    await FirestoreSeedService.ensureSeedData();
+
+    final rtdbIssue = await FirebaseBootstrap.probeRealtimeDatabase();
+    if (rtdbIssue != null) {
+      debugPrint('⚠️ Realtime Database: $rtdbIssue');
+    } else {
+      debugPrint('✅ Realtime Database connected');
+    }
+  } catch (e) {
+    debugPrint('Background Firebase setup skipped: $e');
   }
 }
 

@@ -12,6 +12,7 @@ import '../../models/bus_model.dart';
 import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
+import '../../utils/email_validator.dart';
 
 class AddEditDriverScreen extends StatefulWidget {
   final DriverModel? driver;
@@ -94,10 +95,11 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
         profileImageBase64 = base64Encode(_webImage!);
       }
 
+      final email = AppEmailValidator.normalize(_emailController.text);
       final driver = DriverModel(
-        uid: widget.driver?.uid ?? ("${_emailController.text.trim().split('@')[0]}_id"),
+        uid: widget.driver?.uid ?? ("${email.split('@')[0]}_id"),
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
+        email: email,
         phone: _phoneController.text.trim(),
         role: 'driver',
         driverId: _idController.text.trim(),
@@ -251,6 +253,8 @@ class _AddEditDriverScreenState extends State<AddEditDriverScreen> {
             CustomTextField(
               controller: _emailController, 
               labelText: 'Email Address',
+              hintText: AppEmailValidator.hint,
+              helperText: AppEmailValidator.hint,
               prefixIcon: Icons.email,
               keyboardType: TextInputType.emailAddress,
               validator: AppValidators.validateEmail,

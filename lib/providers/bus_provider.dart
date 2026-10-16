@@ -38,6 +38,7 @@ class BusProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      // Full replace so empty/null junk fields are removed from the document.
       await db.collection('buses').doc(bus.id).set(bus.toMap());
     } finally {
       _isLoading = false;

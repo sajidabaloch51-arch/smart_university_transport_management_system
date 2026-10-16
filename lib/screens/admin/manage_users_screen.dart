@@ -3,6 +3,7 @@ import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../core/validators/app_validators.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../utils/email_validator.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -42,6 +43,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   CustomTextField(
                     controller: emailController, 
                     labelText: 'Email',
+                    hintText: AppEmailValidator.hint,
+                    helperText: AppEmailValidator.hint,
                     prefixIcon: Icons.email,
                     validator: AppValidators.validateEmail,
                   ),
@@ -76,7 +79,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   final user = UserModel(
                     uid: DateTime.now().millisecondsSinceEpoch.toString(),
                     name: nameController.text,
-                    email: emailController.text,
+                    email: AppEmailValidator.normalize(emailController.text),
                     phone: '',
                     role: role,
                   );

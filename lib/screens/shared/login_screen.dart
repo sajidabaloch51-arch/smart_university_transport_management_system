@@ -8,9 +8,13 @@ import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../core/validators/app_validators.dart';
 import '../../services/student_access_guard.dart';
+import '../../services/firestore_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/password_hasher.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../utils/email_validator.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role;
@@ -85,85 +89,167 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      final email = _emailController.text.trim().toLowerCase();
-      
-      // Simulate Login Delay
-      await Future.delayed(const Duration(milliseconds: 200));
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      if (mounted) {
-        final prefs = await SharedPreferences.getInstance();
-        
-        // Use a mock UID for demonstration if real auth isn't connected yet
-        final uid = "${email.split('@')[0]}_id";
+    setState(() => _isLoading = true);
 
-        // Save email to history
-        _saveEmailToList(email);
+    final email = AppEmailValidator.normalize(_emailController.text);
+    final password = _passwordController.text;
+    final portalRole = widget.role ?? 'student';
 
-        // Handle Session Persistence
-        if (_rememberMe) {
-          await prefs.setBool('is_logged_in', true);
-          await prefs.setString('remembered_email', email);
-          await prefs.setString('uid', uid);
-        } else {
-          await prefs.setBool('is_logged_in', false);
-          await prefs.remove('remembered_email');
-          await prefs.remove('uid');
-        }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _saveEmailToList(email);
 
-        // Determine Role
-        String targetRole = widget.role ?? 'student';
-        if (email.contains('admin')) {
-          targetRole = 'admin';
-        } else if (email.contains('driver')) {
-          targetRole = 'driver';
-        }
+      String uid;
+      String accountRole = '';
 
-        await prefs.setString('user_role', targetRole);
-        if (!mounted) return;
-
-        // Students must be registered + approved (uni DB or admin)
-        if (targetRole == 'student') {
-          final access = await StudentAccessGuard.evaluate(
-            studentProvider: context.read<StudentProvider>(),
-            uid: uid,
+      // Prefer Firebase Auth. Fall back to Firestore profile + optional passwordHash.
+      try {
+        final authUser = await AuthService().signIn(email, password);
+        uid = authUser.uid;
+        final firestoreUser = await FirestoreService().getUser(uid) ??
+            await FirestoreService().findUserByEmail(email);
+        accountRole = firestoreUser?.role ?? '';
+      } on AuthServiceException catch (authErr) {
+        // Firestore fallback for demo admin/driver/student when Auth is off.
+        final profile = await FirestoreService().getUserAuthProfile(email);
+        if (profile == null) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authErr.message),
+              backgroundColor: Colors.red,
+            ),
           );
+          return;
+        }
 
-          if (!access.allowed) {
+        final hash = profile.passwordHash;
+        if (hash != null && hash.isNotEmpty) {
+          if (!PasswordHasher.verify(password, hash)) {
             if (!mounted) return;
             setState(() => _isLoading = false);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(access.message ?? 'Access denied'),
-                backgroundColor: Colors.orange,
+              const SnackBar(
+                content: Text('Incorrect email or password.'),
+                backgroundColor: Colors.red,
               ),
             );
             return;
           }
+        } else if (!AuthService.isConfigurationError(authErr)) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authErr.message),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
         }
 
-        if (!mounted) return;
-        context.read<AuthProvider>().setAuthenticated(
-              true,
-              role: targetRole,
-              uid: uid,
-            );
+        uid = profile.uid;
+        accountRole = profile.role;
+      }
 
+      // Role comes from Firestore (or the portal), never from the email domain.
+      String targetRole =
+          accountRole.isNotEmpty ? accountRole : portalRole;
+
+      if (portalRole == 'admin' && targetRole != 'admin') {
+        if (!mounted) return;
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No admin account for this email. Admins are provisioned by the university.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
+      if (accountRole.isNotEmpty && accountRole != portalRole) {
         if (!mounted) return;
-        if (targetRole == 'driver') {
-          context.read<DriverProvider>().init(uid);
-          context.go('/driver-dashboard');
-        } else if (targetRole == 'admin') {
-          context.go('/admin-dashboard');
-        } else {
-          context.go('/student-dashboard');
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This account is registered as $accountRole. Please use the $accountRole portal.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      targetRole = portalRole;
+
+      if (_rememberMe) {
+        await prefs.setBool('is_logged_in', true);
+        await prefs.setString('remembered_email', email);
+        await prefs.setString('uid', uid);
+      } else {
+        await prefs.setBool('is_logged_in', false);
+        await prefs.remove('remembered_email');
+        await prefs.remove('uid');
+      }
+      await prefs.setString('user_role', targetRole);
+
+      if (!mounted) return;
+
+      if (targetRole == 'student') {
+        final access = await StudentAccessGuard.evaluate(
+          studentProvider: context.read<StudentProvider>(),
+          uid: uid,
+        );
+
+        if (!access.allowed) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(access.message ?? 'Access denied'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return;
         }
       }
+
+      if (!mounted) return;
+      context.read<AuthProvider>().setAuthenticated(
+            true,
+            role: targetRole,
+            uid: uid,
+          );
+
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+      if (targetRole == 'driver') {
+        context.read<DriverProvider>().init(uid);
+        context.go('/driver-dashboard');
+      } else if (targetRole == 'admin') {
+        context.go('/admin-dashboard');
+      } else {
+        context.go('/student-dashboard');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -224,6 +310,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     CustomTextField(
                       controller: _emailController,
                       labelText: 'Email Address',
+                      hintText: AppEmailValidator.hint,
+                      helperText: AppEmailValidator.hint,
                       prefixIcon: Icons.email_outlined,
                       validator: AppValidators.validateEmail,
                       keyboardType: TextInputType.emailAddress,
@@ -241,15 +329,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       autofillHints: const [AutofillHints.password],
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      alignment: WrapAlignment.spaceBetween,
                       children: [
-                        Checkbox(
-                          value: _rememberMe,
-                          onChanged: (value) => setState(() => _rememberMe = value ?? false),
-                          activeColor: AppColors.primary,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              value: _rememberMe,
+                              onChanged: (value) =>
+                                  setState(() => _rememberMe = value ?? false),
+                              activeColor: AppColors.primary,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            const Text(
+                              'Remember Me',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
                         ),
-                        const Text('Remember Me', style: TextStyle(fontSize: 14)),
-                        const Spacer(),
                         TextButton(
                           onPressed: () => context.push('/forgot-password'),
                           child: const Text('Forgot Password?'),
@@ -263,8 +364,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _handleLogin,
                     ),
                     const SizedBox(height: 32),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Text("Don't have an account? "),
                         GestureDetector(
@@ -278,8 +380,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             }
                           },
                           child: const Text(
-                            "Sign Up", 
-                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)
+                            'Sign Up',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
                       ],

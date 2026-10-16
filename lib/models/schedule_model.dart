@@ -36,13 +36,17 @@ class ScheduleModel {
       driverName: map['driverName'] ?? '',
       routeId: map['routeId'] ?? '',
       routeName: map['routeName'] ?? '',
-      date: map['date'] != null ? (map['date'] as Timestamp).toDate() : DateTime.now(),
+      date: map['date'] != null
+          ? (map['date'] as Timestamp).toDate()
+          : DateTime.now(),
       departureTime: map['departureTime'] ?? '',
       arrivalTime: map['arrivalTime'] ?? '',
       shift: map['shift'] ?? 'Morning',
       vehicleNo: map['vehicleNo'] ?? map['busNumber'] ?? '',
       status: map['status'] ?? 'Scheduled',
-      operationalDays: List<String>.from(map['operationalDays'] ?? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']),
+      operationalDays: List<String>.from(
+        map['operationalDays'] ?? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+      ),
     );
   }
 
