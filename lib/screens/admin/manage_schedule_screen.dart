@@ -38,7 +38,8 @@ class _ManageScheduleScreenState extends State<ManageScheduleScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            // Extra bottom padding so the FAB does not cover the last card.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             itemCount: schedules.length,
             itemBuilder: (context, index) {
               final schedule = schedules[index];
