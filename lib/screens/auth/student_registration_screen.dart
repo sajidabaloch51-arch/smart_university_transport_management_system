@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/terms_conditions_sheet.dart';
 import '../../core/validators/app_validators.dart';
 import '../../providers/student_provider.dart';
 import '../../models/student_model.dart';
@@ -16,6 +18,7 @@ import '../../services/university_db_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/password_hasher.dart';
 import '../../utils/email_validator.dart';
+import '../../constants/student_terms.dart';
 
 class StudentRegistrationScreen extends StatefulWidget {
   const StudentRegistrationScreen({super.key});
@@ -49,9 +52,20 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   ];
 
   bool _termsAccepted = false;
+  bool _showTermsError = false;
   bool _isLoading = false;
+  late final TapGestureRecognizer _termsTapRecognizer;
 
   Uint8List? _webImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        _openTerms();
+      };
+  }
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -67,6 +81,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
   @override
   void dispose() {
+    _termsTapRecognizer.dispose();
     _nameController.dispose();
     _rollNoController.dispose();
     _regController.dispose();
@@ -75,6 +90,17 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
     _passController.dispose();
     _confirmPassController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openTerms() async {
+    final agreed = await showTermsAndConditionsSheet(context, role: 'student');
+    if (!mounted) return;
+    if (agreed == true) {
+      setState(() {
+        _termsAccepted = true;
+        _showTermsError = false;
+      });
+    }
   }
 
   Future<void> _handleRegister() async {
@@ -87,9 +113,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       return;
     }
     if (!_termsAccepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please accept terms and conditions')),
-      );
+      setState(() => _showTermsError = true);
       return;
     }
 
@@ -192,6 +216,8 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         rollNo: rollNo,
         verificationStatus: status,
         passwordHash: passwordHash,
+        termsAccepted: true,
+        termsVersion: kStudentTermsVersion,
       );
 
       await studentProvider.addStudent(student);
@@ -464,17 +490,80 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       ),
                       maxLength: 20,
                     ),
-                    CheckboxListTile(
-                      value: _termsAccepted,
-                      onChanged: (v) =>
-                          setState(() => _termsAccepted = v ?? false),
-                      title: const Text(
-                        'I accept terms and conditions',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Checkbox(
+                            value: _termsAccepted,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            onChanged: (v) {
+                              setState(() {
+                                _termsAccepted = v ?? false;
+                                if (_termsAccepted) _showTermsError = false;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: RichText(
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color,
+                                  height: 1.35,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'I accept the '),
+                                  TextSpan(
+                                    text: 'Terms & Conditions',
+                                    style: const TextStyle(
+                                      color: Color(0xFF1565C0),
+                                      fontWeight: FontWeight.w600,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: Color(0xFF1565C0),
+                                    ),
+                                    recognizer: _termsTapRecognizer,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Read terms and conditions',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                          icon: const Icon(
+                            Icons.description_outlined,
+                            color: Color(0xFF1565C0),
+                            size: 22,
+                          ),
+                          onPressed: _openTerms,
+                        ),
+                      ],
                     ),
+                    if (_showTermsError)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 36, top: 4, bottom: 4),
+                        child: Text(
+                          'Please accept the Terms & Conditions to continue.',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     CustomButton(
                       text: 'REGISTER',

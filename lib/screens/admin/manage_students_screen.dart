@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/student_card.dart';
+import '../../widgets/list_skeleton.dart';
 import '../../models/student_model.dart';
+import '../../utils/perf_log.dart';
 
 class ManageStudentsScreen extends StatefulWidget {
   const ManageStudentsScreen({super.key});
@@ -14,11 +18,49 @@ class ManageStudentsScreen extends StatefulWidget {
 
 class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  late final Stream<List<StudentModel>> _stream;
   String _searchQuery = '';
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = context.read<StudentProvider>().streamStudents();
+    PerfLog.start('screen_ManageStudents');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = val.trim().toLowerCase());
+    });
+  }
+
+  List<StudentModel> _filter(List<StudentModel> all) {
+    if (_searchQuery.isEmpty) return all;
+    return all
+        .where(
+          (s) =>
+              s.name.toLowerCase().contains(_searchQuery) ||
+              s.regNumber.toLowerCase().contains(_searchQuery),
+        )
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final studentProvider = Provider.of<StudentProvider>(context);
+    final studentProvider = context.read<StudentProvider>();
+    final initial = studentProvider.cachedStudents.isEmpty
+        ? null
+        : studentProvider.cachedStudents;
 
     return Scaffold(
       appBar: AppBar(
@@ -29,39 +71,34 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               controller: _searchController,
-              onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search by name or Reg No...',
                 prefixIcon: const Icon(Icons.search),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 filled: true,
                 fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
         ),
       ),
-      body: StreamBuilder<List<StudentModel>>(
-        stream: studentProvider.streamStudents(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          
-          final students = snapshot.data?.where((s) => 
-            s.name.toLowerCase().contains(_searchQuery) || 
-            s.regNumber.toLowerCase().contains(_searchQuery)
-          ).toList() ?? [];
-
-          if (students.isEmpty) {
-            return const Center(child: Text('No students found.'));
-          }
-
+      body: CachedStreamList<List<StudentModel>>(
+        stream: _stream,
+        initialData: initial,
+        emptyMessage: 'No students found.',
+        isEmpty: (list) => _filter(list).isEmpty,
+        onRefresh: () => studentProvider.refreshStudents(),
+        builder: (context, data) {
+          PerfLog.end('screen_ManageStudents',
+              label: 'first_data', count: data.length);
+          final students = _filter(data);
           return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             itemCount: students.length,
             itemBuilder: (context, index) {
@@ -69,8 +106,10 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
               return StudentCard(
                 student: student,
                 onView: () => context.push('/student-details', extra: student),
-                onEdit: () => context.push('/add-edit-student', extra: student),
-                onDelete: () => _confirmDelete(context, student.uid, student.name),
+                onEdit: () =>
+                    context.push('/add-edit-student', extra: student),
+                onDelete: () =>
+                    _confirmDelete(context, student.uid, student.name),
               );
             },
           );
@@ -84,18 +123,26 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Student'),
-        content: const Text('Are you sure you want to delete this student? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this student? This action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
-              Provider.of<StudentProvider>(context, listen: false).deleteStudent(uid);
+              context.read<StudentProvider>().deleteStudent(uid);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Student deleted successfully'), backgroundColor: Colors.red),
+                const SnackBar(
+                  content: Text('Student deleted successfully'),
+                  backgroundColor: Colors.red,
+                ),
               );
-            }, 
-            child: const Text('Delete', style: TextStyle(color: Colors.red))
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

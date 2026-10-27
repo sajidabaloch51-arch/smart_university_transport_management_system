@@ -34,6 +34,10 @@ import '../screens/admin/manage_schedule_screen.dart';
 import '../screens/admin/add_edit_schedule_screen.dart';
 import '../screens/admin/manage_notices_screen.dart';
 import '../screens/admin/post_notice_screen.dart';
+import '../screens/admin/manage_duties_screen.dart';
+import '../screens/admin/assign_duty_screen.dart';
+import '../screens/admin/manage_alerts_screen.dart';
+import '../screens/admin/send_alert_screen.dart';
 import '../screens/admin/feedback_screen.dart' as admin_feedback;
 import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/system_reports_screen.dart';
@@ -46,10 +50,10 @@ import '../models/bus_model.dart';
 import '../models/route_model.dart';
 import '../models/schedule_model.dart';
 import '../models/notice_model.dart';
+import '../models/duty_model.dart';
+import '../models/alert_model.dart';
 
 import '../screens/auth/student_registration_screen.dart';
-import '../screens/auth/driver_registration_screen.dart';
-import '../screens/auth/admin_registration_screen.dart';
 
 import '../screens/admin/student_verification_screen.dart';
 import '../screens/admin/verify_student_details_screen.dart';
@@ -69,10 +73,8 @@ class AppRouter {
       GoRoute(path: '/login', builder: (context, state) => LoginScreen(role: state.extra as String?)),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       
-      // Registration Routes
+      // Registration Routes (students only — drivers/admins are provisioned by Admin)
       GoRoute(path: '/student-registration', builder: (context, state) => const StudentRegistrationScreen()),
-      GoRoute(path: '/driver-registration', builder: (context, state) => const DriverRegistrationScreen()),
-      GoRoute(path: '/admin-registration', builder: (context, state) => const AdminRegistrationScreen()),
       
       // Admin Action Routes
       GoRoute(path: '/add-edit-student', builder: (context, state) {
@@ -149,6 +151,16 @@ class AppRouter {
       GoRoute(path: '/manage-buses', builder: (context, state) => const ManageBusesScreen()),
       GoRoute(path: '/manage-schedules', builder: (context, state) => const ManageScheduleScreen()),
       GoRoute(path: '/manage-notices', builder: (context, state) => const ManageNoticesScreen()),
+      GoRoute(path: '/manage-duties', builder: (context, state) => const ManageDutiesScreen()),
+      GoRoute(path: '/assign-duty', builder: (context, state) {
+        final duty = state.extra is DutyModel ? state.extra as DutyModel : null;
+        return AssignDutyScreen(duty: duty);
+      }),
+      GoRoute(path: '/manage-alerts', builder: (context, state) => const ManageAlertsScreen()),
+      GoRoute(path: '/send-alert', builder: (context, state) {
+        final alert = state.extra is AlertModel ? state.extra as AlertModel : null;
+        return SendAlertScreen(alert: alert);
+      }),
       GoRoute(path: '/view-feedback', builder: (context, state) => const admin_feedback.FeedbackScreen()),
       GoRoute(path: '/system-reports', builder: (context, state) => const SystemReportsScreen()),
       GoRoute(path: '/admin-profile', builder: (context, state) => const AdminProfileScreen()),

@@ -1,35 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bus_model.dart';
+import '../services/live_firestore.dart';
 
 class BusProvider extends ChangeNotifier {
-  FirebaseFirestore? get _db {
-    try {
-      if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (_) {}
-    return null;
-  }
-
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  /// Live stream from Firestore `buses` collection.
-  Stream<List<BusModel>> streamBuses() {
-    final db = _db;
-    if (db == null) return Stream.value(const <BusModel>[]);
+  Stream<List<BusModel>>? _busesStream;
+  static const _key = 'buses_all';
+  List<BusModel> _cached = const [];
+  List<BusModel> get cachedBuses => _cached;
 
-    return db.collection('buses').snapshots().map((snapshot) {
-      return snapshot.docs
+  Stream<List<BusModel>> streamBuses() {
+    if (_busesStream != null) return _busesStream!;
+    if (LiveFirestore.db == null) return Stream.value(const <BusModel>[]);
+
+    _busesStream = LiveFirestore.snapshots(
+      _key,
+      (db) => db.collection('buses'),
+      collectionLabel: 'buses',
+    ).map((snapshot) {
+      _cached = snapshot.docs
           .map((doc) => BusModel.fromMap(doc.data(), doc.id))
           .toList();
-    }).handleError((e) {
-      debugPrint('streamBuses error: $e');
+      return _cached;
     });
+    return _busesStream!;
   }
 
+  void restartBusesStream() {
+    _busesStream = null;
+    LiveFirestore.restart(_key);
+  }
+
+  Future<void> refreshBuses() => LiveFirestore.forceRefresh(_key);
+
   Future<void> addBus(BusModel bus) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) {
       throw Exception(
         'Firestore not available. Create the database in Firebase Console first.',
@@ -38,7 +45,6 @@ class BusProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      // Full replace so empty/null junk fields are removed from the document.
       await db.collection('buses').doc(bus.id).set(bus.toMap());
     } finally {
       _isLoading = false;
@@ -47,13 +53,13 @@ class BusProvider extends ChangeNotifier {
   }
 
   Future<void> deleteBus(String id) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) return;
     await db.collection('buses').doc(id).delete();
   }
 
   Future<void> toggleBusActive(String id) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) return;
     final doc = await db.collection('buses').doc(id).get();
     if (!doc.exists || doc.data() == null) return;

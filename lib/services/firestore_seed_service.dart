@@ -1,14 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/alert_model.dart';
 import '../models/bus_model.dart';
 import '../models/driver_model.dart';
+import '../models/duty_model.dart';
 import '../models/notice_model.dart';
 import '../models/route_model.dart';
 import '../models/schedule_model.dart';
 import '../models/student_model.dart';
 import '../constants/demo_credentials.dart';
 import '../models/user_model.dart';
+import '../utils/karachi_time.dart';
 import 'firebase_bootstrap.dart';
 import 'password_hasher.dart';
 import 'university_db_service.dart';
@@ -16,7 +19,7 @@ import 'university_db_service.dart';
 /// Seeds lean SUTMS data into Firestore (fields the frontend actually uses).
 /// Document IDs match login UIDs: `{emailLocalPart}_id`
 class FirestoreSeedService {
-  static const String seedVersion = 'sutms-uog-v6-admin-allowlist';
+  static const String seedVersion = 'sutms-uog-v8-route-driver-assignment';
 
   static const String adminUid = 'admin_id';
   static const String driverUid = 'driver_id';
@@ -27,21 +30,27 @@ class FirestoreSeedService {
   static const String noticeId = 'notice_welcome_01';
 
   /// Returns true when seed ran (or already present). False if Firestore missing.
-  static Future<bool> ensureSeedData() async {
+  /// Pass [force] from the Admin "Seed sample data" button to re-write TEST DATA.
+  static Future<bool> ensureSeedData({bool force = false}) async {
     final db = FirebaseBootstrap.firestore;
     if (db == null) {
       debugPrint('⚠️ Seed skipped: Firebase not ready');
       return false;
     }
 
+    // Always refresh today's demo duty + broadcast alert (non-blocking).
+    // ignore: unawaited_futures
+    _ensureDemoDutiesAndAlerts(db);
+
     try {
       final meta = await db.collection('_meta').doc('seed').get().timeout(
-            const Duration(seconds: 10),
+            const Duration(seconds: 3),
           );
       final current = meta.data()?['version'];
-      if (current == seedVersion) {
-        // Fast path: do not re-write official records / password hashes every launch.
-        await _ensureApprovedAdmins(db);
+      if (!force && current == seedVersion) {
+        // Fast path — do not block launch with extra writes.
+        // ignore: unawaited_futures
+        _ensureApprovedAdmins(db);
         debugPrint('✅ Firestore seed already applied ($seedVersion)');
         return true;
       }
@@ -114,7 +123,7 @@ class FirestoreSeedService {
         ).toMap(),
       );
 
-      // Route with map stops
+      // Route with map stops + assigned driver (source of truth for students).
       batch.set(
         db.collection('routes').doc(routeId),
         RouteModel(
@@ -131,29 +140,49 @@ class FirestoreSeedService {
               lat: 25.1982,
               lng: 62.3254,
               order: 0,
+              timeLabel: '07:30 AM',
             ),
             RouteStop(
               stopName: 'Marine Drive',
               lat: 25.1600,
               lng: 62.3400,
               order: 1,
+              timeLabel: '07:45 AM',
             ),
             RouteStop(
               stopName: 'Airport Road',
               lat: 25.1400,
               lng: 62.3500,
               order: 2,
+              timeLabel: '08:00 AM',
             ),
             RouteStop(
               stopName: 'Gwadar City Center',
               lat: 25.1216,
               lng: 62.3254,
               order: 3,
+              timeLabel: '08:15 AM',
             ),
           ],
           distanceKm: '18',
           estimatedTime: '45 min',
+          departureTime: '07:30 AM',
+          arrivalTime: '08:15 AM',
+          driverId: driverUid,
+          driverName: 'Ahmed Baloch',
+          driverPhone: '03007654321',
+          busNo: 'UOG-01',
         ).toMap(),
+      );
+
+      batch.set(
+        db.collection('driverPublic').doc(driverUid),
+        {
+          'name': 'Ahmed Baloch',
+          'phone': '03007654321',
+          'busNo': 'UOG-01',
+          'routeId': routeId,
+        },
       );
 
       // Bus
@@ -227,6 +256,7 @@ class FirestoreSeedService {
       await batch.commit().timeout(const Duration(seconds: 20));
       await _ensureDemoCredentials(db);
       await _ensureApprovedAdmins(db);
+      await _ensureDemoDutiesAndAlerts(db);
       debugPrint('✅ Firestore lean seed applied ($seedVersion)');
       debugPrint(
         '🔑 Admin login: ${DemoCredentials.adminEmail} / ${DemoCredentials.adminPassword}',
@@ -282,6 +312,73 @@ class FirestoreSeedService {
       debugPrint('✅ Approved admin allowlist ready ($email)');
     } catch (e) {
       debugPrint('Approved admins upsert skipped: $e');
+    }
+  }
+
+  /// Ensures Driver Dashboard has at least one duty today + one broadcast alert.
+  static Future<void> _ensureDemoDutiesAndAlerts(FirebaseFirestore db) async {
+    try {
+      final today = KarachiTime.dateString();
+      final start = KarachiTime.combineToUtc(
+        DateTime.utc(
+          int.parse(today.substring(0, 4)),
+          int.parse(today.substring(5, 7)),
+          int.parse(today.substring(8, 10)),
+        ),
+        7,
+        30,
+      );
+      final end = KarachiTime.combineToUtc(
+        DateTime.utc(
+          int.parse(today.substring(0, 4)),
+          int.parse(today.substring(5, 7)),
+          int.parse(today.substring(8, 10)),
+        ),
+        14,
+        0,
+      );
+
+      final duty = DutyModel(
+        id: 'duty_demo_$today',
+        driverId: driverUid,
+        driverName: 'Ahmed Baloch',
+        busNo: 'UOG-01',
+        route: 'Campus ↔ City',
+        shiftStart: start,
+        shiftEnd: end,
+        dutyDate: today,
+        notes: 'Demo morning shift',
+        status: 'scheduled',
+        createdBy: adminUid,
+        createdAt: DateTime.now().toUtc(),
+      );
+      await db
+          .collection('duties')
+          .doc(duty.id)
+          .set(duty.toMap(), SetOptions(merge: true));
+
+      final alert = AlertModel(
+        id: 'alert_demo_welcome',
+        title: 'Transport Desk',
+        message:
+            'Welcome drivers. Check Today\'s Active Duties for your assigned shift.',
+        severity: 'info',
+        target: 'all_drivers',
+        driverId: null,
+        isActive: true,
+        createdBy: adminUid,
+        createdAt: DateTime.now().toUtc(),
+      );
+      await db
+          .collection('alerts')
+          .doc(alert.id)
+          .set(alert.toMap(), SetOptions(merge: true));
+
+      debugPrint(
+        '✅ Demo duty ($today → $driverUid) + broadcast alert ready',
+      );
+    } catch (e) {
+      debugPrint('Demo duties/alerts upsert skipped: $e');
     }
   }
 

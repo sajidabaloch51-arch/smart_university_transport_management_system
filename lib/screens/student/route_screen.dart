@@ -1,14 +1,18 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/bus_route_card.dart';
+import '../../widgets/async_state_view.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/route_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/route_model.dart';
 import '../../core/constants/app_colors.dart';
+import '../../utils/phone_launcher.dart';
+import '../../services/live_firestore.dart';
 
 class RouteScreen extends StatefulWidget {
   const RouteScreen({super.key});
@@ -19,21 +23,144 @@ class RouteScreen extends StatefulWidget {
 
 class _RouteScreenState extends State<RouteScreen> {
   bool _isProcessing = false;
+  /// Cached public phones by driverId (avoids one query per rebuild).
+  final Map<String, String> _phoneByDriverId = {};
+  late Stream<List<RouteModel>> _routesStream;
+  StudentModel? _student;
+  List<RouteModel> _routes = const [];
+  bool _phonesPrefetchStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthProvider>();
+    final students = context.read<StudentProvider>();
+    final routes = context.read<RouteProvider>();
+    _routesStream = routes.streamRoutes();
+    _student = students.peekStudent(auth.uid ?? '');
+    _routes = routes.cachedRoutes;
+    LiveFirestore.log(
+      'MyRoutes.init',
+      collection: 'routes',
+      extra: 'uid=${auth.uid} cachedRoutes=${_routes.length}',
+    );
+
+    // ignore: discarded_futures
+    _bootstrap(auth.uid ?? '', students, routes);
+  }
+
+  void _retryRoutes() {
+    final routes = context.read<RouteProvider>();
+    routes.restartRoutesStream();
+    setState(() {
+      _phonesPrefetchStarted = false;
+      _routesStream = routes.streamRoutes();
+    });
+  }
+
+  Future<void> _bootstrap(
+    String uid,
+    StudentProvider students,
+    RouteProvider routes,
+  ) async {
+    final results = await Future.wait<Object?>([
+      students.getStudent(uid),
+      routes.loadRoutesFromCache(),
+    ]);
+    if (!mounted) return;
+    final student = results[0] as StudentModel?;
+    final cachedRoutes = results[1] as List<RouteModel>;
+    setState(() {
+      if (student != null) _student = student;
+      if (cachedRoutes.isNotEmpty) _routes = cachedRoutes;
+    });
+  }
 
   Map<String, dynamic> _routeToMap(RouteModel route) {
+    final cachedPhone = route.driverId == null
+        ? ''
+        : (_phoneByDriverId[route.driverId!] ?? '');
+    final phone = route.driverPhone.trim().isNotEmpty
+        ? route.driverPhone.trim()
+        : cachedPhone;
     return {
-      "busName": route.routeName,
-      "busCode": route.routeNumber,
-      "status": BusStatus.scheduled,
-      "driverName": "Not Assigned",
-      "driverPhone": "",
-      "startLocation": route.startLocation,
-      "destination": route.endLocation,
-      "departureTime": route.estimatedTime,
-      "arrivalTime": route.estimatedTime,
-      "routeId": route.id,
+      'busName': route.routeName,
+      'busCode': route.displayBusCode,
+      'status': BusStatus.scheduled,
+      'driverName': route.displayDriverName,
+      'driverPhone': phone,
+      'driverId': route.driverId,
+      'startLocation': route.cardStartLabel,
+      'destination': route.cardEndLabel,
+      'departureTime': route.cardDepartureTime.isEmpty
+          ? '—'
+          : route.cardDepartureTime,
+      'arrivalTime': route.cardArrivalTime.isEmpty
+          ? (route.cardDuration.isEmpty ? '—' : route.cardDuration)
+          : route.cardArrivalTime,
+      'estimatedTime': route.cardDuration,
+      'routeId': route.id,
+      'hasDriver': route.hasAssignedDriver,
     };
   }
+
+  Future<void> _prefetchPhones(List<RouteModel> routes) async {
+    if (_phonesPrefetchStarted || Firebase.apps.isEmpty) return;
+    final missing = <String>{};
+    for (final r in routes) {
+      if (!r.hasAssignedDriver) continue;
+      final id = r.driverId!;
+      if (r.driverPhone.trim().isNotEmpty) {
+        _phoneByDriverId[id] = r.driverPhone.trim();
+        continue;
+      }
+      if (!_phoneByDriverId.containsKey(id)) missing.add(id);
+    }
+    if (missing.isEmpty) return;
+    _phonesPrefetchStarted = true;
+
+    final db = FirebaseFirestore.instance;
+    await Future.wait(missing.map((id) async {
+      try {
+        String phone = '';
+        try {
+          final cached = await db
+              .collection('driverPublic')
+              .doc(id)
+              .get(const GetOptions(source: Source.cache))
+              .timeout(const Duration(milliseconds: 300));
+          phone = cached.data()?['phone']?.toString().trim() ?? '';
+        } catch (_) {}
+        if (phone.isEmpty) {
+          final pub = await db
+              .collection('driverPublic')
+              .doc(id)
+              .get(const GetOptions(source: Source.serverAndCache))
+              .timeout(const Duration(seconds: 3));
+          phone = pub.data()?['phone']?.toString().trim() ?? '';
+        }
+        if (phone.isEmpty) {
+          final user = await db
+              .collection('users')
+              .doc(id)
+              .get(const GetOptions(source: Source.serverAndCache))
+              .timeout(const Duration(seconds: 3));
+          phone = user.data()?['phone']?.toString().trim() ?? '';
+        }
+        _phoneByDriverId[id] = phone;
+      } catch (e) {
+        debugPrint('prefetch phone for $id failed: $e');
+        _phoneByDriverId[id] = '';
+      }
+    }));
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _launchTel(String phone) =>
+      PhoneLauncher.call(phone, context: context);
+
+  Future<void> _launchSms(String phone) =>
+      PhoneLauncher.sms(phone, context: context);
 
   Future<void> _showSelectionDialog(
     BuildContext context,
@@ -45,19 +172,27 @@ class _RouteScreenState extends State<RouteScreen> {
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Switch Main Route?"),
+        title: const Text('Switch Main Route?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Are you sure you want to select ${routeData['busName']} as your primary route?"),
+            Text(
+              'Are you sure you want to select ${routeData['busName']} as your primary route?',
+            ),
             const SizedBox(height: 12),
-            Text("Driver: ${routeData['driverName']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text("Start: ${routeData['startLocation']}"),
+            Text(
+              'Driver: ${routeData['driverName']}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text('Start: ${routeData['startLocation']}'),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
@@ -65,26 +200,25 @@ class _RouteScreenState extends State<RouteScreen> {
                 context,
                 provider,
                 studentUid,
-                routeData['busName'],
-                routeData['busCode'],
-                routeData['driverName'],
-                routeData['driverPhone'],
-                routeData['startLocation'],
-                routeData['departureTime'],
-                routeData['arrivalTime'],
+                routeData,
                 currentStudent,
-                routeId: routeData['routeId'] as String?,
               );
             },
-            child: const Text("Select Route"),
+            child: const Text('Select Route'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _showDriverDetails(BuildContext context, Map<String, dynamic> routeData) {
-    final String phone = routeData['driverPhone'] ?? '';
+  Future<void> _showDriverDetails(
+    BuildContext context,
+    Map<String, dynamic> routeData,
+  ) {
+    final String phone = (routeData['driverPhone'] ?? '').toString();
+    final hasDriver = routeData['hasDriver'] == true ||
+        ((routeData['driverName'] ?? '') != 'Not Assigned' &&
+            (routeData['driverName'] ?? '').toString().isNotEmpty);
 
     return showModalBottomSheet(
       context: context,
@@ -95,8 +229,8 @@ class _RouteScreenState extends State<RouteScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 32, 24, 40), // Increased bottom padding to fix overflow
-        child: SingleChildScrollView( // Added scroll view to ensure clickability on smaller screens
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,53 +247,89 @@ class _RouteScreenState extends State<RouteScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                "Driver Details",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                'Driver Details',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
               ),
               const SizedBox(height: 24),
-              _detailRow(Icons.person_outline, "Driver Name", routeData['driverName']),
-              _detailRow(Icons.badge_outlined, "Driver ID", "DRV-${routeData['busCode'].split('-').last}"),
-              _detailRow(Icons.directions_bus_outlined, "Bus Number", routeData['busCode']),
-            _detailRow(Icons.route_outlined, "Route", "${routeData['startLocation']} → ${routeData['destination']}"),
-              _detailRow(Icons.phone_outlined, "Contact", phone),
-              _detailRow(Icons.verified_user_outlined, "Status", "Active", valueColor: Colors.green),
+              _detailRow(
+                Icons.person_outline,
+                'Driver Name',
+                hasDriver
+                    ? (routeData['driverName'] ?? 'Not Assigned')
+                    : 'Not Assigned',
+              ),
+              _detailRow(
+                Icons.directions_bus_outlined,
+                'Bus Number',
+                routeData['busCode'] ?? '—',
+              ),
+              _detailRow(
+                Icons.route_outlined,
+                'Route',
+                '${routeData['startLocation']} → ${routeData['destination']}',
+              ),
+              _detailRow(
+                Icons.phone_outlined,
+                'Contact',
+                phone.isEmpty ? '—' : phone,
+              ),
+              _detailRow(
+                Icons.verified_user_outlined,
+                'Status',
+                hasDriver ? 'Assigned' : 'Unassigned',
+                valueColor: hasDriver ? Colors.green : Colors.grey,
+              ),
               const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: phone.isEmpty ? null : () async {
-                        final Uri url = Uri.parse('tel:$phone');
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url);
-                        }
-                      },
+                      onPressed: !hasDriver
+                          ? null
+                          : () async {
+                              final p = phone.isNotEmpty
+                                  ? phone
+                                  : await _resolvePhone(routeData);
+                              if (!context.mounted) return;
+                              await PhoneLauncher.call(p, context: context);
+                            },
                       icon: const Icon(Icons.phone),
-                      label: const Text("Call Driver"),
+                      label: const Text('Call Driver'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: phone.isEmpty ? null : () async {
-                        final Uri url = Uri.parse('sms:$phone');
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url);
-                        }
-                      },
+                      onPressed: !hasDriver
+                          ? null
+                          : () async {
+                              final p = phone.isNotEmpty
+                                  ? phone
+                                  : await _resolvePhone(routeData);
+                              if (!context.mounted) return;
+                              await PhoneLauncher.sms(p, context: context);
+                            },
                       icon: const Icon(Icons.chat_bubble_outline),
-                      label: const Text("Message"),
+                      label: const Text('Message'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -172,7 +342,8 @@ class _RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value, {Color? valueColor}) {
+  Widget _detailRow(IconData icon, String label, String value,
+      {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
@@ -189,7 +360,8 @@ class _RouteScreenState extends State<RouteScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(label,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
               Text(
                 value,
                 style: TextStyle(
@@ -215,19 +387,19 @@ class _RouteScreenState extends State<RouteScreen> {
     try {
       final updatedStudent = StudentModel(
         uid: studentUid,
-        name: currentStudent?.name ?? "Student",
-        email: currentStudent?.email ?? "",
-        phone: currentStudent?.phone ?? "",
+        name: currentStudent?.name ?? 'Student',
+        email: currentStudent?.email ?? '',
+        phone: currentStudent?.phone ?? '',
         role: currentStudent?.role ?? 'student',
-        regNumber: currentStudent?.regNumber ?? "UOG-STU",
-        fatherName: currentStudent?.fatherName ?? "",
-        gender: currentStudent?.gender ?? "",
-        dob: currentStudent?.dob ?? "",
-        department: currentStudent?.department ?? "",
-        semester: currentStudent?.semester ?? "1",
-        profileImage: currentStudent?.profileImage ?? "",
-        routeAddress: currentStudent?.routeAddress ?? "",
-        rollNo: currentStudent?.rollNo ?? "0000",
+        regNumber: currentStudent?.regNumber ?? 'UOG-STU',
+        fatherName: currentStudent?.fatherName ?? '',
+        gender: currentStudent?.gender ?? '',
+        dob: currentStudent?.dob ?? '',
+        department: currentStudent?.department ?? '',
+        semester: currentStudent?.semester ?? '1',
+        profileImage: currentStudent?.profileImage ?? '',
+        routeAddress: currentStudent?.routeAddress ?? '',
+        rollNo: currentStudent?.rollNo ?? '0000',
         assignedRouteId: null,
         assignedRouteName: null,
         assignedBusId: null,
@@ -245,7 +417,7 @@ class _RouteScreenState extends State<RouteScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Route cancelled successfully"),
+            content: Text('Route cancelled successfully'),
             backgroundColor: Colors.blueGrey,
           ),
         );
@@ -253,7 +425,10 @@ class _RouteScreenState extends State<RouteScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to cancel route"), backgroundColor: AppColors.error),
+          const SnackBar(
+            content: Text('Failed to cancel route'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -265,43 +440,44 @@ class _RouteScreenState extends State<RouteScreen> {
     BuildContext context,
     StudentProvider provider,
     String studentUid,
-    String busName,
-    String busCode,
-    String driverName,
-    String driverPhone,
-    String startLoc,
-    String depTime,
-    String arrTime,
-    StudentModel? currentStudent, {
-    String? routeId,
-  }) async {
+    Map<String, dynamic> routeData,
+    StudentModel? currentStudent,
+  ) async {
     setState(() => _isProcessing = true);
     try {
+      final routeId = routeData['routeId'] as String?;
+      final hasDriver = routeData['hasDriver'] == true;
+      final driverName = (routeData['driverName'] ?? 'Not Assigned').toString();
+      final driverPhone = (routeData['driverPhone'] ?? '').toString();
+      final driverId = routeData['driverId'] as String?;
+
       final updatedStudent = StudentModel(
         uid: studentUid,
-        name: currentStudent?.name ?? "Student",
-        email: currentStudent?.email ?? "",
-        phone: currentStudent?.phone ?? "",
+        name: currentStudent?.name ?? 'Student',
+        email: currentStudent?.email ?? '',
+        phone: currentStudent?.phone ?? '',
         role: currentStudent?.role ?? 'student',
-        regNumber: currentStudent?.regNumber ?? "",
-        fatherName: currentStudent?.fatherName ?? "",
-        gender: currentStudent?.gender ?? "",
-        dob: currentStudent?.dob ?? "",
-        department: currentStudent?.department ?? "",
-        semester: currentStudent?.semester ?? "1",
-        profileImage: currentStudent?.profileImage ?? "",
-        routeAddress: currentStudent?.routeAddress ?? startLoc,
-        rollNo: currentStudent?.rollNo ?? "",
-        assignedRouteId: routeId ?? busCode,
-        assignedRouteName: busName,
-        assignedBusId: busCode,
-        assignedBusName: busName,
-        assignedBusCode: busCode,
-        assignedDriverId: null,
-        assignedDriverName: driverName,
-        assignedDriverPhone: driverPhone,
-        assignedDepartureTime: depTime,
-        assignedArrivalTime: arrTime,
+        regNumber: currentStudent?.regNumber ?? '',
+        fatherName: currentStudent?.fatherName ?? '',
+        gender: currentStudent?.gender ?? '',
+        dob: currentStudent?.dob ?? '',
+        department: currentStudent?.department ?? '',
+        semester: currentStudent?.semester ?? '1',
+        profileImage: currentStudent?.profileImage ?? '',
+        routeAddress: currentStudent?.routeAddress.isNotEmpty == true
+            ? currentStudent!.routeAddress
+            : (routeData['startLocation'] ?? ''),
+        rollNo: currentStudent?.rollNo ?? '',
+        assignedRouteId: routeId,
+        assignedRouteName: routeData['busName'] as String?,
+        assignedBusId: routeData['busCode'] as String?,
+        assignedBusName: routeData['busName'] as String?,
+        assignedBusCode: routeData['busCode'] as String?,
+        assignedDriverId: hasDriver ? driverId : null,
+        assignedDriverName: hasDriver ? driverName : null,
+        assignedDriverPhone: hasDriver ? driverPhone : null,
+        assignedDepartureTime: routeData['departureTime'] as String?,
+        assignedArrivalTime: routeData['arrivalTime'] as String?,
         verificationStatus: currentStudent?.verificationStatus ?? 'pending',
       );
 
@@ -309,17 +485,19 @@ class _RouteScreenState extends State<RouteScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Successfully joined $busName route"),
+            content: Text('Successfully joined ${routeData['busName']} route'),
             backgroundColor: AppColors.success,
           ),
         );
-        // Directly move to live tracking section
         context.push('/live-tracking');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to update route"), backgroundColor: AppColors.error),
+          const SnackBar(
+            content: Text('Failed to update route'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -327,10 +505,92 @@ class _RouteScreenState extends State<RouteScreen> {
     }
   }
 
+  Future<String> _resolvePhone(Map<String, dynamic> routeData) async {
+    var phone = (routeData['driverPhone'] ?? '').toString().trim();
+    if (phone.isNotEmpty) return phone;
+    final driverId = routeData['driverId']?.toString();
+    if (driverId == null || driverId.isEmpty) return '';
+    if (_phoneByDriverId.containsKey(driverId) &&
+        _phoneByDriverId[driverId]!.isNotEmpty) {
+      return _phoneByDriverId[driverId]!;
+    }
+    if (Firebase.apps.isEmpty) return '';
+    try {
+      final db = FirebaseFirestore.instance;
+      final pub = await db.collection('driverPublic').doc(driverId).get();
+      phone = pub.data()?['phone']?.toString().trim() ?? '';
+      if (phone.isEmpty) {
+        final user = await db.collection('users').doc(driverId).get();
+        phone = user.data()?['phone']?.toString().trim() ?? '';
+      }
+      _phoneByDriverId[driverId] = phone;
+      if (mounted) setState(() {});
+    } catch (_) {}
+    return phone;
+  }
+
+  Widget _buildRouteCard({
+    required Map<String, dynamic> routeData,
+    required bool isPrimary,
+    required StudentProvider studentProvider,
+    required AuthProvider authProvider,
+    required StudentModel? student,
+  }) {
+    final phone = (routeData['driverPhone'] ?? '').toString();
+    final hasDriver = routeData['hasDriver'] == true;
+    // Enable whenever a driver is linked; resolve phone on tap if needed.
+    final canContact = hasDriver || phone.trim().isNotEmpty;
+
+    return BusRouteCard(
+      busName: routeData['busName'] ?? 'Route',
+      busCode: routeData['busCode'] ?? '—',
+      status: routeData['status'] as BusStatus? ?? BusStatus.scheduled,
+      isPrimary: isPrimary,
+      driverName: routeData['driverName'] ?? 'Not Assigned',
+      driverPhone: phone,
+      startLocation: routeData['startLocation'] ?? '—',
+      destination: routeData['destination'] ?? '—',
+      departureTime: routeData['departureTime'] ?? '—',
+      arrivalTime: routeData['arrivalTime'] ?? '—',
+      onCall: canContact
+          ? () async {
+              final p = await _resolvePhone(routeData);
+              if (!mounted) return;
+              await _launchTel(p);
+            }
+          : null,
+      onChat: canContact
+          ? () async {
+              final p = await _resolvePhone(routeData);
+              if (!mounted) return;
+              await _launchSms(p);
+            }
+          : null,
+      onCancel: isPrimary && authProvider.uid != null
+          ? () => _cancelRoute(
+                context,
+                studentProvider,
+                authProvider.uid!,
+                student,
+              )
+          : null,
+      onSelect: !isPrimary && authProvider.uid != null
+          ? () => _showSelectionDialog(
+                context,
+                studentProvider,
+                authProvider.uid!,
+                routeData,
+                student,
+              )
+          : null,
+      onShowDriverDetails: () => _showDriverDetails(context, routeData),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final studentProvider = Provider.of<StudentProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context);
+    final studentProvider = context.read<StudentProvider>();
+    final authProvider = context.read<AuthProvider>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -343,54 +603,95 @@ class _RouteScreenState extends State<RouteScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E293B), size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Color(0xFF1E293B), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Stack(
         children: [
-          FutureBuilder(
-            future: studentProvider.getStudent(authProvider.uid ?? ''),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+          AsyncStateView<List<RouteModel>>(
+            stream: _routesStream,
+            initialData: _routes.isEmpty ? null : _routes,
+            onRetry: _retryRoutes,
+            isEmpty: (list) =>
+                list.where((r) => r.isActive).isEmpty &&
+                _student?.assignedRouteId == null,
+            emptyMessage: 'No routes available yet.',
+            emptySubtitle:
+                'Ask the Transport Admin to add routes, or use Seed sample data.',
+            builder: (context, liveRoutes) {
+              _routes = liveRoutes;
+              final allRoutes =
+                  liveRoutes.where((r) => r.isActive).toList(growable: false);
+              final student = _student;
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _prefetchPhones(allRoutes);
+              });
+
+              RouteModel? primaryRoute;
+              final assignedId = student?.assignedRouteId;
+              if (assignedId != null) {
+                for (final r in allRoutes) {
+                  if (r.id == assignedId) {
+                    primaryRoute = r;
+                    break;
+                  }
+                }
               }
 
-              final student = snapshot.data;
+              final available = assignedId == null
+                  ? allRoutes
+                  : allRoutes.where((r) => r.id != assignedId).toList();
 
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  if (student != null && student.assignedRouteId != null) ...[
+                  if (assignedId != null) ...[
                     const Padding(
                       padding: EdgeInsets.only(left: 4, bottom: 12),
                       child: Text(
-                        "Current Assigned Bus",
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+                        'Current Assigned Bus',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
-                    BusRouteCard(
-                      busName: student.assignedBusName ?? student.assignedRouteName ?? "Assigned Route",
-                      busCode: student.assignedBusCode ?? student.assignedRouteId ?? "—",
-                      status: BusStatus.scheduled,
+                    _buildRouteCard(
+                      routeData: primaryRoute != null
+                          ? _routeToMap(primaryRoute)
+                          : {
+                              'busName': student?.assignedRouteName ??
+                                  student?.assignedBusName ??
+                                  'Assigned Route',
+                              'busCode': student?.assignedBusCode ?? '—',
+                              'status': BusStatus.scheduled,
+                              'driverName':
+                                  student?.assignedDriverName ?? 'Not Assigned',
+                              'driverPhone':
+                                  student?.assignedDriverPhone ?? '',
+                              'driverId': student?.assignedDriverId,
+                              'startLocation':
+                                  (student?.routeAddress.isNotEmpty == true)
+                                      ? student!.routeAddress
+                                      : '—',
+                              'destination': 'University Campus',
+                              'departureTime':
+                                  student?.assignedDepartureTime ?? '',
+                              'arrivalTime':
+                                  student?.assignedArrivalTime ?? '',
+                              'routeId': assignedId,
+                              'hasDriver':
+                                  student?.assignedDriverId != null &&
+                                      student!.assignedDriverId!.isNotEmpty,
+                            },
                       isPrimary: true,
-                      driverName: student.assignedDriverName ?? "Not Assigned",
-                      driverPhone: student.assignedDriverPhone ?? "",
-                      startLocation: student.routeAddress.isNotEmpty ? student.routeAddress : "—",
-                      destination: "University Campus",
-                      departureTime: student.assignedDepartureTime ?? "—",
-                      arrivalTime: student.assignedArrivalTime ?? "—",
-                      onCall: () {},
-                      onChat: () {},
-                      onCancel: () => _cancelRoute(context, studentProvider, authProvider.uid!, student),
-                      onShowDriverDetails: () => _showDriverDetails(context, {
-                        'busName': student.assignedBusName ?? student.assignedRouteName ?? "Assigned Route",
-                        'busCode': student.assignedBusCode ?? "—",
-                        'driverName': student.assignedDriverName ?? "Not Assigned",
-                        'driverPhone': student.assignedDriverPhone ?? "",
-                        'startLocation': student.routeAddress.isNotEmpty ? student.routeAddress : "—",
-                        'destination': "University Campus",
-                      }),
+                      studentProvider: studentProvider,
+                      authProvider: authProvider,
+                      student: student,
                     ),
                     const SizedBox(height: 12),
                     const Divider(),
@@ -399,59 +700,35 @@ class _RouteScreenState extends State<RouteScreen> {
                   const Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 12),
                     child: Text(
-                      "Available Routes",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+                      'Available Routes',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
-                  StreamBuilder<List<RouteModel>>(
-                    stream: Provider.of<RouteProvider>(context).streamRoutes(),
-                    builder: (context, routeSnap) {
-                      final routes = (routeSnap.data ?? [])
-                          .where((r) => r.isActive)
-                          .where((r) => r.id != student?.assignedRouteId)
-                          .toList();
-                      if (routes.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: Text(
-                              'No routes available yet. Admin must add routes first.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        );
-                      }
-                      return Column(
-                        children: routes.map((route) {
-                          final routeData = _routeToMap(route);
-                          return BusRouteCard(
-                            busName: routeData['busName'],
-                            busCode: routeData['busCode'],
-                            status: routeData['status'],
-                            driverName: routeData['driverName'],
-                            driverPhone: routeData['driverPhone'],
-                            startLocation: routeData['startLocation'],
-                            destination: routeData['destination'],
-                            departureTime: routeData['departureTime'],
-                            arrivalTime: routeData['arrivalTime'],
-                            onCall: () {},
-                            onChat: () {},
-                            onSelect: authProvider.uid == null
-                                ? null
-                                : () => _showSelectionDialog(
-                                      context,
-                                      studentProvider,
-                                      authProvider.uid!,
-                                      routeData,
-                                      student,
-                                    ),
-                            onShowDriverDetails: () => _showDriverDetails(context, routeData),
-                          );
-                        }).toList(),
+                  if (available.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No other routes available right now.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ...available.map((route) {
+                      return _buildRouteCard(
+                        routeData: _routeToMap(route),
+                        isPrimary: false,
+                        studentProvider: studentProvider,
+                        authProvider: authProvider,
+                        student: student,
                       );
-                    },
-                  ),
+                    }),
                 ],
               );
             },

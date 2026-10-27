@@ -5,9 +5,26 @@ import '../../providers/student_provider.dart';
 import '../../models/student_model.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/university_db_service.dart';
+import '../../widgets/list_skeleton.dart';
+import '../../utils/perf_log.dart';
 
-class StudentVerificationScreen extends StatelessWidget {
+class StudentVerificationScreen extends StatefulWidget {
   const StudentVerificationScreen({super.key});
+
+  @override
+  State<StudentVerificationScreen> createState() =>
+      _StudentVerificationScreenState();
+}
+
+class _StudentVerificationScreenState extends State<StudentVerificationScreen> {
+  late final Stream<List<StudentModel>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = context.read<StudentProvider>().streamPendingStudents();
+    PerfLog.start('screen_StudentVerification');
+  }
 
   Future<void> _quickAction(
     BuildContext context,
@@ -37,7 +54,10 @@ class StudentVerificationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final studentProvider = Provider.of<StudentProvider>(context);
+    final studentProvider = context.read<StudentProvider>();
+    final initial = studentProvider.cachedPending.isEmpty
+        ? null
+        : studentProvider.cachedPending;
 
     return Scaffold(
       appBar: AppBar(
@@ -53,7 +73,8 @@ class StudentVerificationScreen extends StatelessWidget {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Official records refreshed (incl. roll 088)'),
+                    content:
+                        Text('Official records refreshed (incl. roll 088)'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -71,39 +92,17 @@ class StudentVerificationScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<List<StudentModel>>(
-        stream: studentProvider.streamPendingStudents(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final pendingStudents = snapshot.data ?? [];
-
-          if (pendingStudents.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No pending verification requests',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                ],
-              ),
-            );
-          }
-
+      body: CachedStreamList<List<StudentModel>>(
+        stream: _stream,
+        initialData: initial,
+        emptyMessage: 'No pending verification requests',
+        isEmpty: (list) => list.isEmpty,
+        onRefresh: () => studentProvider.refreshPending(),
+        builder: (context, pendingStudents) {
+          PerfLog.end('screen_StudentVerification',
+              label: 'first_data', count: pendingStudents.length);
           return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             itemCount: pendingStudents.length,
             itemBuilder: (context, index) {

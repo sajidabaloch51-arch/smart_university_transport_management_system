@@ -1,61 +1,72 @@
 import 'package:flutter/material.dart';
 
+import '../constants/feedback_categories.dart';
+import '../models/feedback_model.dart';
+import '../utils/karachi_time.dart';
+
+/// Compact feedback card (list preview). Name/roll hidden by default.
 class FeedbackCard extends StatelessWidget {
-  final String studentName;
-  final String route;
-  final int rating;
-  final String feedback;
-  final String date;
+  final FeedbackModel item;
+  final VoidCallback? onTap;
 
   const FeedbackCard({
     super.key,
-    required this.studentName,
-    required this.route,
-    required this.rating,
-    required this.feedback,
-    required this.date,
+    required this.item,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final catColor = FeedbackCategories.colorFor(item.category);
+    final statusColor = FeedbackStatuses.colorFor(item.status);
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
-                  child: Text(route, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue)),
-                ),
-                const SizedBox(width: 10),
-                Row(
-                  children: List.generate(5, (starIndex) {
-                    return Icon(
-                      starIndex < rating ? Icons.star : Icons.star_border, 
-                      color: Colors.amber, 
-                      size: 14
-                    );
-                  }),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(feedback, style: const TextStyle(color: Colors.black87)),
-          ],
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    FeedbackCategories.iconFor(item.category),
+                    size: 16,
+                    color: catColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      item.category,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: catColor,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    FeedbackStatuses.label(item.status),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(item.message, maxLines: 3, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              Text(
+                KarachiTime.formatDateTime(item.createdAt),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );

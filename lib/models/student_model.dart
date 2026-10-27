@@ -23,6 +23,8 @@ class StudentModel extends UserModel {
   final String verificationStatus; // pending, approved, rejected
   /// Salted hash only when Firebase Auth is unavailable — never plaintext.
   final String? passwordHash;
+  final bool termsAccepted;
+  final String? termsVersion;
 
   StudentModel({
     required super.uid,
@@ -51,6 +53,8 @@ class StudentModel extends UserModel {
     this.assignedArrivalTime,
     this.verificationStatus = 'pending',
     this.passwordHash,
+    this.termsAccepted = false,
+    this.termsVersion,
   });
 
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
@@ -81,6 +85,8 @@ class StudentModel extends UserModel {
       assignedArrivalTime: map['assignedArrivalTime'],
       verificationStatus: map['verificationStatus'] ?? 'pending',
       passwordHash: map['passwordHash'] as String?,
+      termsAccepted: map['termsAccepted'] == true,
+      termsVersion: map['termsVersion']?.toString(),
     );
   }
 
@@ -105,6 +111,7 @@ class StudentModel extends UserModel {
       'rollNo': rollNo.trim(),
       'rollNoKey': rollKey,
       'verificationStatus': verificationStatus,
+      'termsAccepted': termsAccepted,
     };
 
     void put(String key, dynamic value) {
@@ -129,6 +136,7 @@ class StudentModel extends UserModel {
     put('assignedDepartureTime', assignedDepartureTime);
     put('assignedArrivalTime', assignedArrivalTime);
     put('passwordHash', passwordHash);
+    put('termsVersion', termsVersion);
     return map;
   }
 }

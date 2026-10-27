@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,7 @@ import 'providers/route_provider.dart';
 import 'providers/schedule_provider.dart';
 import 'providers/notice_provider.dart';
 import 'providers/live_tracking_provider.dart';
+import 'widgets/offline_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,7 +41,13 @@ void main() async {
   };
 
   // Only wait for Firebase init — then show UI immediately.
+  // Settings MUST be applied before any Firestore use.
   await _initializeFirebase();
+  _enableFirestoreCache();
+  debugPrint(
+    '🔥 Firebase ready project=${DefaultFirebaseOptions.android.projectId} '
+    'apps=${Firebase.apps.length}',
+  );
   runApp(const SUTMSApp());
 
   // Probes + seed run in the background (do not block first frame).
@@ -65,6 +73,19 @@ Future<void> _probeAndSeedBackend() async {
     }
   } catch (e) {
     debugPrint('Background Firebase setup skipped: $e');
+  }
+}
+
+void _enableFirestoreCache() {
+  try {
+    if (Firebase.apps.isEmpty) return;
+    // Bounded cache — unlimited cache caused heavy main-thread work on device.
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: 40 * 1024 * 1024,
+    );
+  } catch (e) {
+    debugPrint('Firestore cache settings skipped: $e');
   }
 }
 
@@ -111,6 +132,14 @@ class SUTMSApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         routerConfig: AppRouter.router,
+        builder: (context, child) {
+          return Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(child: child ?? const SizedBox.shrink()),
+            ],
+          );
+        },
       ),
     );
   }

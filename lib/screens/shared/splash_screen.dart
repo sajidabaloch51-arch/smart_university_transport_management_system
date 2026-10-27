@@ -6,7 +6,11 @@ import '../../theme/app_colors.dart';
 import '../../constants/strings.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/route_provider.dart';
+import '../../providers/notice_provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../services/student_access_guard.dart';
+import '../../services/live_firestore.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,6 +34,25 @@ class _SplashScreenState extends State<SplashScreen> {
     context.read<AuthProvider>().logout();
   }
 
+  Future<void> _softCheckStudentAccess(
+    SharedPreferences prefs,
+    String uid,
+  ) async {
+    try {
+      final access = await StudentAccessGuard.evaluate(
+        studentProvider: context.read<StudentProvider>(),
+        uid: uid,
+      ).timeout(const Duration(seconds: 6));
+      if (!access.allowed) {
+        await _clearSession(prefs);
+        if (!mounted) return;
+        context.go('/login', extra: 'student');
+      }
+    } catch (_) {
+      // Offline / slow — leave dashboard open.
+    }
+  }
+
   Future<void> _navigateToNext() async {
     // Tiny delay so splash paints once; avoid long network waits on cold start.
     await Future.delayed(const Duration(milliseconds: 150));
@@ -43,36 +66,29 @@ class _SplashScreenState extends State<SplashScreen> {
     final String? uid = prefs.getString('uid');
 
     if (isLoggedIn && role != null && uid != null) {
-      // Restore session immediately; student approval is checked on login / dashboard.
+      // Restore session immediately — never block splash on network.
       if (!mounted) return;
       context.read<AuthProvider>().setAuthenticated(true, role: role, uid: uid);
+      context.read<AuthProvider>().cacheProfile(role: role);
 
       if (!mounted) return;
       switch (role) {
         case 'admin':
+          LiveFirestore.warmAdminLists();
           context.go('/admin-dashboard');
           break;
         case 'driver':
+          context.read<DriverProvider>().init(uid);
           context.go('/driver-dashboard');
           break;
         default:
-          // Lightweight check only for students (timeout-friendly).
-          try {
-            final access = await StudentAccessGuard.evaluate(
-              studentProvider: context.read<StudentProvider>(),
-              uid: uid,
-            ).timeout(const Duration(seconds: 4));
-            if (!access.allowed) {
-              await _clearSession(prefs);
-              if (!mounted) return;
-              context.go('/login', extra: 'student');
-              return;
-            }
-          } catch (_) {
-            // Network slow/offline — still open dashboard; guards run later.
-          }
           if (!mounted) return;
+          context.read<RouteProvider>().streamRoutes();
+          context.read<NoticeProvider>().streamNotices();
           context.go('/student-dashboard');
+          // Soft access check in background; kick out only if denied.
+          // ignore: discarded_futures
+          _softCheckStudentAccess(prefs, uid);
       }
     } else {
       if (!mounted) return;

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,6 +10,7 @@ import '../models/notice_model.dart';
 import '../models/schedule_model.dart';
 import '../models/bus_live_location_model.dart';
 import '../services/firestore_service.dart';
+import '../services/live_firestore.dart';
 import '../services/location_service.dart';
 import '../services/realtime_location_service.dart';
 
@@ -56,26 +58,48 @@ class DriverProvider extends ChangeNotifier {
     return null;
   }
 
+  Stream<List<DriverModel>>? _driversStream;
+  static const _driversKey = 'users_drivers';
+  List<DriverModel> _cachedDrivers = const [];
+  List<DriverModel> get cachedDrivers => _cachedDrivers;
+
   Stream<List<DriverModel>> streamDrivers() {
-    final db = _db;
-    if (db == null) {
+    if (_driversStream != null) return _driversStream!;
+    if (_db == null) {
       return Stream.value(_localDrivers.values.toList());
     }
-    return db
-        .collection('users')
-        .where('role', isEqualTo: 'driver')
-        .snapshots()
-        .map((snapshot) {
+    _driversStream = LiveFirestore.snapshots(
+      _driversKey,
+      (db) => db.collection('users').where('role', isEqualTo: 'driver'),
+      collectionLabel: 'users(role=driver)',
+    ).map((snapshot) {
       final list = snapshot.docs
           .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
           .toList();
       for (final d in list) {
         _localDrivers[d.uid] = d;
       }
+      _cachedDrivers = list;
       return list;
-    }).handleError((e) {
-      debugPrint('streamDrivers error: $e');
     });
+    return _driversStream!;
+  }
+
+  void restartDriversStream() {
+    _driversStream = null;
+    LiveFirestore.restart(_driversKey);
+  }
+
+  Future<void> refreshDrivers() => LiveFirestore.forceRefresh(_driversKey);
+
+  Future<void> deleteDriver(String uid) async {
+    final db = _db;
+    if (db == null) return;
+    await db.collection('users').doc(uid).delete();
+    _localDrivers.remove(uid);
+    _cachedDrivers =
+        _cachedDrivers.where((d) => d.uid != uid).toList(growable: false);
+    notifyListeners();
   }
 
   Future<void> updateDriver(DriverModel driver) async {
@@ -106,32 +130,75 @@ class DriverProvider extends ChangeNotifier {
   }
 
   /// Initialize driver data from Firestore (local cache as fallback).
+  /// Shows cached profile immediately so the dashboard is not blocked.
   Future<void> init(String driverId) async {
-    _isLoading = true;
     _error = null;
-    notifyListeners();
+
+    // Paint UI instantly from memory when possible.
+    if (_localDrivers.containsKey(driverId)) {
+      _driver = _localDrivers[driverId];
+      _isLoading = false;
+      notifyListeners();
+      _subscribeToRealtimeStreams();
+    } else if (_driver?.uid != driverId) {
+      _isLoading = true;
+      notifyListeners();
+    }
 
     try {
       final db = _db;
       if (db != null) {
-        final doc = await db.collection('users').doc(driverId).get();
+        var doc = await db
+            .collection('users')
+            .doc(driverId)
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 4));
+
+        // Auth uid often ≠ seed users doc id (e.g. driver_id). Resolve by email.
+        if (!doc.exists) {
+          String? email;
+          try {
+            email = FirebaseAuth.instance.currentUser?.email;
+          } catch (_) {}
+          if (email != null && email.isNotEmpty) {
+            final profile =
+                await _firestoreService.getUserAuthProfile(email);
+            if (profile != null && profile.uid.isNotEmpty) {
+              final linked = await db
+                  .collection('users')
+                  .doc(profile.uid)
+                  .get(const GetOptions(source: Source.serverAndCache))
+                  .timeout(const Duration(seconds: 4));
+              if (linked.exists) {
+                doc = linked;
+                debugPrint(
+                  'DriverProvider.init: linked $driverId → ${doc.id} via email',
+                );
+              }
+            }
+          }
+        }
+
         if (doc.exists && doc.data() != null) {
           _driver = DriverModel.fromMap(doc.data()!, doc.id);
+          _localDrivers[_driver!.uid] = _driver!;
           _localDrivers[driverId] = _driver!;
         } else if (_localDrivers.containsKey(driverId)) {
+          _driver = _localDrivers[driverId];
+        } else if (_driver == null) {
+          _loadMockData(driverId);
+        }
+      } else if (_driver == null) {
+        if (_localDrivers.containsKey(driverId)) {
           _driver = _localDrivers[driverId];
         } else {
           _loadMockData(driverId);
         }
-      } else if (_localDrivers.containsKey(driverId)) {
-        _driver = _localDrivers[driverId];
-      } else {
-        _loadMockData(driverId);
       }
       _subscribeToRealtimeStreams();
     } catch (e) {
       debugPrint("Driver init error: $e");
-      _loadMockData(driverId);
+      if (_driver == null) _loadMockData(driverId);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -170,22 +237,24 @@ class DriverProvider extends ChangeNotifier {
   void _subscribeToRealtimeStreams() {
     if (_driver == null || Firebase.apps.isEmpty) return;
 
-    _firestoreService.getAssignedRoute(_driver!.assignedRouteId).listen((route) {
-      if (route != null) {
-        _assignedRoute = route;
+    // Route only when assigned — skip empty ids (avoids useless listeners).
+    final routeId = _driver!.assignedRouteId;
+    if (routeId.isNotEmpty) {
+      _firestoreService.getAssignedRoute(routeId).listen((route) {
+        if (route != null) {
+          _assignedRoute = route;
+          notifyListeners();
+        }
+      });
+
+      _firestoreService.getTodaySchedules(routeId).listen((schedules) {
+        _todaySchedules = schedules;
         notifyListeners();
-      }
-    });
+      });
+    }
 
-    _firestoreService.getTodaySchedules(_driver!.assignedRouteId).listen((schedules) {
-      _todaySchedules = schedules;
-      notifyListeners();
-    });
-
-    _firestoreService.getNotices('uog').listen((notices) {
-      _notices = notices;
-      notifyListeners();
-    });
+    // Notices are shown via AlertService on the dashboard — do not subscribe
+    // to the old notices composite-index query (it slows / fails cold start).
 
     if (_driver!.isOnDuty) {
       _startLocationTracking();

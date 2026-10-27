@@ -1,35 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/schedule_model.dart';
+import '../services/live_firestore.dart';
 
 class ScheduleProvider extends ChangeNotifier {
-  FirebaseFirestore? get _db {
-    try {
-      if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (_) {}
-    return null;
-  }
-
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  /// Live stream from Firestore `schedules`.
-  Stream<List<ScheduleModel>> streamSchedules() {
-    final db = _db;
-    if (db == null) return Stream.value(const <ScheduleModel>[]);
+  Stream<List<ScheduleModel>>? _schedulesStream;
+  static const _key = 'schedules_all';
+  List<ScheduleModel> _cached = const [];
+  List<ScheduleModel> get cachedSchedules => _cached;
 
-    return db.collection('schedules').snapshots().map((snapshot) {
-      return snapshot.docs
+  Stream<List<ScheduleModel>> streamSchedules() {
+    if (_schedulesStream != null) return _schedulesStream!;
+    if (LiveFirestore.db == null) {
+      return Stream.value(const <ScheduleModel>[]);
+    }
+
+    _schedulesStream = LiveFirestore.snapshots(
+      _key,
+      (db) => db.collection('schedules'),
+      collectionLabel: 'schedules',
+    ).map((snapshot) {
+      _cached = snapshot.docs
           .map((doc) => ScheduleModel.fromMap(doc.data(), doc.id))
           .toList();
-    }).handleError((e) {
-      debugPrint('streamSchedules error: $e');
+      return _cached;
     });
+    return _schedulesStream!;
   }
 
+  void restartSchedulesStream() {
+    _schedulesStream = null;
+    LiveFirestore.restart(_key);
+  }
+
+  Future<void> refreshSchedules() => LiveFirestore.forceRefresh(_key);
+
   Future<void> addSchedule(ScheduleModel schedule) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) {
       throw Exception(
         'Firestore not available. Create the database in Firebase Console first.',
@@ -46,7 +55,7 @@ class ScheduleProvider extends ChangeNotifier {
   }
 
   Future<void> deleteSchedule(String id) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) return;
     await db.collection('schedules').doc(id).delete();
   }

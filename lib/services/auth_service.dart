@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../firebase_options.dart';
 import '../utils/email_validator.dart';
 
 class AuthService {
@@ -44,6 +45,7 @@ class AuthService {
   }
 
   /// Creates Firebase Auth user (password hashed/stored by Firebase — never in Firestore).
+  /// Warning: switches the default Auth session to the new user.
   Future<User> createUser(String email, String password) async {
     final auth = _auth;
     if (auth == null) {
@@ -68,6 +70,65 @@ class AuthService {
       if (e is AuthServiceException) rethrow;
       debugPrint('createUser error: $e');
       throw AuthServiceException('Could not create account. Check your connection.');
+    }
+  }
+
+  /// Creates an Auth user on a secondary FirebaseApp so the Admin session
+  /// on the default app is not replaced / logged out.
+  Future<User> createUserKeepCurrentSession(
+    String email,
+    String password,
+  ) async {
+    if (Firebase.apps.isEmpty) {
+      throw AuthServiceException(
+        'Authentication is unavailable. Check Firebase setup and internet.',
+      );
+    }
+
+    const secondaryName = 'SUTMSSecondaryAuth';
+    FirebaseApp secondary;
+    try {
+      secondary = Firebase.app(secondaryName);
+    } catch (_) {
+      secondary = await Firebase.initializeApp(
+        name: secondaryName,
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondary);
+    try {
+      final result = await secondaryAuth.createUserWithEmailAndPassword(
+        email: AppEmailValidator.normalize(email),
+        password: password,
+      );
+      final user = result.user;
+      if (user == null) {
+        throw AuthServiceException('Could not create account. Please try again.');
+      }
+      // Sign out only on the secondary instance — Admin stays signed in.
+      await secondaryAuth.signOut();
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+    } catch (e) {
+      if (e is AuthServiceException) rethrow;
+      debugPrint('createUserKeepCurrentSession error: $e');
+      throw AuthServiceException(
+        'Could not create account. Check your connection.',
+      );
+    }
+  }
+
+  Future<void> updatePassword(String newPassword) async {
+    final user = _auth?.currentUser;
+    if (user == null) {
+      throw AuthServiceException('You must be signed in to change password.');
+    }
+    try {
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw AuthServiceException(_mapAuthCode(e.code, e.message));
     }
   }
 

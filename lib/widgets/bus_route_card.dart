@@ -299,16 +299,27 @@ class BusRouteCard extends StatelessWidget {
   }
 
   Widget _actionButton(IconData icon, Color color, VoidCallback? onPressed) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: color, size: 20),
-        onPressed: onPressed,
-        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-        padding: EdgeInsets.zero,
+    final enabled = onPressed != null;
+    final tip = icon == Icons.call
+        ? (enabled ? 'Call driver' : 'No driver phone available')
+        : (enabled ? 'Message driver' : 'No driver phone available');
+    return Tooltip(
+      message: tip,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: enabled ? 0.1 : 0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: IconButton(
+          icon: Icon(
+            icon,
+            color: enabled ? color : Colors.grey.shade400,
+            size: 20,
+          ),
+          onPressed: onPressed,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          padding: EdgeInsets.zero,
+        ),
       ),
     );
   }

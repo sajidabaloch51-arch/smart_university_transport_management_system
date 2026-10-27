@@ -1,40 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/notice_model.dart';
+import '../services/live_firestore.dart';
 
 class NoticeProvider extends ChangeNotifier {
-  FirebaseFirestore? get _db {
-    try {
-      if (Firebase.apps.isNotEmpty) return FirebaseFirestore.instance;
-    } catch (_) {}
-    return null;
-  }
-
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
   List<NoticeModel> _cache = [];
   List<NoticeModel> get notices => List.unmodifiable(_cache);
 
-  /// Live stream from Firestore `notices`.
-  Stream<List<NoticeModel>> streamNotices() {
-    final db = _db;
-    if (db == null) return Stream.value(const <NoticeModel>[]);
+  Stream<List<NoticeModel>>? _noticesStream;
+  static const _key = 'notices_all';
 
-    return db
-        .collection('notices')
-        .orderBy('date', descending: true)
-        .snapshots()
-        .map((snapshot) {
+  List<NoticeModel> get cachedNotices => List.unmodifiable(_cache);
+
+  Stream<List<NoticeModel>> streamNotices() {
+    if (_noticesStream != null) return _noticesStream!;
+    if (LiveFirestore.db == null) {
+      return Stream.value(const <NoticeModel>[]);
+    }
+
+    _noticesStream = LiveFirestore.snapshots(
+      _key,
+      (db) =>
+          db.collection('notices').orderBy('date', descending: true).limit(50),
+      collectionLabel: 'notices',
+    ).map((snapshot) {
       _cache = snapshot.docs
           .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
           .toList();
       return _cache;
-    }).handleError((e) {
-      debugPrint('streamNotices error: $e');
     });
+    return _noticesStream!;
   }
+
+  void restartNoticesStream() {
+    _noticesStream = null;
+    LiveFirestore.restart(_key);
+  }
+
+  Future<void> refreshNotices() => LiveFirestore.forceRefresh(_key);
 
   Stream<List<NoticeModel>> streamNoticesForRole(String role) {
     return streamNotices().map(
@@ -47,7 +52,7 @@ class NoticeProvider extends ChangeNotifier {
   }
 
   Future<void> addNotice(NoticeModel notice) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) {
       throw Exception(
         'Firestore not available. Create the database in Firebase Console first.',
@@ -64,7 +69,7 @@ class NoticeProvider extends ChangeNotifier {
   }
 
   Future<void> deleteNotice(String id) async {
-    final db = _db;
+    final db = LiveFirestore.db;
     if (db == null) return;
     await db.collection('notices').doc(id).delete();
   }

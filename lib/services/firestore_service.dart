@@ -262,25 +262,14 @@ class FirestoreService {
     final db = _db;
     if (db == null) return const Stream.empty();
 
-    // Prefer university filter; fall back to all notices ordered by date.
-    try {
-      return db
-          .collection('notices')
-          .where('universityId', isEqualTo: universityId)
-          .orderBy('date', descending: true)
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
-              .toList());
-    } catch (_) {
-      return db
-          .collection('notices')
-          .orderBy('date', descending: true)
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
-              .toList());
-    }
+    // No orderBy — avoids composite index delay; sort in Dart.
+    return db.collection('notices').snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => NoticeModel.fromMap(doc.data(), doc.id))
+          .toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+      return list;
+    });
   }
 
   // --- BUS OPERATIONS ---
@@ -303,14 +292,13 @@ class FirestoreService {
   }
 
   // --- FEEDBACK ---
+  /// Prefer [FeedbackService.submitFeedback] — this wrapper rethrows errors.
   Future<void> addFeedback(Map<String, dynamic> feedback) async {
     final db = _db;
-    if (db == null) return;
-    try {
-      await db.collection('feedback').add(feedback);
-    } catch (e) {
-      debugPrint('$e');
+    if (db == null) {
+      throw StateError('Firestore not available');
     }
+    await db.collection('feedback').add(feedback);
   }
 
   // --- LIVE LOCATION ---

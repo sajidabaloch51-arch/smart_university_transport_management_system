@@ -5,11 +5,28 @@ class DriverCard extends StatelessWidget {
   final DriverModel driver;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  /// When set (e.g. from today's assigned duty), override profile bus/route.
+  final String? busNoOverride;
+  final String? routeOverride;
 
-  const DriverCard({super.key, required this.driver, this.onEdit, this.onDelete});
+  const DriverCard({
+    super.key,
+    required this.driver,
+    this.onEdit,
+    this.onDelete,
+    this.busNoOverride,
+    this.routeOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final busNo = (busNoOverride != null && busNoOverride!.isNotEmpty)
+        ? busNoOverride!
+        : driver.assignedBusNumber;
+    final route = (routeOverride != null && routeOverride!.isNotEmpty)
+        ? routeOverride!
+        : driver.assignedRouteName;
+
     return Card(
       elevation: 8,
       shadowColor: Colors.blue.withValues(alpha: 0.3),
@@ -52,11 +69,11 @@ class DriverCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        'Bus No: ${driver.assignedBusNumber}',
+                        'Bus No: $busNo',
                         style: const TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                       Text(
-                        'Route: ${driver.assignedRouteName}',
+                        'Route: $route',
                         style: const TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ],

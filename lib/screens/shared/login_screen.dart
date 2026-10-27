@@ -14,6 +14,9 @@ import '../../services/password_hasher.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/route_provider.dart';
+import '../../providers/notice_provider.dart';
+import '../../services/live_firestore.dart';
 import '../../utils/email_validator.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -108,10 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
       // Prefer Firebase Auth. Fall back to Firestore profile + optional passwordHash.
       try {
         final authUser = await AuthService().signIn(email, password);
-        uid = authUser.uid;
-        final firestoreUser = await FirestoreService().getUser(uid) ??
+        // Duties/alerts use Firestore users/{docId}. Prefer that doc id over
+        // Auth uid when they differ (seed docs are driver_id / admin_id).
+        final firestoreUser = await FirestoreService().getUser(authUser.uid) ??
             await FirestoreService().findUserByEmail(email);
+        uid = firestoreUser?.uid ?? authUser.uid;
         accountRole = firestoreUser?.role ?? '';
+        debugPrint(
+          'Login Auth uid=${authUser.uid} profileUid=$uid role=$accountRole',
+        );
       } on AuthServiceException catch (authErr) {
         // Firestore fallback for demo admin/driver/student when Auth is off.
         final profile = await FirestoreService().getUserAuthProfile(email);
@@ -228,17 +236,25 @@ class _LoginScreenState extends State<LoginScreen> {
             true,
             role: targetRole,
             uid: uid,
+            email: email,
+          );
+      context.read<AuthProvider>().cacheProfile(
+            email: email,
+            role: targetRole,
           );
 
       setState(() => _isLoading = false);
 
       if (!mounted) return;
-      if (targetRole == 'driver') {
+      if (targetRole == 'admin') {
+        LiveFirestore.warmAdminLists();
+        context.go('/admin-dashboard');
+      } else if (targetRole == 'driver') {
         context.read<DriverProvider>().init(uid);
         context.go('/driver-dashboard');
-      } else if (targetRole == 'admin') {
-        context.go('/admin-dashboard');
       } else {
+        context.read<RouteProvider>().streamRoutes();
+        context.read<NoticeProvider>().streamNotices();
         context.go('/student-dashboard');
       }
     } catch (e) {
@@ -363,32 +379,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       isLoading: _isLoading,
                       onPressed: _handleLogin,
                     ),
-                    const SizedBox(height: 32),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Text("Don't have an account? "),
-                        GestureDetector(
-                          onTap: () {
-                            if (widget.role == 'driver') {
-                              context.push('/driver-registration');
-                            } else if (widget.role == 'admin') {
-                              context.push('/admin-registration');
-                            } else {
-                              context.push('/student-registration');
-                            }
-                          },
-                          child: const Text(
-                            'Sign Up',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
+                    if (widget.role == 'driver') ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Driver accounts are created by the Transport Office. '
+                        'Contact the Admin if you can\'t log in.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ] else if (widget.role == 'admin') ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Admin accounts are provisioned by the university. '
+                        'Self-registration is not available.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      const SizedBox(height: 32),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text("Don't have an account? "),
+                          GestureDetector(
+                            onTap: () =>
+                                context.push('/student-registration'),
+                            child: const Text(
+                              'Sign Up',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

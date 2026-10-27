@@ -23,9 +23,11 @@ class FirebaseBootstrap {
 
     try {
       // Lightweight read against a reserved meta doc (may not exist — that's OK).
-      await db.collection('_meta').doc('health').get().timeout(
-            const Duration(seconds: 3),
-          );
+      await db
+          .collection('_meta')
+          .doc('health')
+          .get(const GetOptions(source: Source.serverAndCache))
+          .timeout(const Duration(seconds: 2));
       return null;
     } on FirebaseException catch (e) {
       if (e.code == 'not-found' ||

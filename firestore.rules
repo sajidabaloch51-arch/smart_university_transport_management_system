@@ -1,9 +1,131 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Development rules — tighten before production release.
-    match /{document=**} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Role comes from users/{uid}.role — never from email domain.
+    function userRole() {
+      return signedIn() && userDoc().keys().hasAny(['role'])
+        ? userDoc().role
+        : '';
+    }
+
+    function isAdmin() {
+      return signedIn() && userRole() == 'admin';
+    }
+
+    function isDriver() {
+      return signedIn() && userRole() == 'driver';
+    }
+
+    // Full user profiles: open read needed for demo passwordHash login /
+    // email lookup. Students must NOT rely on this for driver contact —
+    // use routes.* and driverPublic instead.
+    //
+    // Role is taken ONLY from users/{uid}.role (never email domain).
+    // Non-admins cannot create/escalate to driver or admin.
+    function createRoleIsStudentOnly() {
+      return request.resource.data.keys().hasAny(['role'])
+        && request.resource.data.role == 'student';
+    }
+
+    function roleUnchanged() {
+      return request.resource.data.role == resource.data.role;
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        || (signedIn()
+            && request.auth.uid == userId
+            && createRoleIsStudentOnly());
+      allow update: if isAdmin()
+        || (signedIn()
+            && request.auth.uid == userId
+            && roleUnchanged());
+      allow delete: if isAdmin();
+    }
+
+    // Limited public driver contact (name, phone, busNo, routeId).
+    // Students may read; only admins write.
+    match /driverPublic/{driverId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Drivers may read their own duties; students/admins may read all for demo UX.
+    match /duties/{dutyId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Drivers may read alerts targeted at them or all_drivers.
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /schedules/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /notices/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /buses/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Routes include public assignment fields: driverId, driverName,
+    // driverPhone, busNo. Students may read; only admins write.
+    match /routes/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /officialStudents/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /approvedAdmins/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Student feedback: create own "new" docs; read own only.
+    // Admin (users/{uid}.role == admin) can read/update/delete all.
+    function feedbackCreateValid() {
+      return request.resource.data.keys().hasAll([
+               'category', 'message', 'studentUid', 'status', 'createdAt'
+             ])
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.status == 'new'
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.category.size() <= 40
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 1000
+        && request.resource.data.studentUid is string;
+    }
+
+    match /feedback/{id} {
+      allow create: if signedIn() && feedbackCreateValid();
+      allow read: if isAdmin()
+        || (signedIn()
+            && resource.data.studentUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+    match /_meta/{id} {
+      allow read: if true;
+      allow write: if true;
     }
   }
 }

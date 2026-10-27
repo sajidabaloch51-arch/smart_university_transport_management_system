@@ -38,6 +38,8 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
   late TextEditingController _endController;
   late TextEditingController _distController;
   late TextEditingController _durController;
+  late TextEditingController _depController;
+  late TextEditingController _arrController;
 
   final List<_StopEditors> _stops = [];
   bool _isLoading = false;
@@ -57,6 +59,10 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
         TextEditingController(text: widget.route?.distanceKm ?? '');
     _durController =
         TextEditingController(text: widget.route?.estimatedTime ?? '');
+    _depController =
+        TextEditingController(text: widget.route?.departureTime ?? '');
+    _arrController =
+        TextEditingController(text: widget.route?.arrivalTime ?? '');
     _isActive = widget.route?.isActive ?? true;
 
     if (widget.route != null) {
@@ -89,6 +95,8 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
     _endController.dispose();
     _distController.dispose();
     _durController.dispose();
+    _depController.dispose();
+    _arrController.dispose();
     for (final s in _stops) {
       s.dispose();
     }
@@ -145,18 +153,28 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
     final routeId =
         widget.route?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    // Preserve existing driver assignment when editing route geometry.
+    final existing = widget.route;
     final route = RouteModel(
       id: routeId,
-      universityId: 'uog',
+      universityId: existing?.universityId.isNotEmpty == true
+          ? existing!.universityId
+          : 'uog',
       routeName: _nameController.text.trim(),
       routeNumber: _numberController.text.trim(),
       startLocation: _startController.text.trim(),
       endLocation: _endController.text.trim(),
       distanceKm: _distController.text.trim(),
       estimatedTime: _durController.text.trim(),
+      departureTime: _depController.text.trim(),
+      arrivalTime: _arrController.text.trim(),
       viaStops: builtStops.map((e) => e.stopName).toList(),
       stops: builtStops,
       isActive: _isActive,
+      driverId: existing?.driverId,
+      driverName: existing?.driverName ?? '',
+      driverPhone: existing?.driverPhone ?? '',
+      busNo: existing?.busNo ?? '',
     );
 
     try {
@@ -239,8 +257,25 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                   Expanded(
                     child: CustomTextField(
                       controller: _durController,
-                      labelText: 'Duration (min)',
+                      labelText: 'Duration (e.g. 45 min)',
                       validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _depController,
+                      labelText: 'Departure (e.g. 07:30 AM)',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _arrController,
+                      labelText: 'Arrival (e.g. 08:15 AM)',
                     ),
                   ),
                 ],

@@ -19,10 +19,22 @@ class RouteDetailScreen extends StatelessWidget {
       body: StreamBuilder<RouteModel?>(
         stream: firestore.getRoute(routeId),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Could not load route.\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          
+
           if (!snapshot.hasData || snapshot.data == null) {
             return const EmptyStateWidget(
               message: "Route details not found.",
@@ -44,7 +56,7 @@ class RouteDetailScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildStopTimeline(route.stops),
+                _buildStopTimeline(route),
                 const SizedBox(height: 40),
                 CustomButton(
                   text: 'View Schedule', 
@@ -72,9 +84,33 @@ class RouteDetailScreen extends StatelessWidget {
           children: [
             _buildInfoRow(Icons.route, 'Route Name', route.routeName),
             const Divider(height: 30),
+            _buildInfoRow(Icons.person, 'Driver', route.displayDriverName),
+            const Divider(height: 30),
+            _buildInfoRow(
+              Icons.directions_bus,
+              'Bus',
+              route.busNo.isNotEmpty ? route.busNo : '—',
+            ),
+            const Divider(height: 30),
+            _buildInfoRow(
+              Icons.phone,
+              'Driver phone',
+              route.driverPhone.isNotEmpty ? route.driverPhone : '—',
+            ),
+            const Divider(height: 30),
             _buildInfoRow(Icons.straighten, 'Total Distance', route.distanceKm),
             const Divider(height: 30),
-            _buildInfoRow(Icons.timer_outlined, 'Estimated Duration', route.estimatedTime),
+            _buildInfoRow(
+              Icons.timer_outlined,
+              'Estimated Duration',
+              route.estimatedTime.isNotEmpty ? route.estimatedTime : '—',
+            ),
+            const Divider(height: 30),
+            _buildInfoRow(
+              Icons.schedule,
+              'Departure / Arrival',
+              '${route.cardDepartureTime} → ${route.cardArrivalTime}',
+            ),
           ],
         ),
       ),
@@ -97,10 +133,28 @@ class RouteDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStopTimeline(List<RouteStop> stops) {
+  Widget _buildStopTimeline(RouteModel route) {
+    final stops = route.stops;
+    if (stops.isEmpty) {
+      return Text(
+        'No stops listed for this route.',
+        style: TextStyle(color: Colors.grey.shade600),
+      );
+    }
     return Column(
       children: List.generate(stops.length, (index) {
         final stop = stops[index];
+        final name = stop.stopName.trim().isNotEmpty
+            ? stop.stopName.trim()
+            : 'Stop ${index + 1}';
+        String time = stop.timeLabel.trim();
+        // Never show trip duration on every stop; only real clock labels.
+        if (RouteModel.looksLikeDuration(time)) time = '';
+        if (time.isEmpty && index == 0) {
+          time = route.cardDepartureTime;
+        } else if (time.isEmpty && index == stops.length - 1) {
+          time = route.cardArrivalTime;
+        }
         return Row(
           children: [
             Column(
@@ -109,13 +163,19 @@ class RouteDetailScreen extends StatelessWidget {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: index == stops.length - 1 ? AppColors.primary : AppColors.secondary,
+                    color: index == stops.length - 1
+                        ? AppColors.primary
+                        : AppColors.secondary,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
                       '${index + 1}',
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -127,9 +187,27 @@ class RouteDetailScreen extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 40),
-                child: Text(
-                  stop.stopName,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (time.isNotEmpty)
+                      Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

@@ -16,6 +16,10 @@ class DriverModel extends UserModel {
   final String assignedRouteName;
   final bool isOnDuty;
   final DateTime? lastDutyStart;
+  /// When true, driver must set a new password after first login.
+  final bool mustChangePassword;
+  /// Account approval for login: approved | pending | suspended
+  final String verificationStatus;
 
   DriverModel({
     required super.uid,
@@ -37,6 +41,8 @@ class DriverModel extends UserModel {
     required this.assignedRouteName,
     required this.isOnDuty,
     this.lastDutyStart,
+    this.mustChangePassword = false,
+    this.verificationStatus = 'approved',
   });
 
   factory DriverModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -64,10 +70,11 @@ class DriverModel extends UserModel {
       lastDutyStart: map['lastDutyStart'] != null
           ? (map['lastDutyStart'] as Timestamp).toDate()
           : null,
+      mustChangePassword: map['mustChangePassword'] == true,
+      verificationStatus: map['verificationStatus']?.toString() ?? 'approved',
     );
   }
 
-  /// Lean Firestore payload — drops unused license/address clutter.
   @override
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
@@ -84,9 +91,14 @@ class DriverModel extends UserModel {
       'assignedRouteId': assignedRouteId,
       'assignedRouteName': assignedRouteName,
       'isOnDuty': isOnDuty,
+      'mustChangePassword': mustChangePassword,
+      'verificationStatus': verificationStatus,
     };
 
     if (profileImg.isNotEmpty) map['profileImg'] = profileImg;
+    if (licenseNumber != null && licenseNumber!.isNotEmpty) {
+      map['licenseNumber'] = licenseNumber;
+    }
     if (experienceYears != null) map['experienceYears'] = experienceYears;
     if (lastDutyStart != null) {
       map['lastDutyStart'] = Timestamp.fromDate(lastDutyStart!);
@@ -114,6 +126,8 @@ class DriverModel extends UserModel {
     String? assignedRouteName,
     bool? isOnDuty,
     DateTime? lastDutyStart,
+    bool? mustChangePassword,
+    String? verificationStatus,
   }) {
     return DriverModel(
       uid: uid ?? this.uid,
@@ -135,6 +149,8 @@ class DriverModel extends UserModel {
       assignedRouteName: assignedRouteName ?? this.assignedRouteName,
       isOnDuty: isOnDuty ?? this.isOnDuty,
       lastDutyStart: lastDutyStart ?? this.lastDutyStart,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
     );
   }
 }
