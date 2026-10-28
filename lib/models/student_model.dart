@@ -2,11 +2,7 @@ import 'user_model.dart';
 
 class StudentModel extends UserModel {
   final String regNumber;
-  final String fatherName;
-  final String gender;
-  final String dob;
   final String department;
-  final String semester;
   final String profileImage;
   final String routeAddress;
   final String rollNo;
@@ -33,11 +29,7 @@ class StudentModel extends UserModel {
     required super.phone,
     required super.role,
     required this.regNumber,
-    this.fatherName = '',
-    this.gender = '',
-    this.dob = '',
     required this.department,
-    this.semester = '',
     this.profileImage = '',
     this.routeAddress = '',
     required this.rollNo,
@@ -57,6 +49,7 @@ class StudentModel extends UserModel {
     this.termsVersion,
   });
 
+  /// Ignores legacy Firestore keys: fatherName, gender, dob, semester.
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
     return StudentModel(
       uid: id,
@@ -65,11 +58,7 @@ class StudentModel extends UserModel {
       phone: map['phone'] ?? '',
       role: map['role'] ?? 'student',
       regNumber: map['regNumber'] ?? '',
-      fatherName: map['fatherName'] ?? '',
-      gender: map['gender'] ?? '',
-      dob: map['dob'] ?? '',
       department: map['department'] ?? '',
-      semester: map['semester'] ?? '',
       profileImage: map['profileImage'] ?? map['profilePhoto'] ?? '',
       routeAddress: map['routeAddress'] ?? '',
       rollNo: map['rollNo'] ?? map['serialNumber'] ?? '',
@@ -83,15 +72,18 @@ class StudentModel extends UserModel {
       assignedDriverPhone: map['assignedDriverPhone'],
       assignedDepartureTime: map['assignedDepartureTime'],
       assignedArrivalTime: map['assignedArrivalTime'],
-      verificationStatus: map['verificationStatus'] ?? 'pending',
+      verificationStatus: _normalizeVerificationStatus(
+        map['verificationStatus'],
+      ),
       passwordHash: map['passwordHash'] as String?,
       termsAccepted: map['termsAccepted'] == true,
       termsVersion: map['termsVersion']?.toString(),
     );
   }
 
-  /// Lean Firestore payload — only fields the app UI uses.
-  /// Never stores passwords (Firebase Auth handles credentials).
+  /// Lean Firestore payload — never writes fatherName/gender/dob/semester
+  /// (legacy values in existing docs are left untouched by merge writes that
+  /// omit those keys).
   @override
   Map<String, dynamic> toMap() {
     final rollKey = rollNo
@@ -120,10 +112,6 @@ class StudentModel extends UserModel {
       map[key] = value;
     }
 
-    put('fatherName', fatherName);
-    put('gender', gender);
-    put('dob', dob);
-    put('semester', semester);
     put('profileImage', profileImage);
     put('routeAddress', routeAddress);
     put('assignedRouteId', assignedRouteId);
@@ -138,5 +126,11 @@ class StudentModel extends UserModel {
     put('passwordHash', passwordHash);
     put('termsVersion', termsVersion);
     return map;
+  }
+
+  static String _normalizeVerificationStatus(dynamic raw) {
+    final s = (raw ?? 'pending').toString().trim().toLowerCase();
+    if (s == 'approved' || s == 'rejected' || s == 'pending') return s;
+    return s.isEmpty ? 'pending' : s;
   }
 }

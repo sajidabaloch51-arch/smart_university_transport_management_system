@@ -28,17 +28,31 @@ class _ManageRoutesScreenState extends State<ManageRoutesScreen> {
   Future<void> _runMigration() async {
     setState(() => _migrating = true);
     try {
-      final n =
-          await RouteAssignmentService().migrateAssignmentsFromExistingData();
+      final report = await RouteAssignmentService().repairAssignments();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            n == 0
-                ? 'No routes needed updates (already linked or no source data).'
-                : 'Synced driver assignment onto $n route(s).',
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Repair assignments'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Text(
+                'Fixed: ${report.fixed.length}\n'
+                'Unmatched: ${report.unmatched.length}\n'
+                'Skipped: ${report.skipped.length}\n\n'
+                '${report.fixed.isEmpty ? '' : 'Fixed:\n${report.fixed.take(20).join('\n')}\n\n'}'
+                '${report.unmatched.isEmpty ? '' : 'Unmatched:\n${report.unmatched.take(20).join('\n')}\n\n'}'
+                '${report.skipped.isEmpty ? '' : 'Skipped:\n${report.skipped.take(20).join('\n')}'}',
+              ),
+            ),
           ),
-          backgroundColor: Colors.green,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
     } catch (e) {
@@ -70,7 +84,7 @@ class _ManageRoutesScreenState extends State<ManageRoutesScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.sync),
-            label: const Text('Sync drivers'),
+            label: const Text('Repair assignments'),
           ),
         ],
       ),

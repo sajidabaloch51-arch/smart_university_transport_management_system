@@ -3,38 +3,52 @@ import 'package:provider/provider.dart';
 import '../../theme/app_colors.dart';
 import '../../providers/schedule_provider.dart';
 import '../../models/schedule_model.dart';
+import '../../widgets/list_skeleton.dart';
 
-class ScheduleScreen extends StatelessWidget {
+class ScheduleScreen extends StatefulWidget {
   final String? routeId;
   const ScheduleScreen({super.key, this.routeId});
 
   @override
+  State<ScheduleScreen> createState() => _ScheduleScreenState();
+}
+
+class _ScheduleScreenState extends State<ScheduleScreen> {
+  late final Stream<List<ScheduleModel>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = context.read<ScheduleProvider>().streamSchedules();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final scheduleProvider = Provider.of<ScheduleProvider>(context);
+    final scheduleProvider = context.read<ScheduleProvider>();
+    final initial = scheduleProvider.cachedSchedules.isEmpty
+        ? null
+        : scheduleProvider.cachedSchedules;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transport Schedule')),
-      body: StreamBuilder<List<ScheduleModel>>(
-        stream: scheduleProvider.streamSchedules(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final schedules = snapshot.data ?? [];
-          
-          if (schedules.isEmpty) {
-            return const Center(child: Text("No schedules available."));
-          }
-
+      body: CachedStreamList<List<ScheduleModel>>(
+        stream: _stream,
+        initialData: initial,
+        emptyMessage: 'No schedules available.',
+        isEmpty: (list) => list.isEmpty,
+        onRefresh: () => scheduleProvider.refreshSchedules(),
+        builder: (context, schedules) {
           return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
             itemCount: schedules.length,
             itemBuilder: (context, index) {
               final schedule = schedules[index];
-              // Normalize route naming for comparison (e.g., "Route A" vs "A")
               bool isMyRoute = false;
+              final routeId = widget.routeId;
               if (routeId != null) {
-                isMyRoute = schedule.routeName.contains(routeId!) || routeId!.contains(schedule.routeName);
+                isMyRoute = schedule.routeName.contains(routeId) ||
+                    routeId.contains(schedule.routeName);
               }
 
               return Column(
@@ -46,17 +60,24 @@ class ScheduleScreen extends StatelessWidget {
                         children: [
                           const Icon(Icons.star, color: Colors.orange, size: 16),
                           const SizedBox(width: 8),
-                          Text("Recommended for your route", style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text(
+                            'Recommended for your route',
+                            style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   _buildScheduleCard(
-                    schedule.routeName, 
-                    schedule.departureTime, 
-                    schedule.arrivalTime, 
+                    schedule.routeName,
+                    schedule.departureTime,
+                    schedule.arrivalTime,
                     isMyRoute,
                     schedule.vehicleNo,
-                    [schedule.shift]
+                    [schedule.shift],
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -68,12 +89,21 @@ class ScheduleScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildScheduleCard(String title, String departure, String arrival, bool isMyRoute, String busNumber, List<String> days) {
+  Widget _buildScheduleCard(
+    String title,
+    String departure,
+    String arrival,
+    bool isMyRoute,
+    String busNumber,
+    List<String> days,
+  ) {
     return Card(
       elevation: isMyRoute ? 4 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: isMyRoute ? const BorderSide(color: AppColors.primary, width: 2) : BorderSide.none,
+        side: isMyRoute
+            ? const BorderSide(color: AppColors.primary, width: 2)
+            : BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -92,14 +122,19 @@ class ScheduleScreen extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     busNumber,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ],
@@ -116,13 +151,17 @@ class ScheduleScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Wrap(
               spacing: 6,
-              children: days.map((day) => Chip(
-                label: Text(day, style: const TextStyle(fontSize: 10)),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                backgroundColor: Colors.grey.shade100,
-                side: BorderSide.none,
-              )).toList(),
+              children: days
+                  .map(
+                    (day) => Chip(
+                      label: Text(day, style: const TextStyle(fontSize: 10)),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: Colors.grey.shade100,
+                      side: BorderSide.none,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -138,10 +177,16 @@ class ScheduleScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: AppColors.grey),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(color: AppColors.grey, fontSize: 12)),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.grey, fontSize: 12),
+            ),
           ],
         ),
-        Text(time, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(
+          time,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }

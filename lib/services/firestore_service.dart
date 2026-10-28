@@ -24,13 +24,15 @@ class FirestoreService {
     return null;
   }
 
-  // Helper to handle Firebase calls with a fast timeout for better UX
+  // Helper to handle Firebase calls with a timeout for better UX.
+  // 2s was too aggressive on slow mobile networks and caused login to miss
+  // the users/{authUid} doc, then fall back to email lookup / wrong path.
   Future<T?> _withTimeout<T>(Future<T?> Function(FirebaseFirestore db) call) async {
     final db = _db;
     if (db == null) return null;
     
     try {
-      return await call(db).timeout(const Duration(seconds: 2));
+      return await call(db).timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("Firebase Timeout/Error: $e");
       return null;

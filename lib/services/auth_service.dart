@@ -132,6 +132,29 @@ class AuthService {
     }
   }
 
+  /// Sends a Firebase Auth password-reset email (user sets their own password).
+  Future<void> sendPasswordResetEmail(String email) async {
+    final auth = _auth;
+    if (auth == null) {
+      throw AuthServiceException(
+        'Authentication is unavailable. Check Firebase setup and internet.',
+      );
+    }
+    try {
+      await auth.sendPasswordResetEmail(
+        email: AppEmailValidator.normalize(email),
+      );
+    } on FirebaseAuthException catch (e) {
+      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+    } catch (e) {
+      if (e is AuthServiceException) rethrow;
+      debugPrint('sendPasswordResetEmail error: $e');
+      throw AuthServiceException(
+        'Could not send reset email. Check your connection.',
+      );
+    }
+  }
+
   Future<void> signOut() async {
     await _auth?.signOut();
   }

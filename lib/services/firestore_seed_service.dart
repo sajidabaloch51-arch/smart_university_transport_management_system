@@ -107,7 +107,6 @@ class FirestoreSeedService {
           role: 'student',
           regNumber: 'UOG-2024-001',
           department: 'Computer Science',
-          semester: '6',
           rollNo: 'CS-042',
           assignedRouteId: routeId,
           assignedRouteName: 'Campus ↔ City',

@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
+import '../../models/driver_model.dart';
 import '../../providers/driver_provider.dart';
+import '../../services/route_assignment_service.dart';
+import '../../utils/perf_log.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/list_skeleton.dart';
-import '../../models/driver_model.dart';
-import '../../utils/perf_log.dart';
 
 class ManageDriversScreen extends StatefulWidget {
   const ManageDriversScreen({super.key});
@@ -22,6 +24,7 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
   String _searchQuery = '';
   String _statusFilter = 'All';
   Timer? _debounce;
+  bool _repairing = false;
 
   @override
   void initState() {
@@ -46,15 +49,69 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
     });
   }
 
+  bool _isUnassigned(DriverModel d) {
+    final routeEmpty = d.assignedRouteId.trim().isEmpty ||
+        d.assignedRouteId.toLowerCase() == 'not assigned' ||
+        d.assignedRouteName.trim().isEmpty ||
+        d.assignedRouteName.toLowerCase() == 'not assigned';
+    final busEmpty = d.assignedBusId.trim().isEmpty ||
+        d.assignedBusId.toLowerCase() == 'not assigned' ||
+        d.assignedBusNumber.trim().isEmpty ||
+        d.assignedBusNumber.toLowerCase() == 'not assigned';
+    return routeEmpty && busEmpty;
+  }
+
   List<DriverModel> _filter(List<DriverModel> all) {
     return all.where((d) {
       final matchesSearch = _searchQuery.isEmpty ||
           d.name.toLowerCase().contains(_searchQuery) ||
           d.driverId.toLowerCase().contains(_searchQuery);
-      final matchesStatus =
-          _statusFilter == 'All' || d.status == _statusFilter;
+      final matchesStatus = _statusFilter == 'All' ||
+          (_statusFilter == 'Unassigned'
+              ? _isUnassigned(d)
+              : d.status == _statusFilter);
       return matchesSearch && matchesStatus;
     }).toList();
+  }
+
+  Future<void> _repairAssignments() async {
+    setState(() => _repairing = true);
+    try {
+      final report = await RouteAssignmentService().repairAssignments();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Repair assignments'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Text(
+                'Fixed: ${report.fixed.length}\n'
+                'Unmatched: ${report.unmatched.length}\n'
+                'Skipped: ${report.skipped.length}\n\n'
+                '${report.fixed.isEmpty ? '' : 'Fixed:\n${report.fixed.take(20).join('\n')}\n\n'}'
+                '${report.unmatched.isEmpty ? '' : 'Unmatched:\n${report.unmatched.take(20).join('\n')}\n\n'}'
+                '${report.skipped.isEmpty ? '' : 'Skipped:\n${report.skipped.take(20).join('\n')}'}',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _repairing = false);
+    }
   }
 
   @override
@@ -67,6 +124,19 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Drivers'),
+        actions: [
+          TextButton.icon(
+            onPressed: _repairing ? null : _repairAssignments,
+            icon: _repairing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.build_circle_outlined),
+            label: const Text('Repair assignments'),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(110),
           child: Column(
@@ -94,8 +164,13 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
-                  children: ['All', 'Active', 'Inactive', 'On Leave']
-                      .map((status) {
+                  children: [
+                    'All',
+                    'Active',
+                    'Inactive',
+                    'On Leave',
+                    'Unassigned',
+                  ].map((status) {
                     final isSelected = _statusFilter == status;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),

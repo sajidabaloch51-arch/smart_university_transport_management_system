@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../services/alert_service.dart';
 import '../../widgets/alert_card.dart';
+import '../../widgets/async_state_view.dart';
 
 /// Driver Notices tab — live alerts from Admin (`alerts` collection).
 class DriverNoticeScreen extends StatefulWidget {
@@ -74,69 +74,24 @@ class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
       return const Center(child: Text('Error loading alerts'));
     }
 
-    return StreamBuilder<List<AlertModel>>(
-      stream: _stream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          final err = snapshot.error;
-          if (err is FirebaseException) {
-            debugPrint(
-              '🔥 DriverNoticeScreen error code=${err.code} message=${err.message}',
-            );
-          } else {
-            debugPrint('🔥 DriverNoticeScreen error: $err');
-          }
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    err is FirebaseException
-                        ? 'Could not load alerts (${err.code}).'
-                        : 'Could not load alerts.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _stream = null;
-                        _boundUid = null;
-                        _bind();
-                      });
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
+    if (_stream == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (_stream == null ||
-            (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData)) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final alerts = snapshot.data ?? [];
-        if (alerts.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.notifications_off_outlined,
-                    size: 80, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No active transport alerts.',
-                    style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-          );
-        }
+    return AsyncStateView<List<AlertModel>>(
+      stream: _stream!,
+      isEmpty: (alerts) => alerts.isEmpty,
+      emptyMessage: 'No active transport alerts.',
+      timeout: const Duration(seconds: 12),
+      onRetry: () {
+        setState(() {
+          _stream = null;
+          _boundUid = null;
+        });
+        _bind();
+      },
+      builder: (context, alerts) {
+        // Keep builder body below — former StreamBuilder success path.
 
         return ListView.builder(
           padding: const EdgeInsets.all(20),

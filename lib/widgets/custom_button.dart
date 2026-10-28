@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../core/constants/app_colors.dart';
 
-class CustomButton extends StatelessWidget {
+/// Primary blue action button with **instant** press feedback.
+///
+/// Shows a spinner as soon as [onPressed] is tapped (before awaited network
+/// work), so the UI never feels like the blue button "lagged".
+class CustomButton extends StatefulWidget {
   final String text;
-  final VoidCallback onPressed;
+  final FutureOr<void> Function()? onPressed;
   final bool isLoading;
   final Color? color;
   final IconData? icon;
@@ -18,26 +26,74 @@ class CustomButton extends StatelessWidget {
   });
 
   @override
+  State<CustomButton> createState() => _CustomButtonState();
+}
+
+class _CustomButtonState extends State<CustomButton> {
+  bool _localBusy = false;
+
+  bool get _busy => widget.isLoading || _localBusy;
+
+  Future<void> _handleTap() async {
+    final cb = widget.onPressed;
+    if (cb == null || _busy) return;
+
+    // Instant haptic + visual so the tap never feels ignored.
+    HapticFeedback.lightImpact();
+    setState(() => _localBusy = true);
+
+    try {
+      final result = cb();
+      if (result is Future) {
+        await result;
+      } else {
+        // Let parent setState(isLoading) paint before we drop local busy.
+        await Future<void>.delayed(Duration.zero);
+      }
+    } finally {
+      if (mounted) setState(() => _localBusy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final base = widget.color ?? AppColors.primary;
+    final busy = _busy;
+
     return SizedBox(
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color ?? AppColors.primary,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        onPressed: (widget.onPressed == null || busy) ? null : _handleTap,
+        style: ButtonStyle(
+          animationDuration: Duration.zero,
+          splashFactory: NoSplash.splashFactory,
+          elevation: const WidgetStatePropertyAll(2),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled) || busy) {
+              return base.withValues(alpha: 0.72);
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return Color.lerp(base, Colors.black, 0.18)!;
+            }
+            return base;
+          }),
+          foregroundColor: const WidgetStatePropertyAll(Colors.white),
+          overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          ),
         ),
-        child: isLoading
+        child: busy
             ? const SizedBox(
-                height: 25,
-                width: 25,
+                height: 22,
+                width: 22,
                 child: CircularProgressIndicator(
                   color: Colors.white,
-                  strokeWidth: 2,
+                  strokeWidth: 2.2,
                 ),
               )
             : FittedBox(
@@ -46,12 +102,12 @@ class CustomButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (icon != null) ...[
-                      Icon(icon),
+                    if (widget.icon != null) ...[
+                      Icon(widget.icon),
                       const SizedBox(width: 10),
                     ],
                     Text(
-                      text,
+                      widget.text,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       softWrap: false,

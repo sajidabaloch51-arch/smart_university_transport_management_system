@@ -19,6 +19,8 @@ class RouteModel {
   final String? driverId;
   final String driverName;
   final String driverPhone;
+  /// Linked bus document id (preferred over [busNo] alone).
+  final String busId;
   final String busNo;
 
   RouteModel({
@@ -38,6 +40,7 @@ class RouteModel {
     this.driverId,
     this.driverName = '',
     this.driverPhone = '',
+    this.busId = '',
     this.busNo = '',
   });
 
@@ -134,6 +137,7 @@ class RouteModel {
       driverId: (rawDriverId == null || rawDriverId.isEmpty) ? null : rawDriverId,
       driverName: map['driverName']?.toString() ?? '',
       driverPhone: map['driverPhone']?.toString() ?? '',
+      busId: map['busId']?.toString() ?? '',
       busNo: map['busNo']?.toString() ??
           map['assignedBusNumber']?.toString() ??
           '',
@@ -157,6 +161,7 @@ class RouteModel {
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverPhone,
+      'busId': busId,
       'busNo': busNo,
     };
   }
@@ -178,6 +183,7 @@ class RouteModel {
     String? driverId,
     String? driverName,
     String? driverPhone,
+    String? busId,
     String? busNo,
     bool clearDriver = false,
   }) {
@@ -198,6 +204,7 @@ class RouteModel {
       driverId: clearDriver ? null : (driverId ?? this.driverId),
       driverName: clearDriver ? '' : (driverName ?? this.driverName),
       driverPhone: clearDriver ? '' : (driverPhone ?? this.driverPhone),
+      busId: clearDriver ? '' : (busId ?? this.busId),
       busNo: clearDriver ? '' : (busNo ?? this.busNo),
     );
   }

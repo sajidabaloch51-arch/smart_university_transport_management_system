@@ -69,18 +69,11 @@ class StudentDetailsScreen extends StatelessWidget {
             const SizedBox(height: 32),
             _buildInfoSection('Academic Information', [
               _infoTile(Icons.school_outlined, 'Department', student.department),
-              _infoTile(Icons.calendar_view_day_outlined, 'Semester', student.semester),
             ]),
             const SizedBox(height: 24),
             _buildInfoSection('Contact Information', [
               _infoTile(Icons.email_outlined, 'Email', student.email),
               _infoTile(Icons.phone_outlined, 'Phone', student.phone),
-            ]),
-            const SizedBox(height: 24),
-            _buildInfoSection('Personal Details', [
-              _infoTile(Icons.person_outline, 'Father\'s Name', student.fatherName),
-              _infoTile(Icons.wc_outlined, 'Gender', student.gender),
-              _infoTile(Icons.cake_outlined, 'Date of Birth', student.dob),
             ]),
             const SizedBox(height: 24),
             _buildInfoSection('Transport Details', [

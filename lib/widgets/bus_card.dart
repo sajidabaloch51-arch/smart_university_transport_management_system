@@ -16,6 +16,22 @@ class BusCard extends StatelessWidget {
     this.onToggleActive,
   });
 
+  String get _driverLabel {
+    final name = bus.assignedDriverName.trim();
+    if (name.isEmpty || name.toLowerCase() == 'not assigned') {
+      return 'Driver: Not Assigned';
+    }
+    return 'Driver: $name';
+  }
+
+  String get _routeLabel {
+    final name = bus.assignedRouteName.trim();
+    if (name.isEmpty || name.toLowerCase() == 'not assigned') {
+      return 'Route: Not Assigned';
+    }
+    return 'Route: $name';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -31,18 +47,32 @@ class BusCard extends StatelessWidget {
           ),
           child: const Icon(Icons.directions_bus, color: Colors.purple),
         ),
-        title: Text(bus.busNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        subtitle: Text(bus.isActive ? 'ON / Active' : 'OFF / Inactive'),
+        title: Text(
+          bus.busNumber,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        subtitle: Text(
+          '${bus.isActive ? 'ON / Active' : 'OFF / Inactive'}\n'
+          '$_driverLabel\n$_routeLabel',
+        ),
+        isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Switch(
               value: bus.isActive,
               activeThumbColor: Colors.green,
-              onChanged: onToggleActive == null ? null : (_) => onToggleActive!(),
+              onChanged:
+                  onToggleActive == null ? null : (_) => onToggleActive!(),
             ),
-            IconButton(icon: const Icon(Icons.edit, color: AppColors.primary, size: 20), onPressed: onEdit),
-            IconButton(icon: const Icon(Icons.delete, color: AppColors.error, size: 20), onPressed: onDelete),
+            IconButton(
+              icon: const Icon(Icons.edit, color: AppColors.primary, size: 20),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: AppColors.error, size: 20),
+              onPressed: onDelete,
+            ),
           ],
         ),
       ),

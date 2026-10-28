@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
@@ -11,6 +14,7 @@ import '../../models/alert_model.dart';
 import '../../services/duty_service.dart';
 import '../../services/alert_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/autofill_policy.dart';
 import '../../services/password_hasher.dart';
 import '../../core/validators/app_validators.dart';
 import '../../utils/karachi_time.dart';
@@ -230,6 +234,8 @@ class _DashboardSummaryState extends State<DashboardSummary> {
   Stream<List<AlertModel>>? _alertsStream;
   String? _boundDriverId;
   String? _boundDutyDate;
+  Timer? _waitTimer;
+  bool _waitTimedOut = false;
 
   @override
   void initState() {
@@ -238,9 +244,24 @@ class _DashboardSummaryState extends State<DashboardSummary> {
   }
 
   @override
+  void dispose() {
+    _waitTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _bindIfReady();
+  }
+
+  void _armWaitTimeout() {
+    _waitTimer?.cancel();
+    _waitTimedOut = false;
+    _waitTimer = Timer(const Duration(seconds: 12), () {
+      if (!mounted) return;
+      setState(() => _waitTimedOut = true);
+    });
   }
 
   /// All identity keys that may appear on duty/alert docs (Auth ≠ seed doc id).
@@ -304,6 +325,7 @@ class _DashboardSummaryState extends State<DashboardSummary> {
       limit: 5,
       alternateDriverIds: ids.skip(1).toList(),
     );
+    _armWaitTimeout();
     if (mounted) setState(() {});
   }
 
@@ -430,8 +452,15 @@ class _DashboardSummaryState extends State<DashboardSummary> {
                     if (dutySnap.hasError) {
                       _logSnapError('duties', dutySnap.error);
                     }
+                    if (dutySnap.hasData || dutySnap.hasError) {
+                      _waitTimer?.cancel();
+                    }
                     final duties = dutySnap.data ?? [];
                     final current = duties.isEmpty ? null : duties.first;
+                    final dutiesWaiting = _dutiesStream == null ||
+                        (dutySnap.connectionState == ConnectionState.waiting &&
+                            !dutySnap.hasData &&
+                            !dutySnap.hasError);
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,15 +472,18 @@ class _DashboardSummaryState extends State<DashboardSummary> {
                         ),
                         const SizedBox(height: 30),
                         _sectionTitle("Today's Active Duties"),
-                        if (_dutiesStream == null ||
-                            (dutySnap.connectionState ==
-                                    ConnectionState.waiting &&
-                                !dutySnap.hasData &&
-                                !dutySnap.hasError))
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
+                        if (dutiesWaiting)
+                          _waitTimedOut
+                              ? _errorBox(
+                                  "Can't reach the server. Check your connection",
+                                  onRetry: widget.onRetry,
+                                )
+                              : const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
                         else if (dutySnap.hasError)
                           _errorBox(
                             _friendlyError(dutySnap.error),
@@ -473,11 +505,20 @@ class _DashboardSummaryState extends State<DashboardSummary> {
                     if (alertSnap.hasError) {
                       _logSnapError('alerts', alertSnap.error);
                     }
+                    if (alertSnap.hasData || alertSnap.hasError) {
+                      _waitTimer?.cancel();
+                    }
                     if (_alertsStream == null ||
                         (alertSnap.connectionState ==
                                 ConnectionState.waiting &&
                             !alertSnap.hasData &&
                             !alertSnap.hasError)) {
+                      if (_waitTimedOut) {
+                        return _errorBox(
+                          "Can't reach the server. Check your connection",
+                          onRetry: widget.onRetry,
+                        );
+                      }
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Center(child: CircularProgressIndicator()),
@@ -679,10 +720,14 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _saving = false;
+  bool _autofillFinished = false;
   String? _error;
 
   @override
   void dispose() {
+    if (!_autofillFinished) {
+      TextInput.finishAutofillContext(shouldSave: false);
+    }
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -723,6 +768,9 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         );
       }
 
+      _autofillFinished = true;
+      await AutofillPolicy.commitSave();
+
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -733,6 +781,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         );
       }
     } catch (e) {
+      _autofillFinished = true;
+      await AutofillPolicy.cancelSave();
       if (mounted) {
         setState(() {
           _error = e is AuthServiceException ? e.message : '$e';
@@ -746,47 +796,60 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Change password'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Your account was created with a temporary password. '
-              'Please set a new password to continue.',
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'New password',
-                border: OutlineInputBorder(),
+      content: AutofillGroup(
+        onDisposeAction: AutofillContextAction.commit,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Your account was created with a temporary password. '
+                'Please set a new password to continue.',
               ),
-              validator: AppValidators.validatePassword,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _confirmController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirm password',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.next,
+                enableSuggestions: false,
+                autocorrect: false,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: const InputDecoration(
+                  labelText: 'New password',
+                  border: OutlineInputBorder(),
+                ),
+                validator: AppValidators.validatePassword,
               ),
-              validator: (v) => AppValidators.validateConfirmPassword(
-                v,
-                _passwordController.text,
-              ),
-            ),
-            if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: const TextStyle(color: Colors.red, fontSize: 13),
+              TextFormField(
+                controller: _confirmController,
+                obscureText: true,
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.done,
+                enableSuggestions: false,
+                autocorrect: false,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: const InputDecoration(
+                  labelText: 'Confirm password',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => AppValidators.validateConfirmPassword(
+                  v,
+                  _passwordController.text,
+                ),
               ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [

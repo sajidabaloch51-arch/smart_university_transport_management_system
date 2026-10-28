@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../theme/app_colors.dart';
+
 import '../../constants/strings.dart';
+import '../../core/validators/app_validators.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/driver_provider.dart';
+import '../../providers/notice_provider.dart';
+import '../../providers/route_provider.dart';
+import '../../providers/student_provider.dart';
+import '../../services/auth_service.dart';
+import '../../services/autofill_policy.dart';
+import '../../services/firestore_service.dart';
+import '../../services/live_firestore.dart';
+import '../../services/password_hasher.dart';
+import '../../services/remember_me_store.dart';
+import '../../services/student_access_guard.dart';
+import '../../theme/app_colors.dart';
+import '../../utils/email_validator.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
-import '../../core/validators/app_validators.dart';
-import '../../services/student_access_guard.dart';
-import '../../services/firestore_service.dart';
-import '../../services/auth_service.dart';
-import '../../services/password_hasher.dart';
-import '../../providers/driver_provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/student_provider.dart';
-import '../../providers/route_provider.dart';
-import '../../providers/notice_provider.dart';
-import '../../services/live_firestore.dart';
-import '../../utils/email_validator.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role;
@@ -33,20 +37,55 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
+  bool _autofillFinished = false;
   List<String> _savedEmails = [];
+
+  String get _portalRole => widget.role ?? 'student';
 
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    AutofillPolicy.enableNormalAutofill();
     _loadSavedEmails();
+  }
+
+  @override
+  void dispose() {
+    if (!_autofillFinished) {
+      TextInput.finishAutofillContext(shouldSave: false);
+    }
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _finishAutofill({required bool shouldSave}) async {
+    if (_autofillFinished) return;
+    _autofillFinished = true;
+    if (shouldSave) {
+      await AutofillPolicy.commitSave();
+    } else {
+      await AutofillPolicy.cancelSave();
+    }
   }
 
   void _loadSavedEmails() async {
     final prefs = await SharedPreferences.getInstance();
-    final roleKey = 'saved_emails_${widget.role ?? 'student'}';
+    final roleKey = 'saved_emails_$_portalRole';
+    final remembered = await RememberMeStore.readEmail(_portalRole);
+    if (!mounted) return;
     setState(() {
       _savedEmails = prefs.getStringList(roleKey) ?? [];
-      _rememberMe = _savedEmails.isNotEmpty;
+      if (remembered != null && remembered.isNotEmpty) {
+        _emailController.text = remembered;
+        _rememberMe = true;
+        if (!_savedEmails.contains(remembered)) {
+          _savedEmails = [..._savedEmails, remembered];
+        }
+      } else {
+        _rememberMe = _savedEmails.isNotEmpty;
+      }
     });
   }
 
@@ -84,8 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _saveEmailToList(String email) async {
     final prefs = await SharedPreferences.getInstance();
-    final roleKey = 'saved_emails_${widget.role ?? 'student'}';
-    List<String> emails = prefs.getStringList(roleKey) ?? [];
+    final roleKey = 'saved_emails_$_portalRole';
+    final emails = prefs.getStringList(roleKey) ?? [];
     if (!emails.contains(email)) {
       emails.add(email);
       await prefs.setStringList(roleKey, emails);
@@ -93,13 +132,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    // Do not cancel autofill on validation — user may fix and succeed.
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     final email = AppEmailValidator.normalize(_emailController.text);
     final password = _passwordController.text;
-    final portalRole = widget.role ?? 'student';
+    final portalRole = _portalRole;
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -126,6 +166,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (profile == null) {
           if (!mounted) return;
           setState(() => _isLoading = false);
+          await _finishAutofill(shouldSave: false);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authErr.message),
@@ -140,6 +182,8 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!PasswordHasher.verify(password, hash)) {
             if (!mounted) return;
             setState(() => _isLoading = false);
+            await _finishAutofill(shouldSave: false);
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Incorrect email or password.'),
@@ -151,6 +195,8 @@ class _LoginScreenState extends State<LoginScreen> {
         } else if (!AuthService.isConfigurationError(authErr)) {
           if (!mounted) return;
           setState(() => _isLoading = false);
+          await _finishAutofill(shouldSave: false);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authErr.message),
@@ -171,6 +217,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (portalRole == 'admin' && targetRole != 'admin') {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -185,6 +233,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (accountRole.isNotEmpty && accountRole != portalRole) {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -198,28 +248,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
       targetRole = portalRole;
 
+      // Remember Me: email only (never the password). Email → secure storage.
       if (_rememberMe) {
         await prefs.setBool('is_logged_in', true);
-        await prefs.setString('remembered_email', email);
         await prefs.setString('uid', uid);
+        await RememberMeStore.writeEmail(portalRole, email);
       } else {
         await prefs.setBool('is_logged_in', false);
-        await prefs.remove('remembered_email');
         await prefs.remove('uid');
+        await RememberMeStore.clearEmail(portalRole);
       }
       await prefs.setString('user_role', targetRole);
 
       if (!mounted) return;
 
       if (targetRole == 'student') {
+        debugPrint('Student login access check for uid=$uid email=$email');
         final access = await StudentAccessGuard.evaluate(
           studentProvider: context.read<StudentProvider>(),
           uid: uid,
         );
 
         if (!access.allowed) {
+          // Auth may already be signed in — clear so a retry starts clean.
+          try {
+            await AuthService().signOut();
+          } catch (_) {}
           if (!mounted) return;
           setState(() => _isLoading = false);
+          await _finishAutofill(shouldSave: false);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(access.message ?? 'Access denied'),
@@ -229,7 +287,14 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           return;
         }
+        // Prefer Firestore profile uid from the fresh student doc.
+        if (access.student != null && access.student!.uid.isNotEmpty) {
+          uid = access.student!.uid;
+        }
       }
+
+      // Offer Save password while fields are still mounted, then navigate.
+      await _finishAutofill(shouldSave: true);
 
       if (!mounted) return;
       context.read<AuthProvider>().setAuthenticated(
@@ -242,8 +307,6 @@ class _LoginScreenState extends State<LoginScreen> {
             email: email,
             role: targetRole,
           );
-
-      setState(() => _isLoading = false);
 
       if (!mounted) return;
       if (targetRole == 'admin') {
@@ -258,14 +321,17 @@ class _LoginScreenState extends State<LoginScreen> {
         context.go('/student-dashboard');
       }
     } catch (e) {
+      await _finishAutofill(shouldSave: false);
       if (!mounted) return;
-      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Login failed: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      // Always clear the login spinner (success, validation exit, or error).
+      if (mounted && _isLoading) setState(() => _isLoading = false);
     }
   }
 
@@ -304,6 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: AutofillGroup(
+              onDisposeAction: AutofillContextAction.commit,
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -331,17 +398,37 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icons.email_outlined,
                       validator: AppValidators.validateEmail,
                       keyboardType: TextInputType.emailAddress,
-                      onTap: _showEmailSuggestions,
-                      autofillHints: const [AutofillHints.email, AutofillHints.username],
+                      textInputAction: TextInputAction.next,
+                      // Do not steal focus with a custom sheet — Google autofill needs the tap.
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    if (_savedEmails.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _showEmailSuggestions,
+                          icon: const Icon(Icons.history, size: 18),
+                          label: const Text('Saved in app'),
+                        ),
+                      ),
                     CustomTextField(
                       controller: _passwordController,
                       labelText: 'Password',
                       prefixIcon: Icons.lock_outline,
                       isPassword: true,
-                      validator: (v) => AppValidators.validateRequired(v, "Password"),
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) _handleLogin();
+                      },
+                      validator: (v) =>
+                          AppValidators.validateRequired(v, 'Password'),
                       maxLength: 20,
+                      enableSuggestions: false,
+                      autocorrect: false,
                       autofillHints: const [AutofillHints.password],
                     ),
                     const SizedBox(height: 8),

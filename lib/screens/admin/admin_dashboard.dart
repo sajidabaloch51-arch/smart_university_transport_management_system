@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
@@ -8,13 +7,15 @@ import '../../providers/auth_provider.dart';
 
 import '../../providers/driver_provider.dart';
 import '../../providers/route_provider.dart';
-import '../../providers/schedule_provider.dart';
 import '../../models/driver_model.dart';
 import '../../models/route_model.dart';
-import '../../models/schedule_model.dart';
+import '../../models/duty_model.dart';
+import '../../services/duty_service.dart';
 import '../../services/feedback_service.dart';
 import '../../services/firestore_seed_service.dart';
 import '../../services/live_firestore.dart';
+import '../../utils/karachi_time.dart';
+import '../../utils/perf_log.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -24,24 +25,27 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  Stream<List<DriverModel>>? _driversStream;
-  Stream<List<RouteModel>>? _routesStream;
-  Stream<List<ScheduleModel>>? _schedulesStream;
-  bool _statsReady = false;
+  late final Stream<List<DriverModel>> _driversStream;
+  late final Stream<List<RouteModel>> _routesStream;
+  late final Stream<List<DutyModel>> _dutiesStream;
+  late final List<DriverModel> _initialDrivers;
+  late final List<RouteModel> _initialRoutes;
+  late final List<DutyModel> _initialDuties;
 
   @override
   void initState() {
     super.initState();
-    // Paint the dashboard shell first — attach Firestore after the first frame.
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _driversStream = context.read<DriverProvider>().streamDrivers();
-        _routesStream = context.read<RouteProvider>().streamRoutes();
-        _schedulesStream = context.read<ScheduleProvider>().streamSchedules();
-        _statsReady = true;
-      });
-    });
+    PerfLog.start('screen_AdminDashboard');
+    final drivers = context.read<DriverProvider>();
+    final routes = context.read<RouteProvider>();
+    final duties = DutyService();
+    // Attach streams immediately; cached lists paint stats on first frame.
+    _driversStream = drivers.streamDrivers();
+    _routesStream = routes.streamRoutes();
+    _dutiesStream = duties.streamAllDuties();
+    _initialDrivers = drivers.cachedDrivers;
+    _initialRoutes = routes.cachedRoutes;
+    _initialDuties = duties.cachedDuties;
   }
 
   @override
@@ -57,6 +61,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       crossAxisCount = 3;
     }
 
+    // Modules first so Admin can navigate instantly; stats fill in behind.
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -99,9 +104,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
             _buildHeader(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            const Padding(
+              padding: EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(
+                'Overview',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ),
             _buildStatsSection(),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             const Padding(
               padding: EdgeInsets.only(left: 4),
               child: Text(
@@ -113,7 +129,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _buildModulesGrid(context, crossAxisCount, isDesktop, isTablet),
             const SizedBox(height: 24),
             const _FeedbackBoardTile(),
@@ -191,49 +207,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildStatsSection() {
-    // Placeholders so the screen is interactive immediately.
-    if (!_statsReady ||
-        _driversStream == null ||
-        _routesStream == null ||
-        _schedulesStream == null) {
-      return Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard('Drivers', '…', 'Loading', Colors.blue),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard('Routes', '…', 'Loading', Colors.green),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  "Today's Duty",
-                  '…',
-                  'Loading',
-                  Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'System Health',
-                  'Good',
-                  'All systems normal',
-                  Colors.purple,
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
+    final todayKey = KarachiTime.dateString();
+    final driversSeed =
+        _initialDrivers.isEmpty ? null : _initialDrivers;
+    final routesSeed = _initialRoutes.isEmpty ? null : _initialRoutes;
+    final dutiesSeed = _initialDuties.isEmpty ? null : _initialDuties;
 
     return Column(
       children: [
@@ -242,13 +220,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Expanded(
               child: StreamBuilder<List<DriverModel>>(
                 stream: _driversStream,
+                initialData: driversSeed,
                 builder: (context, snapshot) {
                   final drivers = snapshot.data ?? const <DriverModel>[];
                   final activeDrivers =
                       drivers.where((d) => d.isOnDuty).length;
                   return _buildStatCard(
                     'Drivers',
-                    snapshot.hasData ? '${drivers.length}' : '…',
+                    '${drivers.length}',
                     'Active: $activeDrivers',
                     Colors.blue,
                   );
@@ -259,12 +238,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Expanded(
               child: StreamBuilder<List<RouteModel>>(
                 stream: _routesStream,
+                initialData: routesSeed,
                 builder: (context, snapshot) {
                   final routes = snapshot.data ?? const <RouteModel>[];
+                  final active = routes.where((r) => r.isActive).length;
                   return _buildStatCard(
                     'Routes',
-                    snapshot.hasData ? '${routes.length}' : '…',
-                    'Active Now',
+                    '${routes.length}',
+                    'Active: $active',
                     Colors.green,
                   );
                 },
@@ -276,23 +257,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
         Row(
           children: [
             Expanded(
-              child: StreamBuilder<List<ScheduleModel>>(
-                stream: _schedulesStream,
+              child: StreamBuilder<List<DutyModel>>(
+                stream: _dutiesStream,
+                initialData: dutiesSeed,
                 builder: (context, snapshot) {
-                  final schedules = snapshot.data ?? const <ScheduleModel>[];
-                  final today = DateTime.now();
-                  final todaySchedules = schedules
+                  final duties = snapshot.data ?? const <DutyModel>[];
+                  final todayDuties = duties
                       .where(
-                        (s) =>
-                            s.date.day == today.day &&
-                            s.date.month == today.month &&
-                            s.date.year == today.year,
+                        (d) =>
+                            d.dutyDate == todayKey &&
+                            d.status != 'cancelled',
                       )
                       .length;
                   return _buildStatCard(
                     "Today's Duty",
-                    snapshot.hasData ? '$todaySchedules' : '…',
-                    'Schedules',
+                    '$todayDuties',
+                    'Assigned',
                     Colors.orange,
                   );
                 },

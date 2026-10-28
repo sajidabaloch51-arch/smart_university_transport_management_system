@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../utils/firestore_parse.dart';
+
 class ScheduleModel {
   final String id;
   final String driverId;
@@ -29,23 +31,25 @@ class ScheduleModel {
     this.operationalDays = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
   });
 
+  /// Null-safe / type-tolerant. Never throws on a single bad field shape.
   factory ScheduleModel.fromMap(Map<String, dynamic> map, String docId) {
     return ScheduleModel(
       id: docId,
-      driverId: map['driverId'] ?? '',
-      driverName: map['driverName'] ?? '',
-      routeId: map['routeId'] ?? '',
-      routeName: map['routeName'] ?? '',
-      date: map['date'] != null
-          ? (map['date'] as Timestamp).toDate()
-          : DateTime.now(),
-      departureTime: map['departureTime'] ?? '',
-      arrivalTime: map['arrivalTime'] ?? '',
-      shift: map['shift'] ?? 'Morning',
-      vehicleNo: map['vehicleNo'] ?? map['busNumber'] ?? '',
-      status: map['status'] ?? 'Scheduled',
-      operationalDays: List<String>.from(
-        map['operationalDays'] ?? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+      driverId: FirestoreParse.asString(map['driverId']),
+      driverName: FirestoreParse.asString(map['driverName']),
+      routeId: FirestoreParse.asString(map['routeId']),
+      routeName: FirestoreParse.asString(map['routeName']),
+      date: FirestoreParse.asDateTimeOrNow(map['date']),
+      departureTime: FirestoreParse.asString(map['departureTime']),
+      arrivalTime: FirestoreParse.asString(map['arrivalTime']),
+      shift: FirestoreParse.asString(map['shift'], 'Morning'),
+      vehicleNo: FirestoreParse.asString(
+        map['vehicleNo'] ?? map['busNumber'],
+      ),
+      status: FirestoreParse.asString(map['status'], 'Scheduled'),
+      operationalDays: FirestoreParse.asStringList(
+        map['operationalDays'],
+        fallback: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
       ),
     );
   }

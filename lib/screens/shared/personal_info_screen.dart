@@ -31,27 +31,41 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     _fetchStudentData();
   }
 
-  void _fetchStudentData() async {
+  Future<void> _fetchStudentData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final studentProvider = Provider.of<StudentProvider>(context, listen: false);
-    
-    if (authProvider.uid != null) {
-      final student = await studentProvider.getStudent(authProvider.uid!);
-      if (mounted) {
-        setState(() {
-          _currentStudent = student;
-          if (student != null) {
-            _nameController.text = student.name;
-            _phoneController.text = student.phone;
-            _regController.text = student.regNumber;
-          }
-          _isFetching = false;
-        });
+
+    setState(() => _isFetching = true);
+    try {
+      final uid = authProvider.uid;
+      if (uid == null || uid.isEmpty) {
+        if (mounted) setState(() => _isFetching = false);
+        return;
       }
-    } else {
+      final student = await studentProvider
+          .getStudent(uid)
+          .timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      setState(() {
+        _currentStudent = student;
+        if (student != null) {
+          _nameController.text = student.name;
+          _phoneController.text = student.phone;
+          _regController.text = student.regNumber;
+        }
+      });
+    } catch (e) {
+      debugPrint('PersonalInfo fetch failed: $e');
       if (mounted) {
-        setState(() => _isFetching = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load profile: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isFetching = false);
     }
   }
 
@@ -68,7 +82,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     if (_currentStudent == null) return;
 
     setState(() => _isLoading = true);
-    
+
     final updatedStudent = StudentModel(
       uid: _currentStudent!.uid,
       name: _nameController.text.trim(),
@@ -76,33 +90,48 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       phone: _phoneController.text.trim(),
       role: _currentStudent!.role,
       regNumber: _regController.text.trim(),
-      fatherName: _currentStudent!.fatherName,
-      gender: _currentStudent!.gender,
-      dob: _currentStudent!.dob,
       department: _currentStudent!.department,
-      semester: _currentStudent!.semester,
       profileImage: _currentStudent!.profileImage,
       routeAddress: '',
       rollNo: _currentStudent!.rollNo,
       verificationStatus: _currentStudent!.verificationStatus,
+      assignedRouteId: _currentStudent!.assignedRouteId,
+      assignedRouteName: _currentStudent!.assignedRouteName,
+      assignedBusId: _currentStudent!.assignedBusId,
+      assignedBusName: _currentStudent!.assignedBusName,
+      assignedBusCode: _currentStudent!.assignedBusCode,
+      assignedDriverId: _currentStudent!.assignedDriverId,
+      assignedDriverName: _currentStudent!.assignedDriverName,
+      assignedDriverPhone: _currentStudent!.assignedDriverPhone,
+      assignedDepartureTime: _currentStudent!.assignedDepartureTime,
+      assignedArrivalTime: _currentStudent!.assignedArrivalTime,
+      passwordHash: _currentStudent!.passwordHash,
+      termsAccepted: _currentStudent!.termsAccepted,
+      termsVersion: _currentStudent!.termsVersion,
     );
 
     try {
-      await Provider.of<StudentProvider>(context, listen: false).updateStudent(updatedStudent);
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context);
-      }
+      await Provider.of<StudentProvider>(context, listen: false)
+          .updateStudent(updatedStudent)
+          .timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Update failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -19,18 +21,37 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   String _statusFilter = 'all';
   String _categoryFilter = 'all';
+  Timer? _waitTimer;
+  bool _timedOut = false;
 
   @override
   void initState() {
     super.initState();
     _feedbackStream = _feedbackService.streamAllFeedback();
+    _armWaitTimeout();
+  }
+
+  @override
+  void dispose() {
+    _waitTimer?.cancel();
+    super.dispose();
+  }
+
+  void _armWaitTimeout() {
+    _waitTimer?.cancel();
+    _timedOut = false;
+    _waitTimer = Timer(const Duration(seconds: 12), () {
+      if (mounted) setState(() => _timedOut = true);
+    });
   }
 
   void _retryStream() {
     _feedbackService.restartStreams();
     setState(() {
       _feedbackStream = _feedbackService.streamAllFeedback();
+      _timedOut = false;
     });
+    _armWaitTimeout();
   }
 
   Future<void> _migrate() async {
@@ -259,9 +280,48 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       body: StreamBuilder<List<FeedbackModel>>(
         stream: _feedbackStream,
         builder: (context, snapshot) {
+          if (snapshot.hasData || snapshot.hasError) {
+            _waitTimer?.cancel();
+          }
+
           if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+              !snapshot.hasData &&
+              !snapshot.hasError) {
+            if (_timedOut) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Can't reach the server. Check your connection",
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _retryStream,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return const Column(
+              children: [
+                LinearProgressIndicator(minHeight: 2),
+                Expanded(
+                  child: Center(
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                  ),
+                ),
+              ],
+            );
           }
           if (snapshot.hasError) {
             final err = snapshot.error!;

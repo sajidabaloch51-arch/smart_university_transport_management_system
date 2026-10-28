@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../models/route_model.dart';
 import 'package:provider/provider.dart';
+
+import '../../models/bus_model.dart';
+import '../../models/driver_model.dart';
+import '../../models/route_model.dart';
+import '../../providers/bus_provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../providers/route_provider.dart';
-import '../../widgets/custom_textfield.dart';
+import '../../services/route_assignment_service.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/custom_textfield.dart';
 
 class AddEditRouteScreen extends StatefulWidget {
   final RouteModel? route;
@@ -44,6 +50,12 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
   final List<_StopEditors> _stops = [];
   bool _isLoading = false;
   bool _isActive = true;
+  String _selectedDriverId = '';
+  String _selectedBusId = '';
+
+  late final Stream<List<DriverModel>> _driversStream;
+  late final Stream<List<BusModel>> _busesStream;
+  final _assignment = RouteAssignmentService();
 
   @override
   void initState() {
@@ -64,6 +76,16 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
     _arrController =
         TextEditingController(text: widget.route?.arrivalTime ?? '');
     _isActive = widget.route?.isActive ?? true;
+    _selectedDriverId = widget.route?.driverId?.trim() ?? '';
+    _selectedBusId = widget.route?.busId.trim() ?? '';
+    final drivers = context.read<DriverProvider>();
+    final buses = context.read<BusProvider>();
+    _driversStream = drivers.streamDrivers();
+    _busesStream = buses.streamBuses();
+    // ignore: discarded_futures
+    drivers.refreshDrivers();
+    // ignore: discarded_futures
+    buses.refreshBuses();
 
     if (widget.route != null) {
       final existingStops = [...widget.route!.stops]
@@ -153,7 +175,6 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
     final routeId =
         widget.route?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-    // Preserve existing driver assignment when editing route geometry.
     final existing = widget.route;
     final route = RouteModel(
       id: routeId,
@@ -174,11 +195,63 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
       driverId: existing?.driverId,
       driverName: existing?.driverName ?? '',
       driverPhone: existing?.driverPhone ?? '',
+      busId: existing?.busId ?? '',
       busNo: existing?.busNo ?? '',
     );
 
     try {
-      await Provider.of<RouteProvider>(context, listen: false).addRoute(route);
+      final routeProvider = context.read<RouteProvider>();
+      await routeProvider.addRoute(route);
+      if (!mounted) return;
+
+      // Shared SoT assignment (one driver per route/bus).
+      if (_selectedDriverId.isNotEmpty) {
+        final prev = existing?.driverId?.trim() ?? '';
+        if (prev.isNotEmpty && prev != _selectedDriverId) {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Replace existing assignment?'),
+              content: Text(
+                'This route is currently assigned to '
+                '${existing?.displayDriverName ?? prev}. Continue?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Replace'),
+                ),
+              ],
+            ),
+          );
+          if (ok != true) {
+            if (mounted) setState(() => _isLoading = false);
+            return;
+          }
+        }
+        final drivers = await _driversStream.first;
+        final match =
+            drivers.where((d) => d.uid == _selectedDriverId).toList();
+        await _assignment.assign(
+          driverId: _selectedDriverId,
+          driverName: match.isEmpty ? '' : match.first.name,
+          driverPhone: match.isEmpty ? '' : match.first.phone,
+          routeId: routeId,
+          busId: _selectedBusId,
+        );
+      } else if ((existing?.driverId ?? '').isNotEmpty) {
+        await _assignment.assign(
+          driverId: existing!.driverId!,
+          driverName: existing.driverName,
+          driverPhone: existing.driverPhone,
+          routeId: '',
+          busId: '',
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -289,6 +362,116 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                 value: _isActive,
                 activeThumbColor: Colors.green,
                 onChanged: (val) => setState(() => _isActive = val),
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<DriverModel>>(
+                stream: _driversStream,
+                initialData: context.read<DriverProvider>().cachedDrivers.isEmpty
+                    ? null
+                    : context.read<DriverProvider>().cachedDrivers,
+                builder: (context, snapshot) {
+                  final drivers = snapshot.data ??
+                      context.read<DriverProvider>().cachedDrivers;
+                  var value = _selectedDriverId;
+                  if (value.isNotEmpty &&
+                      !drivers.any((d) => d.uid == value)) {
+                    value = '';
+                  }
+                  return DropdownButtonFormField<String>(
+                    value: value,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Assign Driver',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      suffixIcon: snapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              drivers.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('Not Assigned'),
+                      ),
+                      ...drivers.map(
+                        (d) => DropdownMenuItem(
+                          value: d.uid,
+                          child: Text(d.name, overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _selectedDriverId = v ?? ''),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              StreamBuilder<List<BusModel>>(
+                stream: _busesStream,
+                initialData: context.read<BusProvider>().cachedBuses.isEmpty
+                    ? null
+                    : context.read<BusProvider>().cachedBuses,
+                builder: (context, snapshot) {
+                  final buses = snapshot.data ??
+                      context.read<BusProvider>().cachedBuses;
+                  var value = _selectedBusId;
+                  if (value.isNotEmpty && !buses.any((b) => b.id == value)) {
+                    value = '';
+                  }
+                  return DropdownButtonFormField<String>(
+                    value: value,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Assign Bus',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      suffixIcon: snapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              buses.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('Not Assigned'),
+                      ),
+                      ...buses.map(
+                        (b) => DropdownMenuItem(
+                          value: b.id,
+                          child: Text(
+                            b.registrationNumber.trim().isEmpty
+                                ? b.busNumber
+                                : '${b.busNumber} · ${b.registrationNumber}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _selectedBusId = v ?? ''),
+                  );
+                },
               ),
               const Divider(height: 40),
               const Text(

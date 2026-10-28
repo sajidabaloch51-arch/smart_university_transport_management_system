@@ -1,3 +1,5 @@
+import '../utils/firestore_parse.dart';
+
 class BusModel {
   final String id;
   final String busNumber;
@@ -34,15 +36,17 @@ class BusModel {
   factory BusModel.fromMap(Map<String, dynamic> map, String docId) {
     return BusModel(
       id: docId,
-      busNumber: map['busNumber'] ?? '',
-      capacity: map['capacity'] is int ? map['capacity'] as int : null,
-      busModel: map['busModel'] is String ? map['busModel'] as String : null,
-      registrationNumber: map['registrationNumber'] ?? '',
-      assignedDriverId: map['assignedDriverId'] ?? '',
-      assignedDriverName: map['assignedDriverName'] ?? '',
-      assignedRouteId: map['assignedRouteId'] ?? '',
-      assignedRouteName: map['assignedRouteName'] ?? '',
-      isActive: map['isActive'] ?? true,
+      busNumber: FirestoreParse.asString(map['busNumber']),
+      capacity: FirestoreParse.asInt(map['capacity']),
+      busModel: map['busModel'] == null
+          ? null
+          : FirestoreParse.asString(map['busModel']),
+      registrationNumber: FirestoreParse.asString(map['registrationNumber']),
+      assignedDriverId: FirestoreParse.asString(map['assignedDriverId']),
+      assignedDriverName: FirestoreParse.asString(map['assignedDriverName']),
+      assignedRouteId: FirestoreParse.asString(map['assignedRouteId']),
+      assignedRouteName: FirestoreParse.asString(map['assignedRouteName']),
+      isActive: FirestoreParse.asBool(map['isActive'], fallback: true),
     );
   }
 

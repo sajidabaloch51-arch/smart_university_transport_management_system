@@ -53,26 +53,30 @@ class AlertService {
   static const _allKey = 'alerts_all';
   static List<AlertModel> _cachedAll = const [];
   List<AlertModel> get cachedAlerts => _cachedAll;
-  static Stream<List<AlertModel>>? _allStream;
 
   Stream<List<AlertModel>> streamAllAlerts() {
-    if (_allStream != null) return _allStream!;
     if (_col == null) {
       return Stream.error(StateError('Firestore not available for alerts'));
     }
 
-    _allStream = LiveFirestore.snapshots(
+    return LiveFirestore.mapSnapshots(
       _allKey,
-      (db) => db.collection('alerts').limit(100),
+      (db) => db.collection('alerts').limit(50),
+      (snap) {
+        final parsed = <AlertModel>[];
+        for (final d in snap.docs) {
+          try {
+            parsed.add(AlertModel.fromMap(d.data(), d.id));
+          } catch (e, st) {
+            debugPrint('⚠️ Skipping bad alerts doc id=${d.id}: $e\n$st');
+          }
+        }
+        parsed.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _cachedAll = parsed;
+        return _cachedAll;
+      },
       collectionLabel: 'alerts',
-    ).map((snap) {
-      _cachedAll = snap.docs
-          .map((d) => AlertModel.fromMap(d.data(), d.id))
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return _cachedAll;
-    }).transform(_errorLogger('AlertService.streamAllAlerts'));
-    return _allStream!;
+    ).transform(_errorLogger('AlertService.streamAllAlerts'));
   }
 
   Future<void> refreshAllAlerts() => LiveFirestore.forceRefresh(_allKey);

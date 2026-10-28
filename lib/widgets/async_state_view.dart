@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/firestore_error_messages.dart';
@@ -23,7 +24,7 @@ class AsyncStateView<T> extends StatefulWidget {
     required this.emptyMessage,
     this.emptySubtitle,
     this.onRetry,
-    this.timeout = const Duration(seconds: 12),
+    this.timeout = const Duration(seconds: 15),
     this.initialData,
   });
 
@@ -35,6 +36,8 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   Timer? _timeoutTimer;
   bool _timedOut = false;
   Object? _lastError;
+  StackTrace? _lastStack;
+  String? _resolvedMessage;
   int _retryToken = 0;
 
   @override
@@ -49,6 +52,8 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
     if (oldWidget.stream != widget.stream) {
       _timedOut = false;
       _lastError = null;
+      _lastStack = null;
+      _resolvedMessage = null;
       _armTimeout();
     }
   }
@@ -64,21 +69,29 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
     if (widget.initialData != null) return;
     _timeoutTimer = Timer(widget.timeout, () {
       if (!mounted) return;
-      if (!_timedOut) {
-        setState(() {
-          _timedOut = true;
-          _lastError ??= TimeoutException(
-            "Can't reach the server. Check your connection",
-          );
-        });
-      }
+      final err =
+          _lastError ?? TimeoutException('This is taking longer than usual');
+      setState(() {
+        _timedOut = true;
+        _lastError = err;
+      });
+      // ignore: discarded_futures
+      _resolveMessage(err, _lastStack);
     });
+  }
+
+  Future<void> _resolveMessage(Object error, StackTrace? stack) async {
+    final msg = await FirestoreErrorMessages.friendlyAsync(error, stack);
+    if (!mounted) return;
+    setState(() => _resolvedMessage = msg);
   }
 
   void _retry() {
     setState(() {
       _timedOut = false;
       _lastError = null;
+      _lastStack = null;
+      _resolvedMessage = null;
       _retryToken++;
     });
     _armTimeout();
@@ -95,9 +108,18 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
         if (snapshot.hasError) {
           _timeoutTimer?.cancel();
           _lastError = snapshot.error;
-          debugPrint('AsyncStateView error: ${snapshot.error}');
+          _lastStack = snapshot.stackTrace;
+          // ignore: discarded_futures
+          _resolveMessage(snapshot.error!, snapshot.stackTrace);
           return _ErrorPane(
-            message: FirestoreErrorMessages.friendly(snapshot.error!),
+            message: _resolvedMessage ??
+                FirestoreErrorMessages.friendly(
+                  snapshot.error!,
+                  snapshot.stackTrace,
+                ),
+            details: kDebugMode
+                ? FirestoreErrorMessages.debugDetails(snapshot.error!)
+                : null,
             onRetry: _retry,
           );
         }
@@ -117,13 +139,13 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
         }
 
         if (_timedOut) {
+          final err =
+              _lastError ?? TimeoutException('This is taking longer than usual');
           return _ErrorPane(
-            message: FirestoreErrorMessages.friendly(
-              _lastError ??
-                  TimeoutException(
-                    "Can't reach the server. Check your connection",
-                  ),
-            ),
+            message: _resolvedMessage ??
+                FirestoreErrorMessages.friendly(err, _lastStack),
+            details:
+                kDebugMode ? FirestoreErrorMessages.debugDetails(err) : null,
             onRetry: _retry,
           );
         }
@@ -140,11 +162,23 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   }
 }
 
-class _ErrorPane extends StatelessWidget {
+class _ErrorPane extends StatefulWidget {
   final String message;
+  final String? details;
   final VoidCallback onRetry;
 
-  const _ErrorPane({required this.message, required this.onRetry});
+  const _ErrorPane({
+    required this.message,
+    required this.onRetry,
+    this.details,
+  });
+
+  @override
+  State<_ErrorPane> createState() => _ErrorPaneState();
+}
+
+class _ErrorPaneState extends State<_ErrorPane> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -157,13 +191,30 @@ class _ErrorPane extends StatelessWidget {
             Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade500),
             const SizedBox(height: 12),
             Text(
-              message,
+              widget.message,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, color: Color(0xFF334155)),
             ),
+            if (widget.details != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                child: Text(_expanded ? 'Hide details' : 'Details'),
+              ),
+              if (_expanded)
+                Text(
+                  widget.details!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+            ],
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: onRetry,
+              onPressed: widget.onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
             ),

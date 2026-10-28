@@ -2,48 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/firestore_service.dart';
 import '../../models/route_model.dart';
+import '../../widgets/async_state_view.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_button.dart';
 
-class RouteDetailScreen extends StatelessWidget {
+class RouteDetailScreen extends StatefulWidget {
   final String routeId;
   const RouteDetailScreen({super.key, required this.routeId});
 
   @override
+  State<RouteDetailScreen> createState() => _RouteDetailScreenState();
+}
+
+class _RouteDetailScreenState extends State<RouteDetailScreen> {
+  late Stream<RouteModel?> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FirestoreService().getRoute(widget.routeId);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final firestore = FirestoreService();
-
     return Scaffold(
-      appBar: AppBar(title: Text('Route $routeId Details')),
-      body: StreamBuilder<RouteModel?>(
-        stream: firestore.getRoute(routeId),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Could not load route.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data == null) {
+      appBar: AppBar(title: Text('Route ${widget.routeId} Details')),
+      body: AsyncStateView<RouteModel?>(
+        stream: _stream,
+        timeout: const Duration(seconds: 12),
+        isEmpty: (route) => route == null,
+        emptyMessage: 'Route details not found.',
+        onRetry: () {
+          setState(() {
+            _stream = FirestoreService().getRoute(widget.routeId);
+          });
+        },
+        builder: (context, route) {
+          if (route == null) {
             return const EmptyStateWidget(
-              message: "Route details not found.",
+              message: 'Route details not found.',
               icon: Icons.search_off,
             );
           }
 
-          final route = snapshot.data!;
-          
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -59,13 +61,15 @@ class RouteDetailScreen extends StatelessWidget {
                 _buildStopTimeline(route),
                 const SizedBox(height: 40),
                 CustomButton(
-                  text: 'View Schedule', 
-                  onPressed: () => context.push('/schedule', extra: route.id)
+                  text: 'View Schedule',
+                  onPressed: () =>
+                      context.push('/schedule', extra: route.id),
                 ),
                 const SizedBox(height: 16),
                 CustomButton(
                   text: 'Track Bus',
-                  onPressed: () => context.push('/live-tracking', extra: route.id),
+                  onPressed: () =>
+                      context.push('/live-tracking', extra: route.id),
                   color: AppColors.success,
                 ),
               ],
@@ -125,8 +129,14 @@ class RouteDetailScreen extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: AppColors.grey, fontSize: 12)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.grey, fontSize: 12),
+            ),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ],
         ),
       ],
@@ -148,7 +158,6 @@ class RouteDetailScreen extends StatelessWidget {
             ? stop.stopName.trim()
             : 'Stop ${index + 1}';
         String time = stop.timeLabel.trim();
-        // Never show trip duration on every stop; only real clock labels.
         if (RouteModel.looksLikeDuration(time)) time = '';
         if (time.isEmpty && index == 0) {
           time = route.cardDepartureTime;

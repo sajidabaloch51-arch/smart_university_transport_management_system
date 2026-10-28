@@ -6,8 +6,6 @@ import '../models/feedback_model.dart';
 import 'live_firestore.dart';
 
 class FeedbackService {
-  Stream<List<FeedbackModel>>? _allStream;
-  Stream<int>? _newCountStream;
   static const _allKey = 'feedback_all';
   static const _newKey = 'feedback_new_count';
 
@@ -25,38 +23,32 @@ class FeedbackService {
 
   /// Live stream of all feedback, newest first.
   Stream<List<FeedbackModel>> streamAllFeedback() {
-    if (_allStream != null) return _allStream!;
     if (_col == null) {
       return Stream.error(StateError('Firestore not available for feedback'));
     }
-    _allStream = LiveFirestore.snapshots(
+    return LiveFirestore.mapSnapshots(
       _allKey,
       (db) => db.collection('feedback').orderBy('createdAt', descending: true),
-      collectionLabel: 'feedback',
-    ).map((snap) {
-      return snap.docs
+      (snap) => snap.docs
           .map((d) => FeedbackModel.fromMap(d.data(), d.id))
-          .toList();
-    });
-    return _allStream!;
+          .toList(),
+      collectionLabel: 'feedback',
+    );
   }
 
   Stream<int> streamNewCount() {
-    if (_newCountStream != null) return _newCountStream!;
     if (_col == null) return Stream.value(0);
-    _newCountStream = LiveFirestore.snapshots(
+    return LiveFirestore.mapSnapshots(
       _newKey,
       (db) => db
           .collection('feedback')
           .where('status', isEqualTo: FeedbackStatuses.newStatus),
+      (snap) => snap.docs.length,
       collectionLabel: 'feedback(status=new)',
-    ).map((snap) => snap.docs.length);
-    return _newCountStream!;
+    );
   }
 
   void restartStreams() {
-    _allStream = null;
-    _newCountStream = null;
     LiveFirestore.restart(_allKey);
     LiveFirestore.restart(_newKey);
   }

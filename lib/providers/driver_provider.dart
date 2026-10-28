@@ -13,6 +13,7 @@ import '../services/firestore_service.dart';
 import '../services/live_firestore.dart';
 import '../services/location_service.dart';
 import '../services/realtime_location_service.dart';
+import '../services/route_assignment_service.dart';
 
 class DriverProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
@@ -32,6 +33,8 @@ class DriverProvider extends ChangeNotifier {
   final Map<String, DriverModel> _localDrivers = {};
 
   StreamSubscription? _positionSubscription;
+  StreamSubscription? _profileSubscription;
+  StreamSubscription? _routeSubscription;
   Timer? _dutyTimer;
   Duration _dutyDuration = Duration.zero;
 
@@ -58,35 +61,50 @@ class DriverProvider extends ChangeNotifier {
     return null;
   }
 
-  Stream<List<DriverModel>>? _driversStream;
   static const _driversKey = 'users_drivers';
   List<DriverModel> _cachedDrivers = const [];
   List<DriverModel> get cachedDrivers => _cachedDrivers;
 
+  /// New mapped stream per call — LiveFirestore broadcast supports many listeners.
+  /// Emits cached drivers immediately so Admin never waits on a cold network.
   Stream<List<DriverModel>> streamDrivers() {
-    if (_driversStream != null) return _driversStream!;
     if (_db == null) {
       return Stream.value(_localDrivers.values.toList());
     }
-    _driversStream = LiveFirestore.snapshots(
+    final live = LiveFirestore.mapSnapshots(
       _driversKey,
       (db) => db.collection('users').where('role', isEqualTo: 'driver'),
+      (snapshot) {
+        final list = <DriverModel>[];
+        for (final doc in snapshot.docs) {
+          try {
+            list.add(DriverModel.fromMap(doc.data(), doc.id));
+          } catch (e, st) {
+            debugPrint('⚠️ Skipping bad driver doc id=${doc.id}: $e\n$st');
+          }
+        }
+        for (final d in list) {
+          _localDrivers[d.uid] = d;
+        }
+        _cachedDrivers = list;
+        return list;
+      },
       collectionLabel: 'users(role=driver)',
-    ).map((snapshot) {
-      final list = snapshot.docs
-          .map((doc) => DriverModel.fromMap(doc.data(), doc.id))
-          .toList();
-      for (final d in list) {
-        _localDrivers[d.uid] = d;
-      }
-      _cachedDrivers = list;
-      return list;
+    );
+    final seed = _cachedDrivers;
+    if (seed.isEmpty) return live;
+    return Stream<List<DriverModel>>.multi((controller) {
+      controller.add(seed);
+      final sub = live.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = sub.cancel;
     });
-    return _driversStream!;
   }
 
   void restartDriversStream() {
-    _driversStream = null;
     LiveFirestore.restart(_driversKey);
   }
 
@@ -95,7 +113,11 @@ class DriverProvider extends ChangeNotifier {
   Future<void> deleteDriver(String uid) async {
     final db = _db;
     if (db == null) return;
+    await RouteAssignmentService().clearBeforeDriverDelete(uid);
     await db.collection('users').doc(uid).delete();
+    try {
+      await db.collection('driverPublic').doc(uid).delete();
+    } catch (_) {}
     _localDrivers.remove(uid);
     _cachedDrivers =
         _cachedDrivers.where((d) => d.uid != uid).toList(growable: false);
@@ -236,22 +258,25 @@ class DriverProvider extends ChangeNotifier {
 
   void _subscribeToRealtimeStreams() {
     if (_driver == null || Firebase.apps.isEmpty) return;
+    final db = _db;
+    if (db == null) return;
 
-    // Route only when assigned — skip empty ids (avoids useless listeners).
-    final routeId = _driver!.assignedRouteId;
-    if (routeId.isNotEmpty) {
-      _firestoreService.getAssignedRoute(routeId).listen((route) {
-        if (route != null) {
-          _assignedRoute = route;
-          notifyListeners();
-        }
-      });
+    // Live profile so Admin assignment changes appear without re-login.
+    _profileSubscription?.cancel();
+    _profileSubscription =
+        db.collection('users').doc(_driver!.uid).snapshots().listen((doc) {
+      if (!doc.exists || doc.data() == null) return;
+      final next = DriverModel.fromMap(doc.data()!, doc.id);
+      final routeChanged = next.assignedRouteId != _driver?.assignedRouteId;
+      _driver = next;
+      _localDrivers[next.uid] = next;
+      notifyListeners();
+      if (routeChanged) {
+        _subscribeAssignedRoute(next.assignedRouteId);
+      }
+    });
 
-      _firestoreService.getTodaySchedules(routeId).listen((schedules) {
-        _todaySchedules = schedules;
-        notifyListeners();
-      });
-    }
+    _subscribeAssignedRoute(_driver!.assignedRouteId);
 
     // Notices are shown via AlertService on the dashboard — do not subscribe
     // to the old notices composite-index query (it slows / fails cold start).
@@ -260,6 +285,26 @@ class DriverProvider extends ChangeNotifier {
       _startLocationTracking();
       _startTimer();
     }
+  }
+
+  void _subscribeAssignedRoute(String routeId) {
+    _routeSubscription?.cancel();
+    _routeSubscription = null;
+    _assignedRoute = null;
+    _todaySchedules = [];
+    if (routeId.isEmpty || routeId.toLowerCase() == 'not assigned') {
+      notifyListeners();
+      return;
+    }
+    _routeSubscription =
+        _firestoreService.getAssignedRoute(routeId).listen((route) {
+      _assignedRoute = route;
+      notifyListeners();
+    });
+    _firestoreService.getTodaySchedules(routeId).listen((schedules) {
+      _todaySchedules = schedules;
+      notifyListeners();
+    });
   }
 
   /// Toggle Duty Status
@@ -436,6 +481,8 @@ class DriverProvider extends ChangeNotifier {
   @override
   void dispose() {
     _positionSubscription?.cancel();
+    _profileSubscription?.cancel();
+    _routeSubscription?.cancel();
     _dutyTimer?.cancel();
     super.dispose();
   }

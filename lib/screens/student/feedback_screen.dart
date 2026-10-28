@@ -92,7 +92,6 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       _commentController.clear();
       setState(() {
         _selectedCategory = null;
-        _isLoading = false;
         _dropdownResetKey++;
       });
       _formKey.currentState?.reset();
@@ -106,13 +105,14 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     } catch (e) {
       debugPrint('Feedback submit failed: $e');
       if (!mounted) return;
-      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_friendlyError(e)),
           backgroundColor: AppColors.error,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

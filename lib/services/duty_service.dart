@@ -53,28 +53,43 @@ class DutyService {
   static const _allKey = 'duties_all';
   static List<DutyModel> _cachedAll = const [];
   List<DutyModel> get cachedDuties => _cachedAll;
-  static Stream<List<DutyModel>>? _allStream;
 
   Stream<List<DutyModel>> streamAllDuties() {
-    if (_allStream != null) return _allStream!;
     if (_col == null) {
       return Stream.error(
         StateError('Firestore not available for duties'),
       );
     }
 
-    _allStream = LiveFirestore.snapshots(
+    final live = LiveFirestore.mapSnapshots(
       _allKey,
       (db) => db.collection('duties').limit(100),
+      (snap) {
+        final parsed = <DutyModel>[];
+        for (final d in snap.docs) {
+          try {
+            parsed.add(DutyModel.fromMap(d.data(), d.id));
+          } catch (e, st) {
+            debugPrint('⚠️ Skipping bad duties doc id=${d.id}: $e\n$st');
+          }
+        }
+        parsed.sort((a, b) => b.shiftStart.compareTo(a.shiftStart));
+        _cachedAll = parsed;
+        return _cachedAll;
+      },
       collectionLabel: 'duties',
-    ).map((snap) {
-      _cachedAll = snap.docs
-          .map((d) => DutyModel.fromMap(d.data(), d.id))
-          .toList()
-        ..sort((a, b) => b.shiftStart.compareTo(a.shiftStart));
-      return _cachedAll;
-    }).transform(_errorLogger('DutyService.streamAllDuties'));
-    return _allStream!;
+    ).transform(_errorLogger('DutyService.streamAllDuties'));
+    final seed = _cachedAll;
+    if (seed.isEmpty) return live;
+    return Stream<List<DutyModel>>.multi((controller) {
+      controller.add(seed);
+      final sub = live.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = sub.cancel;
+    });
   }
 
   Future<void> refreshAllDuties() => LiveFirestore.forceRefresh(_allKey);

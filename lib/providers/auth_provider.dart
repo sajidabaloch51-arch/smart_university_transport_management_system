@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/live_firestore.dart';
+
 class AuthProvider extends ChangeNotifier {
   bool _isAuthenticated = false;
   String? _userRole;
@@ -48,13 +50,20 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    _isAuthenticated = false;
-    _userRole = null;
-    _uid = null;
-    _displayName = null;
-    _email = null;
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      debugPrint('AuthProvider.logout prefs clear failed: $e');
+    } finally {
+      // Drop shared Firestore listeners so the next session starts clean.
+      LiveFirestore.restartAll();
+      _isAuthenticated = false;
+      _userRole = null;
+      _uid = null;
+      _displayName = null;
+      _email = null;
+      notifyListeners();
+    }
   }
 }

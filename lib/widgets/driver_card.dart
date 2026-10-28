@@ -18,15 +18,41 @@ class DriverCard extends StatelessWidget {
     this.routeOverride,
   });
 
+  bool get _hasBus {
+    final v = (busNoOverride ?? driver.assignedBusNumber).trim();
+    return v.isNotEmpty && v.toLowerCase() != 'not assigned';
+  }
+
+  bool get _hasRoute {
+    final v = (routeOverride ?? driver.assignedRouteName).trim();
+    return v.isNotEmpty && v.toLowerCase() != 'not assigned';
+  }
+
+  String get _busLabel {
+    if (!_hasBus) return 'Bus: Not Assigned';
+    return 'Bus No: ${busNoOverride ?? driver.assignedBusNumber}';
+  }
+
+  String get _routeLabel {
+    if (!_hasRoute) return 'Route: Not Assigned';
+    return 'Route: ${routeOverride ?? driver.assignedRouteName}';
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return Colors.greenAccent;
+      case 'inactive':
+        return Colors.redAccent;
+      case 'on leave':
+        return Colors.amberAccent;
+      default:
+        return Colors.white70;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final busNo = (busNoOverride != null && busNoOverride!.isNotEmpty)
-        ? busNoOverride!
-        : driver.assignedBusNumber;
-    final route = (routeOverride != null && routeOverride!.isNotEmpty)
-        ? routeOverride!
-        : driver.assignedRouteName;
-
     return Card(
       elevation: 8,
       shadowColor: Colors.blue.withValues(alpha: 0.3),
@@ -69,29 +95,33 @@ class DriverCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        'Bus No: $busNo',
+                        _busLabel,
                         style: const TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                       Text(
-                        'Route: $route',
+                        _routeLabel,
                         style: const TextStyle(color: Colors.white70, fontSize: 14),
                       ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          _chip(
+                            driver.status.isEmpty ? 'Unknown' : driver.status,
+                            _statusColor(driver.status),
+                          ),
+                          _chip(
+                            driver.isOnDuty ? 'ON DUTY' : 'OFF DUTY',
+                            driver.isOnDuty
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
+                          ),
+                          if (!_hasRoute && !_hasBus)
+                            _chip('UNASSIGNED', Colors.orangeAccent),
+                        ],
+                      ),
                     ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: driver.isOnDuty ? Colors.greenAccent : Colors.redAccent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    driver.isOnDuty ? 'ON DUTY' : 'OFF DUTY',
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
                   ),
                 ),
               ],
@@ -116,6 +146,24 @@ class DriverCard extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

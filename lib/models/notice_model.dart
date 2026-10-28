@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../utils/firestore_parse.dart';
+
 enum NoticeType { delay, emergency, general }
 
 class NoticeModel {
@@ -25,19 +27,17 @@ class NoticeModel {
   factory NoticeModel.fromMap(Map<String, dynamic> map, String docId) {
     return NoticeModel(
       id: docId,
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      date: map['date'] is Timestamp
-          ? (map['date'] as Timestamp).toDate()
-          : DateTime.tryParse(map['date']?.toString() ?? '') ?? DateTime.now(),
+      title: FirestoreParse.asString(map['title']),
+      description: FirestoreParse.asString(map['description']),
+      date: FirestoreParse.asDateTimeOrNow(map['date']),
       type: _parseNoticeType(map['type']),
-      postedBy: map['postedBy'] ?? 'Admin',
-      targetAudience: map['targetAudience'] ?? 'all',
+      postedBy: FirestoreParse.asString(map['postedBy'], 'Admin'),
+      targetAudience: FirestoreParse.asString(map['targetAudience'], 'all'),
     );
   }
 
-  static NoticeType _parseNoticeType(String? type) {
-    switch (type?.toLowerCase()) {
+  static NoticeType _parseNoticeType(dynamic type) {
+    switch (FirestoreParse.asString(type).toLowerCase()) {
       case 'emergency':
         return NoticeType.emergency;
       case 'delay':

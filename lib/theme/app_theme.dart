@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+
 import 'app_colors.dart';
 
 class AppTheme {
@@ -52,12 +54,34 @@ class AppTheme {
           backgroundColor: AppColors.button,
           foregroundColor: AppColors.white,
           minimumSize: const Size(double.infinity, 50),
+          animationDuration: Duration.zero,
+          splashFactory: NoSplash.splashFactory,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          animationDuration: Duration.zero,
+          splashFactory: NoSplash.splashFactory,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          animationDuration: Duration.zero,
+          splashFactory: NoSplash.splashFactory,
+        ),
+      ),
+      // Snappier Android page opens from blue module tiles.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }

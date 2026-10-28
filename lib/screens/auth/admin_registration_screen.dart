@@ -1,17 +1,21 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:typed_data';
-import 'dart:convert';
 import 'package:provider/provider.dart';
-import '../../widgets/custom_textfield.dart';
-import '../../widgets/custom_button.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/validators/app_validators.dart';
-import '../../providers/admin_provider.dart';
 import '../../models/admin_model.dart';
+import '../../providers/admin_provider.dart';
+import '../../services/autofill_policy.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/email_validator.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/custom_textfield.dart';
 
 class AdminRegistrationScreen extends StatefulWidget {
   const AdminRegistrationScreen({super.key});
@@ -31,6 +35,7 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
   final _confirmPassController = TextEditingController();
 
   bool _isLoading = false;
+  bool _autofillFinished = false;
   Uint8List? _webImage;
 
   Future<void> _pickImage() async {
@@ -45,8 +50,22 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
     }
   }
 
+  Future<void> _finishAutofill({required bool shouldSave}) async {
+    if (_autofillFinished) return;
+    _autofillFinished = true;
+    if (shouldSave) {
+      await AutofillPolicy.commitSave();
+    } else {
+      await AutofillPolicy.cancelSave();
+    }
+  }
+
   @override
   void dispose() {
+    if (!_autofillFinished) {
+      TextInput.finishAutofillContext(shouldSave: false);
+      _autofillFinished = true;
+    }
     _nameController.dispose();
     _employeeIdController.dispose();
     _phoneController.dispose();
@@ -56,7 +75,7 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
     super.dispose();
   }
 
-  void _handleRegister() async {
+  Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -68,6 +87,8 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
     if (!allowed) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      await _finishAutofill(shouldSave: false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -100,71 +121,74 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
     try {
       await Provider.of<AdminProvider>(context, listen: false).addAdmin(admin);
 
-      if (mounted) {
-        setState(() => _isLoading = false);
+      await _finishAutofill(shouldSave: true);
 
-        final prefs = await SharedPreferences.getInstance();
-        const roleKey = 'saved_emails_admin';
-        List<String> emails = prefs.getStringList(roleKey) ?? [];
-        if (!emails.contains(admin.email)) {
-          emails.add(admin.email);
-          await prefs.setStringList(roleKey, emails);
-        }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 28),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Admin Account Created',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            content: const Text(
-              "Your administrator account has been successfully registered. "
-              "Please log in with your official credentials to access the Admin Panel.",
-            ),
-            actionsAlignment: MainAxisAlignment.center,
-            actions: [
-              SizedBox(
-                width: double.infinity,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/login', extra: 'admin'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1565C0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
+      final prefs = await SharedPreferences.getInstance();
+      const roleKey = 'saved_emails_admin';
+      final emails = prefs.getStringList(roleKey) ?? <String>[];
+      if (!emails.contains(admin.email)) {
+        emails.add(admin.email);
+        await prefs.setStringList(roleKey, emails);
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Admin Account Created',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-        );
-      }
+          content: const Text(
+            'Your administrator account has been successfully registered. '
+            'Please log in with your official credentials to access the Admin Panel.',
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: ElevatedButton(
+                  onPressed: () => context.go('/login', extra: 'admin'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Login',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
+      await _finishAutofill(shouldSave: false);
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Registration failed: $e")),
+          SnackBar(content: Text('Registration failed: $e')),
         );
       }
     }
@@ -184,6 +208,7 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: AutofillGroup(
+          onDisposeAction: AutofillContextAction.commit,
           child: Form(
             key: _formKey,
             child: Column(
@@ -223,7 +248,7 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
                 const SizedBox(height: 10),
                 const Center(
                   child: Text(
-                    "Upload Official Photo",
+                    'Upload Official Photo',
                     style: TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
@@ -234,56 +259,70 @@ class _AdminRegistrationScreenState extends State<AdminRegistrationScreen> {
                 const SizedBox(height: 22),
                 CustomTextField(
                   controller: _nameController,
-                  labelText: "Full Name",
+                  labelText: 'Full Name',
                   prefixIcon: Icons.person_outline,
+                  textInputAction: TextInputAction.next,
                   validator: AppValidators.validateFullName,
                   autofillHints: const [AutofillHints.name],
                 ),
                 CustomTextField(
                   controller: _employeeIdController,
-                  labelText: "Employee ID",
+                  labelText: 'Employee ID',
                   prefixIcon: Icons.badge_outlined,
+                  textInputAction: TextInputAction.next,
                   validator: AppValidators.validateEmployeeId,
                 ),
                 CustomTextField(
                   controller: _phoneController,
-                  labelText: "Official Phone Number",
+                  labelText: 'Official Phone Number',
                   prefixIcon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
                   validator: AppValidators.validatePhone,
+                  autofillHints: const [AutofillHints.telephoneNumber],
                 ),
                 CustomTextField(
                   controller: _emailController,
-                  labelText: "Official Email",
+                  labelText: 'Official Email',
                   hintText: AppEmailValidator.hint,
                   helperText: AppEmailValidator.hint,
                   prefixIcon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                   validator: AppValidators.validateEmail,
                   autofillHints: const [
+                    AutofillHints.username,
                     AutofillHints.email,
-                    AutofillHints.newUsername,
                   ],
                 ),
                 CustomTextField(
                   controller: _passController,
-                  labelText: "Password",
+                  labelText: 'Password',
                   prefixIcon: Icons.lock_outline,
                   isPassword: true,
+                  keyboardType: TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.next,
                   validator: AppValidators.validatePassword,
                   maxLength: 20,
+                  enableSuggestions: false,
+                  autocorrect: false,
                   autofillHints: const [AutofillHints.newPassword],
                 ),
                 CustomTextField(
                   controller: _confirmPassController,
-                  labelText: "Confirm Password",
+                  labelText: 'Confirm Password',
                   prefixIcon: Icons.lock_reset_outlined,
                   isPassword: true,
+                  keyboardType: TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.done,
                   validator: (v) => AppValidators.validateConfirmPassword(
                     v,
                     _passController.text,
                   ),
                   maxLength: 20,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.newPassword],
                 ),
                 const SizedBox(height: 24),
                 CustomButton(

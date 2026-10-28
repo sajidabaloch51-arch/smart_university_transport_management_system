@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../models/duty_model.dart';
 import '../../services/duty_service.dart';
+import '../../widgets/async_state_view.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/duty_card.dart';
 
@@ -97,47 +97,27 @@ class _DutyScreenState extends State<DutyScreen> {
               const SizedBox(height: 12),
               SizedBox(
                 height: 140,
-                child: StreamBuilder<List<DutyModel>>(
-                  stream: _stream,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      final err = snapshot.error;
-                      if (err is FirebaseException) {
-                        debugPrint(
-                          '🔥 DutyScreen error code=${err.code} message=${err.message}',
-                        );
-                      }
-                      return Text(
-                        'Could not load duties.',
-                        style: TextStyle(color: Colors.red.shade700),
-                      );
-                    }
-                    if (_stream == null ||
-                        (snapshot.connectionState == ConnectionState.waiting &&
-                            !snapshot.hasData)) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final duties = snapshot.data ?? [];
-                    if (duties.isEmpty) {
-                      return Container(
-                        width: double.infinity,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black12),
-                        ),
-                        child: const Text(
-                          'No duties assigned yet.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      );
-                    }
-                    return ListView(
-                      children: duties.map((d) => DutyCard(duty: d)).toList(),
-                    );
-                  },
-                ),
+                child: _stream == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : AsyncStateView<List<DutyModel>>(
+                        stream: _stream!,
+                        isEmpty: (duties) => duties.isEmpty,
+                        emptyMessage: 'No duties assigned yet.',
+                        timeout: const Duration(seconds: 12),
+                        onRetry: () {
+                          setState(() {
+                            _stream = null;
+                            _boundUid = null;
+                          });
+                          _bind();
+                        },
+                        builder: (context, duties) {
+                          return ListView(
+                            children:
+                                duties.map((d) => DutyCard(duty: d)).toList(),
+                          );
+                        },
+                      ),
               ),
               const SizedBox(height: 16),
               Expanded(

@@ -25,21 +25,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final uid = prefs.getString('uid') ??
-        context.read<AuthProvider>().uid ??
-        '';
-    if (uid.isEmpty) {
-      setState(() => _loading = false);
-      return;
+    setState(() => _loading = true);
+    final auth = context.read<AuthProvider>();
+    final students = context.read<StudentProvider>();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final uid = prefs.getString('uid') ?? auth.uid ?? '';
+      if (uid.isEmpty) return;
+      final student =
+          await students.getStudent(uid).timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      setState(() => _student = student);
+    } catch (e) {
+      debugPrint('ProfileScreen load failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load profile: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    final student =
-        await context.read<StudentProvider>().getStudent(uid);
-    if (!mounted) return;
-    setState(() {
-      _student = student;
-      _loading = false;
-    });
   }
 
   @override

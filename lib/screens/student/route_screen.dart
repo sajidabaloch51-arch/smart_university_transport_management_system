@@ -392,11 +392,7 @@ class _RouteScreenState extends State<RouteScreen> {
         phone: currentStudent?.phone ?? '',
         role: currentStudent?.role ?? 'student',
         regNumber: currentStudent?.regNumber ?? 'UOG-STU',
-        fatherName: currentStudent?.fatherName ?? '',
-        gender: currentStudent?.gender ?? '',
-        dob: currentStudent?.dob ?? '',
         department: currentStudent?.department ?? '',
-        semester: currentStudent?.semester ?? '1',
         profileImage: currentStudent?.profileImage ?? '',
         routeAddress: currentStudent?.routeAddress ?? '',
         rollNo: currentStudent?.rollNo ?? '0000',
@@ -411,6 +407,9 @@ class _RouteScreenState extends State<RouteScreen> {
         assignedDepartureTime: null,
         assignedArrivalTime: null,
         verificationStatus: currentStudent?.verificationStatus ?? 'approved',
+        passwordHash: currentStudent?.passwordHash,
+        termsAccepted: currentStudent?.termsAccepted ?? false,
+        termsVersion: currentStudent?.termsVersion,
       );
 
       await provider.updateStudent(updatedStudent);
@@ -458,11 +457,7 @@ class _RouteScreenState extends State<RouteScreen> {
         phone: currentStudent?.phone ?? '',
         role: currentStudent?.role ?? 'student',
         regNumber: currentStudent?.regNumber ?? '',
-        fatherName: currentStudent?.fatherName ?? '',
-        gender: currentStudent?.gender ?? '',
-        dob: currentStudent?.dob ?? '',
         department: currentStudent?.department ?? '',
-        semester: currentStudent?.semester ?? '1',
         profileImage: currentStudent?.profileImage ?? '',
         routeAddress: currentStudent?.routeAddress.isNotEmpty == true
             ? currentStudent!.routeAddress

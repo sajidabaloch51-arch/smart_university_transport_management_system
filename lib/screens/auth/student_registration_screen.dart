@@ -4,21 +4,24 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../widgets/custom_textfield.dart';
-import '../../widgets/custom_button.dart';
-import '../../widgets/terms_conditions_sheet.dart';
-import '../../core/validators/app_validators.dart';
-import '../../providers/student_provider.dart';
-import '../../models/student_model.dart';
-import '../../services/university_db_service.dart';
-import '../../services/auth_service.dart';
-import '../../services/password_hasher.dart';
-import '../../utils/email_validator.dart';
+
 import '../../constants/student_terms.dart';
+import '../../core/validators/app_validators.dart';
+import '../../models/student_model.dart';
+import '../../providers/student_provider.dart';
+import '../../services/auth_service.dart';
+import '../../services/autofill_policy.dart';
+import '../../services/password_hasher.dart';
+import '../../services/university_db_service.dart';
+import '../../utils/email_validator.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/custom_textfield.dart';
+import '../../widgets/terms_conditions_sheet.dart';
 
 class StudentRegistrationScreen extends StatefulWidget {
   const StudentRegistrationScreen({super.key});
@@ -54,6 +57,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   bool _termsAccepted = false;
   bool _showTermsError = false;
   bool _isLoading = false;
+  bool _autofillFinished = false;
   late final TapGestureRecognizer _termsTapRecognizer;
 
   Uint8List? _webImage;
@@ -61,10 +65,22 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    AutofillPolicy.enableNormalAutofill();
     _termsTapRecognizer = TapGestureRecognizer()
       ..onTap = () {
         _openTerms();
       };
+  }
+
+  Future<void> _finishAutofill({required bool shouldSave}) async {
+    if (_autofillFinished) return;
+    _autofillFinished = true;
+    if (shouldSave) {
+      await AutofillPolicy.commitSave();
+    } else {
+      await AutofillPolicy.cancelSave();
+    }
   }
 
   Future<void> _pickImage() async {
@@ -81,6 +97,10 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
   @override
   void dispose() {
+    if (!_autofillFinished) {
+      TextInput.finishAutofillContext(shouldSave: false);
+      _autofillFinished = true;
+    }
     _termsTapRecognizer.dispose();
     _nameController.dispose();
     _rollNoController.dispose();
@@ -104,6 +124,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
   }
 
   Future<void> _handleRegister() async {
+    // Do not cancel autofill on validation — user may fix and succeed.
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedDepartment == null) {
@@ -132,6 +153,8 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       if (existing != null) {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -153,6 +176,8 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       } on OfficialLookupException catch (e) {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message), backgroundColor: Colors.red),
         );
@@ -163,6 +188,8 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
           officialRecord.enrollmentStatus != 'Active') {
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -211,7 +238,6 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
             ? regNo
             : (officialRecord?.regNumber ?? ''),
         department: _selectedDepartment!,
-        semester: officialRecord?.semester ?? '1',
         profileImage: profileImageBase64,
         rollNo: rollNo,
         verificationStatus: status,
@@ -221,6 +247,9 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
       );
 
       await studentProvider.addStudent(student);
+
+      // Controllers still hold values — commit Save password before navigating.
+      await _finishAutofill(shouldSave: true);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -254,12 +283,16 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
     } on AuthServiceException catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      await _finishAutofill(shouldSave: false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message), backgroundColor: Colors.red),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      await _finishAutofill(shouldSave: false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Registration failed: $e'),
@@ -359,6 +392,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
             child: AutofillGroup(
+              onDisposeAction: AutofillContextAction.commit,
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -412,6 +446,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       labelText: 'Full Name',
                       prefixIcon: Icons.person_outline,
                       validator: AppValidators.validateFullName,
+                      textInputAction: TextInputAction.next,
                       autofillHints: const [AutofillHints.name],
                     ),
                     CustomTextField(
@@ -419,12 +454,14 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       labelText: 'Roll No',
                       prefixIcon: Icons.format_list_numbered,
                       validator: AppValidators.validateRollNo,
+                      textInputAction: TextInputAction.next,
                     ),
                     CustomTextField(
                       controller: _regController,
                       labelText: 'Registration Number (Optional)',
                       prefixIcon: Icons.badge_outlined,
                       validator: AppValidators.validateRegistrationNumber,
+                      textInputAction: TextInputAction.next,
                     ),
                     DropdownButtonFormField<String>(
                       decoration: InputDecoration(
@@ -455,6 +492,8 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       prefixIcon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
                       validator: AppValidators.validatePhone,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.telephoneNumber],
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
@@ -464,10 +503,11 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       helperText: AppEmailValidator.hint,
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                       validator: AppValidators.validateEmail,
                       autofillHints: const [
+                        AutofillHints.username,
                         AutofillHints.email,
-                        AutofillHints.newUsername,
                       ],
                     ),
                     CustomTextField(
@@ -475,8 +515,12 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       labelText: 'Password',
                       prefixIcon: Icons.lock_outline,
                       isPassword: true,
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.next,
                       validator: AppValidators.validatePassword,
                       maxLength: 20,
+                      enableSuggestions: false,
+                      autocorrect: false,
                       autofillHints: const [AutofillHints.newPassword],
                     ),
                     CustomTextField(
@@ -484,11 +528,16 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                       labelText: 'Confirm Password',
                       prefixIcon: Icons.lock_reset_outlined,
                       isPassword: true,
+                      keyboardType: TextInputType.visiblePassword,
+                      textInputAction: TextInputAction.done,
                       validator: (v) => AppValidators.validateConfirmPassword(
                         v,
                         _passController.text,
                       ),
                       maxLength: 20,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      autofillHints: const [AutofillHints.newPassword],
                     ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,

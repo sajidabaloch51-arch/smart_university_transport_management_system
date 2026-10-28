@@ -39,6 +39,13 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
   TimeOfDay _end = const TimeOfDay(hour: 9, minute: 0);
   bool _isLoading = false;
 
+  late Stream<List<DriverModel>> _driversStream;
+  late Stream<List<BusModel>> _busesStream;
+  late Stream<List<RouteModel>> _routesStream;
+  List<DriverModel> _cachedDrivers = const [];
+  List<BusModel> _cachedBuses = const [];
+  List<RouteModel> _cachedRoutes = const [];
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +70,22 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
       _start = TimeOfDay(hour: startK.hour, minute: startK.minute);
       _end = TimeOfDay(hour: endK.hour, minute: endK.minute);
     }
+
+    final drivers = context.read<DriverProvider>();
+    final buses = context.read<BusProvider>();
+    final routes = context.read<RouteProvider>();
+    _cachedDrivers = List.of(drivers.cachedDrivers);
+    _cachedBuses = List.of(buses.cachedBuses);
+    _cachedRoutes = List.of(routes.cachedRoutes);
+    _driversStream = drivers.streamDrivers();
+    _busesStream = buses.streamBuses();
+    _routesStream = routes.streamRoutes();
+    // ignore: discarded_futures
+    drivers.refreshDrivers();
+    // ignore: discarded_futures
+    buses.refreshBuses();
+    // ignore: discarded_futures
+    routes.refreshRoutes();
   }
 
   @override
@@ -191,10 +214,6 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final drivers = context.watch<DriverProvider>();
-    final buses = context.watch<BusProvider>();
-    final routes = context.watch<RouteProvider>();
-
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.duty == null ? 'Assign Duty' : 'Edit Duty'),
@@ -207,51 +226,97 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               StreamBuilder<List<DriverModel>>(
-                stream: drivers.streamDrivers(),
+                stream: _driversStream,
+                initialData:
+                    _cachedDrivers.isEmpty ? null : _cachedDrivers,
                 builder: (context, snapshot) {
-                  final list = (snapshot.data ?? [])
+                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                    _cachedDrivers = snapshot.data!;
+                  }
+                  final list = (_cachedDrivers)
                       .where((d) =>
                           d.status.toLowerCase() != 'inactive' &&
                           d.status.toLowerCase() != 'on leave')
                       .toList();
-                  return DropdownButtonFormField<String>(
-                    initialValue: _driverId,
-                    decoration: InputDecoration(
-                      labelText: 'Driver',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    // value = Firestore users/{uid} document id (same uid used at login)
-                    items: list
-                        .map((d) => DropdownMenuItem(
-                              value: d.uid,
-                              child: Text(
-                                '${d.name} (${d.uid})',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      final match =
-                          list.where((d) => d.uid == v).toList();
-                      setState(() {
-                        _driverId = v; // Firestore users/{uid}
-                        _driverName =
-                            match.isEmpty ? null : match.first.name;
-                        _driverPhone =
-                            match.isEmpty ? null : match.first.phone;
-                      });
-                      debugPrint('AssignDuty selected driverId=$_driverId');
-                    },
-                    validator: (v) => v == null ? 'Required' : null,
+                  final driverValue = list.any((d) => d.uid == _driverId)
+                      ? _driverId
+                      : null;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: driverValue,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Driver',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          suffixIcon: snapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  list.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        items: list
+                            .map((d) => DropdownMenuItem(
+                                  value: d.uid,
+                                  child: Text(
+                                    '${d.name} (${d.uid})',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: list.isEmpty
+                            ? null
+                            : (v) {
+                                final match =
+                                    list.where((d) => d.uid == v).toList();
+                                setState(() {
+                                  _driverId = v;
+                                  _driverName = match.isEmpty
+                                      ? null
+                                      : match.first.name;
+                                  _driverPhone = match.isEmpty
+                                      ? null
+                                      : match.first.phone;
+                                });
+                              },
+                        validator: (v) => v == null ? 'Required' : null,
+                      ),
+                      if (snapshot.hasError && list.isEmpty)
+                        TextButton(
+                          onPressed: () {
+                            final p = context.read<DriverProvider>();
+                            p.restartDriversStream();
+                            setState(() {
+                              _driversStream = p.streamDrivers();
+                            });
+                            // ignore: discarded_futures
+                            p.refreshDrivers();
+                          },
+                          child: const Text('Retry drivers'),
+                        ),
+                    ],
                   );
                 },
               ),
               const SizedBox(height: 16),
               StreamBuilder<List<BusModel>>(
-                stream: buses.streamBuses(),
+                stream: _busesStream,
+                initialData: _cachedBuses.isEmpty ? null : _cachedBuses,
                 builder: (context, snapshot) {
-                  final list = snapshot.data ?? [];
+                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                    _cachedBuses = snapshot.data!;
+                  }
+                  final list = _cachedBuses;
                   final numbers = list
                       .map((b) => b.busNumber)
                       .where((n) => n.isNotEmpty)
@@ -261,31 +326,68 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
                   if (_busNo != null && !numbers.contains(_busNo)) {
                     numbers.insert(0, _busNo!);
                   }
-                  return DropdownButtonFormField<String>(
-                    initialValue: numbers.contains(_busNo) ? _busNo : null,
-                    decoration: InputDecoration(
-                      labelText: 'Bus Number',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    items: numbers
-                        .map((n) =>
-                            DropdownMenuItem(value: n, child: Text(n)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _busNo = v),
-                    validator: (v) => v == null ? 'Required' : null,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: numbers.contains(_busNo) ? _busNo : null,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Bus Number',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          suffixIcon: snapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  numbers.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        items: numbers
+                            .map((n) => DropdownMenuItem(
+                                value: n, child: Text(n)))
+                            .toList(),
+                        onChanged: numbers.isEmpty
+                            ? null
+                            : (v) => setState(() => _busNo = v),
+                        validator: (v) => v == null ? 'Required' : null,
+                      ),
+                      if (snapshot.hasError && numbers.isEmpty)
+                        TextButton(
+                          onPressed: () {
+                            final p = context.read<BusProvider>();
+                            p.restartBusesStream();
+                            setState(() {
+                              _busesStream = p.streamBuses();
+                            });
+                            // ignore: discarded_futures
+                            p.refreshBuses();
+                          },
+                          child: const Text('Retry buses'),
+                        ),
+                    ],
                   );
                 },
               ),
               const SizedBox(height: 16),
               StreamBuilder<List<RouteModel>>(
-                stream: routes.streamRoutes(),
+                stream: _routesStream,
+                initialData:
+                    _cachedRoutes.isEmpty ? null : _cachedRoutes,
                 builder: (context, snapshot) {
-                  final list = snapshot.data ?? [];
-                  // Value = stable routeId (never route name text).
+                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                    _cachedRoutes = snapshot.data!;
+                  }
+                  final list = _cachedRoutes;
                   final ids = list.map((r) => r.id).toList();
                   if (_routeId != null && !ids.contains(_routeId)) {
-                    // Legacy duty may only have a name — try resolve once.
                     final byName = list
                         .where((r) => r.routeName == _routeName)
                         .toList();
@@ -293,33 +395,69 @@ class _AssignDutyScreenState extends State<AssignDutyScreen> {
                       _routeId = byName.first.id;
                     }
                   }
-                  return DropdownButtonFormField<String>(
-                    initialValue:
-                        ids.contains(_routeId) ? _routeId : null,
-                    decoration: InputDecoration(
-                      labelText: 'Route',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    items: list
-                        .map((r) => DropdownMenuItem(
-                              value: r.id,
-                              child: Text(
-                                r.routeName,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      final match =
-                          list.where((r) => r.id == v).toList();
-                      setState(() {
-                        _routeId = v;
-                        _routeName =
-                            match.isEmpty ? null : match.first.routeName;
-                      });
-                    },
-                    validator: (v) => v == null ? 'Required' : null,
+                  final routeValue =
+                      ids.contains(_routeId) ? _routeId : null;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: routeValue,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Route',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          suffixIcon: snapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  list.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        items: list
+                            .map((r) => DropdownMenuItem(
+                                  value: r.id,
+                                  child: Text(
+                                    r.routeName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: list.isEmpty
+                            ? null
+                            : (v) {
+                                final match =
+                                    list.where((r) => r.id == v).toList();
+                                setState(() {
+                                  _routeId = v;
+                                  _routeName = match.isEmpty
+                                      ? null
+                                      : match.first.routeName;
+                                });
+                              },
+                        validator: (v) => v == null ? 'Required' : null,
+                      ),
+                      if (snapshot.hasError && list.isEmpty)
+                        TextButton(
+                          onPressed: () {
+                            final p = context.read<RouteProvider>();
+                            p.restartRoutesStream();
+                            setState(() {
+                              _routesStream = p.streamRoutes();
+                            });
+                            // ignore: discarded_futures
+                            p.refreshRoutes();
+                          },
+                          child: const Text('Retry routes'),
+                        ),
+                    ],
                   );
                 },
               ),

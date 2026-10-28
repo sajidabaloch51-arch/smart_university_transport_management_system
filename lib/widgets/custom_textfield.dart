@@ -14,6 +14,12 @@ class CustomTextField extends StatefulWidget {
   final AutovalidateMode autovalidateMode;
   final VoidCallback? onTap;
   final Iterable<String>? autofillHints;
+  final bool enableSuggestions;
+  final bool autocorrect;
+  final bool enableIMEPersonalizedLearning;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
+  final FocusNode? focusNode;
 
   const CustomTextField({
     super.key,
@@ -30,6 +36,12 @@ class CustomTextField extends StatefulWidget {
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
     this.onTap,
     this.autofillHints,
+    this.enableSuggestions = true,
+    this.autocorrect = true,
+    this.enableIMEPersonalizedLearning = true,
+    this.textInputAction,
+    this.onFieldSubmitted,
+    this.focusNode,
   });
 
   @override
@@ -51,19 +63,26 @@ class _CustomTextFieldState extends State<CustomTextField> {
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: widget.controller,
-        obscureText: _obscureText,
+        focusNode: widget.focusNode,
+        obscureText: widget.isPassword ? _obscureText : false,
         keyboardType: widget.keyboardType,
+        textInputAction: widget.textInputAction,
+        onFieldSubmitted: widget.onFieldSubmitted,
         validator: widget.validator,
         maxLength: widget.maxLength,
         maxLines: widget.maxLines,
         autovalidateMode: widget.autovalidateMode,
         onTap: widget.onTap,
         autofillHints: widget.autofillHints,
+        enableSuggestions: widget.enableSuggestions,
+        autocorrect: widget.autocorrect,
+        enableIMEPersonalizedLearning: widget.enableIMEPersonalizedLearning,
         decoration: InputDecoration(
           labelText: widget.labelText,
           hintText: widget.hintText,
           helperText: widget.helperText,
-          prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
+          prefixIcon:
+              widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
           suffixIcon: widget.isPassword
               ? IconButton(
                   icon: Icon(
@@ -78,7 +97,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 )
               : null,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-          counterText: "", // Hide character counter
+          counterText: '',
         ),
       ),
     );

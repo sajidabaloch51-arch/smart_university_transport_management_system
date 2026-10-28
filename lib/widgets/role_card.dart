@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../core/constants/app_colors.dart';
 
 class RoleCard extends StatelessWidget {
@@ -22,8 +24,20 @@ class RoleCard extends StatelessWidget {
     return Card(
       color: isDisabled ? Colors.grey.shade200 : Colors.white,
       child: InkWell(
-        onTap: isDisabled ? null : onTap,
+        onTap: isDisabled
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap();
+              },
         borderRadius: BorderRadius.circular(20),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return AppColors.primary.withValues(alpha: 0.12);
+          }
+          return Colors.transparent;
+        }),
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Row(

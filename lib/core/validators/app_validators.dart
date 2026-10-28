@@ -78,12 +78,22 @@ class AppValidators {
 
   static String? validatePhone(String? value) {
     if (value == null || value.isEmpty) return 'Phone number is required';
-    // Pakistani phone number format: 03xx-xxxxxxx or +923xx-xxxxxxx
+    // Pakistani mobile: 03XXXXXXXXX or +923XXXXXXXXX
     final regExp = RegExp(r'^((\+92)|(0))3[0-9]{9}$');
-    String cleanValue = value.replaceAll(RegExp(r'[\s-]'), '');
+    final cleanValue = value.replaceAll(RegExp(r'[\s-]'), '');
     if (!regExp.hasMatch(cleanValue)) {
-      return 'Invalid Pakistani phone number format (e.g., 03001234567)';
+      return 'Phone must be 03XXXXXXXXX (11 digits)';
     }
+    return null;
+  }
+
+  static String? validateExperienceYears(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Years of experience is required';
+    }
+    final n = int.tryParse(value.trim());
+    if (n == null) return 'Enter a whole number';
+    if (n < 0 || n > 50) return 'Enter a value between 0 and 50';
     return null;
   }
 

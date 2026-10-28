@@ -133,11 +133,29 @@ class UserList extends StatelessWidget {
     return StreamBuilder<List<UserModel>>(
       stream: firestore.getUsers(role),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Could not load users.\n${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(child: Text("No ${role}s found."));
+          return Center(child: Text('No ${role}s found.'));
         }
 
         final users = snapshot.data!;

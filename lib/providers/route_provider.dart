@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_model.dart';
 import '../services/live_firestore.dart';
+import '../services/route_assignment_service.dart';
 
 class RouteProvider extends ChangeNotifier {
   static const _streamKey = 'routes_all';
@@ -12,29 +13,42 @@ class RouteProvider extends ChangeNotifier {
   List<RouteModel> _lastRoutes = const [];
   List<RouteModel> get cachedRoutes => _lastRoutes;
 
-  Stream<List<RouteModel>>? _mapped;
-
-  /// Live stream from Firestore `routes` (shared, re-subscribable).
+  /// Live stream from Firestore `routes` (shared broadcast + per-call map).
+  /// Emits in-memory cache immediately so Admin screens never wait on network.
   Stream<List<RouteModel>> streamRoutes() {
-    if (_mapped != null) return _mapped!;
-    _mapped = LiveFirestore.snapshots(
+    final live = LiveFirestore.mapSnapshots(
       _streamKey,
       (db) => db.collection('routes'),
+      (snapshot) {
+        // Admin + student: show every route. (Old uog-only filter hid routes
+        // that were missing universityId and left Assign Route as Not Assigned.)
+        final list = <RouteModel>[];
+        for (final doc in snapshot.docs) {
+          try {
+            list.add(RouteModel.fromMap(doc.id, doc.data()));
+          } catch (e, st) {
+            debugPrint('⚠️ Skipping bad route doc id=${doc.id}: $e\n$st');
+          }
+        }
+        _lastRoutes = list;
+        return list;
+      },
       collectionLabel: 'routes',
-    ).map((snapshot) {
-      final all = snapshot.docs
-          .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
-          .toList();
-      final uog = all.where((r) => r.universityId == 'uog').toList();
-      final list = uog.isNotEmpty ? uog : all;
-      _lastRoutes = list;
-      return list;
+    );
+    final seed = _lastRoutes;
+    if (seed.isEmpty) return live;
+    return Stream<List<RouteModel>>.multi((controller) {
+      controller.add(seed);
+      final sub = live.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = sub.cancel;
     });
-    return _mapped!;
   }
 
   void restartRoutesStream() {
-    _mapped = null;
     LiveFirestore.restart(_streamKey);
     notifyListeners();
   }
@@ -53,8 +67,44 @@ class RouteProvider extends ChangeNotifier {
       final all = snap.docs
           .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
           .toList();
+      // Prefer uog for student UX, but never hide the full set when empty.
       final uog = all.where((r) => r.universityId == 'uog').toList();
       final list = uog.isNotEmpty ? uog : all;
+      if (list.isNotEmpty) _lastRoutes = list;
+      return list;
+    } catch (_) {
+      return _lastRoutes;
+    }
+  }
+
+  /// Admin assignment dropdowns: every route doc, no university filter.
+  /// Uses cache first, then server — does not depend on LiveFirestore listeners.
+  Future<List<RouteModel>> fetchAllRoutesForAssignment() async {
+    final db = LiveFirestore.db;
+    if (db == null) return _lastRoutes;
+    try {
+      QuerySnapshot<Map<String, dynamic>> snap;
+      try {
+        snap = await db
+            .collection('routes')
+            .get(const GetOptions(source: Source.cache))
+            .timeout(const Duration(milliseconds: 800));
+      } catch (_) {
+        snap = await db
+            .collection('routes')
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 8));
+      }
+      if (snap.docs.isEmpty) {
+        snap = await db
+            .collection('routes')
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 8));
+      }
+      final list = snap.docs
+          .map((doc) => RouteModel.fromMap(doc.id, doc.data()))
+          .toList()
+        ..sort((a, b) => a.routeName.compareTo(b.routeName));
       if (list.isNotEmpty) _lastRoutes = list;
       return list;
     } catch (_) {
@@ -82,6 +132,7 @@ class RouteProvider extends ChangeNotifier {
   Future<void> deleteRoute(String id) async {
     final db = LiveFirestore.db;
     if (db == null) return;
+    await RouteAssignmentService().clearBeforeRouteDelete(id);
     await db.collection('routes').doc(id).delete();
   }
 

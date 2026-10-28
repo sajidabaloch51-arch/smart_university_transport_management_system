@@ -15,8 +15,6 @@ class StudentProvider extends ChangeNotifier {
 
   bool get isLoading => false;
 
-  Stream<List<StudentModel>>? _studentsStream;
-  Stream<List<StudentModel>>? _pendingStream;
   final Map<String, StudentModel> _studentCache = {};
   List<StudentModel> _cachedStudents = const [];
   List<StudentModel> _cachedPending = const [];
@@ -73,46 +71,54 @@ class StudentProvider extends ChangeNotifier {
 
   /// Approved students from Firestore `users` where role == student.
   Stream<List<StudentModel>> streamStudents() {
-    if (_studentsStream != null) return _studentsStream!;
     if (_db == null) return Stream.value(const <StudentModel>[]);
-
-    _studentsStream = LiveFirestore.snapshots(
+    return LiveFirestore.mapSnapshots(
       _studentsKey,
       (db) => db.collection('users').where('role', isEqualTo: 'student'),
+      (snapshot) {
+        final list = <StudentModel>[];
+        for (final doc in snapshot.docs) {
+          try {
+            final s = StudentModel.fromMap(doc.data(), doc.id);
+            if (s.verificationStatus == 'approved') list.add(s);
+          } catch (e, st) {
+            debugPrint('⚠️ Skipping bad student doc id=${doc.id}: $e\n$st');
+          }
+        }
+        _cachedStudents = list;
+        return _cachedStudents;
+      },
       collectionLabel: 'users(role=student)',
-    ).map((snapshot) {
-      _cachedStudents = snapshot.docs
-          .map((doc) => StudentModel.fromMap(doc.data(), doc.id))
-          .where((s) => s.verificationStatus == 'approved')
-          .toList();
-      return _cachedStudents;
-    });
-    return _studentsStream!;
+    );
   }
 
   Stream<List<StudentModel>> streamPendingStudents() {
-    if (_pendingStream != null) return _pendingStream!;
     if (_db == null) return Stream.value(const <StudentModel>[]);
-
-    _pendingStream = LiveFirestore.snapshots(
+    return LiveFirestore.mapSnapshots(
       _pendingKey,
       (db) => db
           .collection('users')
           .where('role', isEqualTo: 'student')
           .where('verificationStatus', isEqualTo: 'pending'),
+      (snapshot) {
+        final list = <StudentModel>[];
+        for (final doc in snapshot.docs) {
+          try {
+            list.add(StudentModel.fromMap(doc.data(), doc.id));
+          } catch (e, st) {
+            debugPrint(
+              '⚠️ Skipping bad pending student doc id=${doc.id}: $e\n$st',
+            );
+          }
+        }
+        _cachedPending = list;
+        return _cachedPending;
+      },
       collectionLabel: 'users(student,pending)',
-    ).map((snapshot) {
-      _cachedPending = snapshot.docs
-          .map((doc) => StudentModel.fromMap(doc.data(), doc.id))
-          .toList();
-      return _cachedPending;
-    });
-    return _pendingStream!;
+    );
   }
 
   void restartStudentStreams() {
-    _studentsStream = null;
-    _pendingStream = null;
     LiveFirestore.restart(_studentsKey);
     LiveFirestore.restart(_pendingKey);
   }
@@ -124,9 +130,41 @@ class StudentProvider extends ChangeNotifier {
     final db = _db;
     if (db == null) return;
     try {
+      final normalized = status.trim().toLowerCase();
       await db.collection('users').doc(uid).update({
-        'verificationStatus': status,
+        'verificationStatus': normalized,
       });
+      final cached = _studentCache[uid];
+      if (cached != null) {
+        _studentCache[uid] = StudentModel(
+          uid: cached.uid,
+          name: cached.name,
+          email: cached.email,
+          phone: cached.phone,
+          role: cached.role,
+          regNumber: cached.regNumber,
+          department: cached.department,
+          profileImage: cached.profileImage,
+          routeAddress: cached.routeAddress,
+          rollNo: cached.rollNo,
+          assignedRouteId: cached.assignedRouteId,
+          assignedRouteName: cached.assignedRouteName,
+          assignedBusId: cached.assignedBusId,
+          assignedBusName: cached.assignedBusName,
+          assignedBusCode: cached.assignedBusCode,
+          assignedDriverId: cached.assignedDriverId,
+          assignedDriverName: cached.assignedDriverName,
+          assignedDriverPhone: cached.assignedDriverPhone,
+          assignedDepartureTime: cached.assignedDepartureTime,
+          assignedArrivalTime: cached.assignedArrivalTime,
+          verificationStatus: normalized,
+          passwordHash: cached.passwordHash,
+          termsAccepted: cached.termsAccepted,
+          termsVersion: cached.termsVersion,
+        );
+      } else {
+        _studentCache.remove(uid);
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error verifying student: $e');
@@ -137,6 +175,49 @@ class StudentProvider extends ChangeNotifier {
   /// Sync peek — used to paint UI before the network returns.
   StudentModel? peekStudent(String uid) =>
       uid.isEmpty ? null : _studentCache[uid];
+
+  /// Login / access decisions must not use a stale disk/memory cache that still
+  /// says `pending` after Admin already approved on the server.
+  Future<StudentModel?> getStudentFresh(String uid) async {
+    if (uid.isEmpty) return null;
+    final db = _db;
+    if (db == null) return _studentCache[uid];
+    try {
+      final doc = await db
+          .collection('users')
+          .doc(uid)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 8));
+      if (doc.exists && doc.data() != null) {
+        final model = StudentModel.fromMap(doc.data()!, doc.id);
+        _studentCache[uid] = model;
+        debugPrint(
+          'getStudentFresh uid=$uid verificationStatus=${model.verificationStatus}',
+        );
+        return model;
+      }
+      _studentCache.remove(uid);
+      return null;
+    } catch (e) {
+      debugPrint('getStudentFresh failed (fallback): $e');
+      // Last resort: serverAndCache, still bypass memory-only stale entry.
+      try {
+        final doc = await db
+            .collection('users')
+            .doc(uid)
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 5));
+        if (doc.exists && doc.data() != null) {
+          final model = StudentModel.fromMap(doc.data()!, doc.id);
+          _studentCache[uid] = model;
+          return model;
+        }
+      } catch (e2) {
+        debugPrint('getStudentFresh fallback failed: $e2');
+      }
+      return _studentCache[uid];
+    }
+  }
 
   Future<StudentModel?> getStudent(String uid) async {
     if (uid.isEmpty) return null;

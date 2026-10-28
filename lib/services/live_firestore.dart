@@ -9,8 +9,15 @@ import '../utils/perf_log.dart';
 
 /// Shared live Firestore listener that:
 /// - creates the underlying `.snapshots()` once per [key]
-/// - keeps a broadcast controller that re-emits the last snapshot
-/// - hydrates from **disk cache first** so lists paint in <100ms on repeat visits
+/// - **replays the last snapshot to every new listener** (warm-up must not
+///   steal the only broadcast slot — that caused Manage Schedules/Buses/
+///   Notices/Alerts to hang until UI timeout while cache already had data)
+/// - hydrates from disk cache first
+/// - times out if neither cache nor network produces a first event
+///
+/// IMPORTANT: Do **not** memoize `.map()` on this stream in providers.
+/// Each caller should `.map(...)` per listen — the shared entry underneath
+/// supports many simultaneous listeners (dashboard + pushed list screens).
 class LiveFirestore {
   LiveFirestore._();
 
@@ -65,6 +72,7 @@ class LiveFirestore {
     }
   }
 
+  /// Shared broadcast of raw snapshots. Safe for many listeners.
   static Stream<QuerySnapshot<Map<String, dynamic>>> snapshots(
     String key,
     Query<Map<String, dynamic>> Function(FirebaseFirestore db) buildQuery, {
@@ -89,6 +97,20 @@ class LiveFirestore {
     return entry.stream;
   }
 
+  /// Convenience: shared snapshots + per-call map (do not cache the result).
+  static Stream<T> mapSnapshots<T>(
+    String key,
+    Query<Map<String, dynamic>> Function(FirebaseFirestore db) buildQuery,
+    T Function(QuerySnapshot<Map<String, dynamic>> snap) convert, {
+    String? collectionLabel,
+  }) {
+    return snapshots(
+      key,
+      buildQuery,
+      collectionLabel: collectionLabel,
+    ).map(convert);
+  }
+
   static void restart(String key) {
     final entry = _entries.remove(key);
     entry?.dispose();
@@ -101,39 +123,60 @@ class LiveFirestore {
     _entries.clear();
   }
 
-  /// Push a fresh server+cache read into an existing live entry (pull-to-refresh).
   static Future<void> forceRefresh(String key) async {
     final entry = _entries[key];
     if (entry == null) return;
     await entry.refreshFromNetwork();
   }
 
-  /// Warm common Admin collections after login (non-blocking).
+  /// Warm Admin collections after login without blocking the UI frame.
+  ///
+  /// Priority lists (drivers / routes / buses / duties) start first.
+  /// Secondary lists are staggered so a slow network is not saturated.
   static void warmAdminLists() {
     if (db == null) return;
-    void touch(
-      String key,
-      Query<Map<String, dynamic>> Function(FirebaseFirestore db) q,
-      String label,
-    ) {
-      snapshots(key, q, collectionLabel: label).listen(
-        (_) {},
-        onError: (_) {},
-        cancelOnError: false,
-      );
-    }
+    // Never do Firestore subscribe work on the login/navigation frame.
+    scheduleMicrotask(() {
+      // ignore: discarded_futures
+      _warmAdminListsImpl();
+    });
+  }
 
-    touch(
+  static void _touch(
+    String key,
+    Query<Map<String, dynamic>> Function(FirebaseFirestore db) q,
+    String label,
+  ) {
+    snapshots(key, q, collectionLabel: label).listen(
+      (_) {},
+      onError: (_) {},
+      cancelOnError: false,
+    );
+  }
+
+  static Future<void> _warmAdminListsImpl() async {
+    if (db == null) return;
+
+    // Phase 1 — dashboard essentials (cache hydrate + live listen).
+    _touch(
       'users_drivers',
       (db) => db.collection('users').where('role', isEqualTo: 'driver'),
       'users(role=driver)',
     );
-    touch(
+    _touch('routes_all', (db) => db.collection('routes'), 'routes');
+    _touch('buses_all', (db) => db.collection('buses').limit(50), 'buses');
+    _touch('duties_all', (db) => db.collection('duties').limit(100), 'duties');
+
+    // Phase 2 — secondary screens, after a short delay.
+    // Longer delay so phase-1 listeners settle before competing for bandwidth.
+    await Future<void>.delayed(const Duration(seconds: 4));
+    if (db == null) return;
+    _touch(
       'users_students',
       (db) => db.collection('users').where('role', isEqualTo: 'student'),
       'users(role=student)',
     );
-    touch(
+    _touch(
       'users_students_pending',
       (db) => db
           .collection('users')
@@ -141,17 +184,18 @@ class LiveFirestore {
           .where('verificationStatus', isEqualTo: 'pending'),
       'users(student,pending)',
     );
-    touch('routes_all', (db) => db.collection('routes'), 'routes');
-    touch('schedules_all', (db) => db.collection('schedules'), 'schedules');
-    touch('buses_all', (db) => db.collection('buses'), 'buses');
-    touch(
+    _touch(
+      'schedules_all',
+      (db) => db.collection('schedules').limit(50),
+      'schedules',
+    );
+    _touch(
       'notices_all',
       (db) =>
           db.collection('notices').orderBy('date', descending: true).limit(50),
       'notices',
     );
-    touch('duties_all', (db) => db.collection('duties').limit(100), 'duties');
-    touch('alerts_all', (db) => db.collection('alerts').limit(100), 'alerts');
+    _touch('alerts_all', (db) => db.collection('alerts').limit(50), 'alerts');
   }
 }
 
@@ -161,11 +205,10 @@ class _LiveEntry {
     required this.collectionLabel,
     required this.buildQuery,
   }) {
+    // Plain broadcast — replay is handled in [stream] via Stream.multi so
+    // late listeners (Manage Schedules after warm-up) always get [_last].
     _controller =
-        StreamController<QuerySnapshot<Map<String, dynamic>>>.broadcast(
-      onListen: _ensureSubscribed,
-      onCancel: _onCancel,
-    );
+        StreamController<QuerySnapshot<Map<String, dynamic>>>.broadcast();
   }
 
   final String key;
@@ -175,44 +218,87 @@ class _LiveEntry {
   late final StreamController<QuerySnapshot<Map<String, dynamic>>> _controller;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
   QuerySnapshot<Map<String, dynamic>>? _last;
+  Object? _lastError;
+  StackTrace? _lastErrorStack;
   int _listenerCount = 0;
   bool _diskHydrateStarted = false;
+  Timer? _firstEventTimer;
+  bool _firstEventDelivered = false;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> get stream => _controller.stream;
+  /// Every listen starts Firestore if needed and immediately gets [_last].
+  Stream<QuerySnapshot<Map<String, dynamic>>> get stream {
+    return Stream.multi((multi) {
+      _listenerCount++;
+      _ensureFirestoreListen();
 
-  void _ensureSubscribed() {
-    _listenerCount++;
-    if (_last != null && !_controller.isClosed) {
-      scheduleMicrotask(() {
-        if (!_controller.isClosed && _last != null) {
-          _controller.add(_last!);
-        }
-      });
-    }
-    if (_sub != null) return;
+      if (_last != null) {
+        multi.add(_last!);
+        LiveFirestore.log(
+          key,
+          collection: collectionLabel,
+          count: _last!.docs.length,
+          extra: 'replay_to_new_listener',
+        );
+      } else if (_lastError != null) {
+        // Stale error with no data — retry once for this listener.
+        scheduleMicrotask(() async {
+          if (multi.isClosed) return;
+          if (_last != null) {
+            multi.add(_last!);
+            return;
+          }
+          try {
+            await refreshFromNetwork();
+            if (!multi.isClosed && _last != null) multi.add(_last!);
+          } catch (_) {
+            if (!multi.isClosed && _last == null && _lastError != null) {
+              multi.addError(_lastError!, _lastErrorStack);
+            }
+          }
+        });
+      }
 
+      final sub = _controller.stream.listen(
+        multi.add,
+        onError: multi.addError,
+        onDone: multi.close,
+      );
+      multi.onCancel = () {
+        sub.cancel();
+        _onCancel();
+      };
+    });
+  }
+
+  void _ensureFirestoreListen() {
     final firestore = LiveFirestore.db;
     if (firestore == null) {
-      _controller.addError(
-        StateError('Firestore not available. Check Firebase setup.'),
-      );
+      _lastError = StateError('Firestore not available. Check Firebase setup.');
+      if (!_controller.isClosed) _controller.addError(_lastError!);
       return;
     }
 
     final query = buildQuery(firestore);
+
+    if (_sub != null) {
+      if (!_firstEventDelivered) _armFirstEventWatchdog(query);
+      return;
+    }
+
     PerfLog.start('fs_$key');
     LiveFirestore.log(key, collection: collectionLabel);
 
-    // Disk cache first — paints lists before the network returns.
     if (!_diskHydrateStarted) {
       _diskHydrateStarted = true;
       // ignore: discarded_futures
       _hydrateFromDisk(query);
     }
 
+    _armFirstEventWatchdog(query);
+
     _sub = query.snapshots(includeMetadataChanges: false).listen(
       (snap) {
-        _last = snap;
+        _emit(snap);
         final fromCache = snap.metadata.isFromCache;
         PerfLog.mark(
           'fs_$key',
@@ -232,14 +318,78 @@ class _LiveEntry {
           count: snap.docs.length,
           extra: fromCache ? 'fromCache' : 'fromServer',
         );
-        if (!_controller.isClosed) _controller.add(snap);
       },
       onError: (Object e, StackTrace st) {
         LiveFirestore.log(key, collection: collectionLabel, error: e);
         PerfLog.end('fs_$key', label: 'error');
+        _firstEventTimer?.cancel();
+        _lastError = e;
+        _lastErrorStack = st;
         if (!_controller.isClosed) _controller.addError(e, st);
       },
     );
+  }
+
+  void _emit(QuerySnapshot<Map<String, dynamic>> snap) {
+    _last = snap;
+    _lastError = null;
+    _lastErrorStack = null;
+    _firstEventDelivered = true;
+    _firstEventTimer?.cancel();
+    if (!_controller.isClosed) _controller.add(snap);
+  }
+
+  /// If cache is empty and the network is slow, nudge with a one-shot get.
+  /// Must stay longer than a cold DNS/TLS handshake — the old 2s+4s window
+  /// raced the UI's 5s timer and poisoned secondary Admin lists.
+  void _armFirstEventWatchdog(Query<Map<String, dynamic>> query) {
+    _firstEventTimer?.cancel();
+    if (_firstEventDelivered || _last != null) return;
+    _firstEventTimer = Timer(const Duration(seconds: 8), () async {
+      if (_firstEventDelivered || _last != null || _controller.isClosed) return;
+      LiveFirestore.log(
+        key,
+        collection: collectionLabel,
+        extra: 'first_event_watchdog',
+      );
+      try {
+        QuerySnapshot<Map<String, dynamic>>? snap;
+        try {
+          snap = await query
+              .get(const GetOptions(source: Source.cache))
+              .timeout(const Duration(milliseconds: 500));
+        } catch (_) {}
+        // Empty cache is normal — still try serverAndCache (never Source.server).
+        if (!_firstEventDelivered && !_controller.isClosed) {
+          final needsServer = snap == null || snap.docs.isEmpty;
+          if (needsServer) {
+            snap = await query
+                .get(const GetOptions(source: Source.serverAndCache))
+                .timeout(const Duration(seconds: 12));
+          }
+        }
+        if (_firstEventDelivered || _controller.isClosed || snap == null) {
+          return;
+        }
+        // Empty list is valid data — emit so UI shows empty state, not timeout.
+        PerfLog.mark('fs_$key', 'watchdog_get', count: snap.docs.length);
+        _emit(snap);
+      } catch (e, st) {
+        if (_firstEventDelivered || _last != null || _controller.isClosed) {
+          return;
+        }
+        LiveFirestore.log(key, collection: collectionLabel, error: e);
+        debugPrint(
+          '🔥 LiveFirestore watchdog $key real error '
+          'type=${e.runtimeType} error=$e\n$st',
+        );
+        PerfLog.end('fs_$key', label: 'watchdog_timeout');
+        // Preserve the real exception — do NOT rewrite as a fake network message.
+        _lastError = e;
+        _lastErrorStack = st;
+        if (!_controller.isClosed) _controller.addError(e, st);
+      }
+    });
   }
 
   Future<void> _hydrateFromDisk(
@@ -248,9 +398,9 @@ class _LiveEntry {
     try {
       final snap = await query
           .get(const GetOptions(source: Source.cache))
-          .timeout(const Duration(milliseconds: 600));
+          .timeout(const Duration(milliseconds: 400));
       if (snap.docs.isEmpty) return;
-      _last = snap;
+      if (_firstEventDelivered && _last != null) return;
       PerfLog.mark('fs_$key', 'disk_cache', count: snap.docs.length);
       LiveFirestore.log(
         key,
@@ -258,7 +408,7 @@ class _LiveEntry {
         count: snap.docs.length,
         extra: 'diskCacheHit',
       );
-      if (!_controller.isClosed) _controller.add(snap);
+      _emit(snap);
     } catch (_) {
       // Cache miss is normal on first install.
     }
@@ -270,13 +420,18 @@ class _LiveEntry {
     try {
       final snap = await buildQuery(firestore)
           .get(const GetOptions(source: Source.serverAndCache))
-          .timeout(const Duration(seconds: 10));
-      _last = snap;
+          .timeout(const Duration(seconds: 15));
       PerfLog.mark('fs_$key', 'pull_refresh', count: snap.docs.length);
-      if (!_controller.isClosed) _controller.add(snap);
+      _emit(snap);
     } catch (e, st) {
       LiveFirestore.log(key, collection: collectionLabel, error: e);
+      debugPrint(
+        '🔥 LiveFirestore.refresh $key type=${e.runtimeType} error=$e\n$st',
+      );
+      _lastError = e;
+      _lastErrorStack = st;
       if (!_controller.isClosed) _controller.addError(e, st);
+      rethrow;
     }
   }
 
@@ -285,6 +440,7 @@ class _LiveEntry {
   }
 
   void dispose() {
+    _firstEventTimer?.cancel();
     _sub?.cancel();
     _sub = null;
     if (!_controller.isClosed) _controller.close();
