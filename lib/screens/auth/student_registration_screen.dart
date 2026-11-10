@@ -147,10 +147,43 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
     final email = AppEmailValidator.normalize(_emailController.text);
     final password = _passController.text;
 
+    var authAccountCreated = false;
     try {
-      // Duplicate roll number
+      // Create Auth first so every Firestore read/write runs as signed-in
+      // student (users/{uid} create rules require request.auth).
+      String uid;
+      String? passwordHash;
+      try {
+        final authUser = await AuthService().createUser(email, password);
+        uid = authUser.uid;
+        authAccountCreated = true;
+        // Ensure Firestore gets a fresh ID token before rules evaluation.
+        await authUser.getIdToken(true);
+      } on AuthServiceException catch (e) {
+        if (!AuthService.isConfigurationError(e)) rethrow;
+        uid = '${email.split('@').first}_id';
+        passwordHash = PasswordHasher.hash(password);
+        debugPrint(
+          'Firebase Auth not configured — using secure local hash fallback.',
+        );
+      }
+
+      Future<void> rollbackAuthIfNeeded() async {
+        if (!authAccountCreated) return;
+        try {
+          await AuthService().currentUser?.delete();
+        } catch (_) {
+          try {
+            await AuthService().signOut();
+          } catch (_) {}
+        }
+        authAccountCreated = false;
+      }
+
+      // Duplicate roll number (now as signed-in user)
       final existing = await studentProvider.findByRollNo(rollNo);
       if (existing != null) {
+        await rollbackAuthIfNeeded();
         if (!mounted) return;
         setState(() => _isLoading = false);
         await _finishAutofill(shouldSave: false);
@@ -174,6 +207,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
           registrationNo: regNo.isEmpty ? null : regNo,
         );
       } on OfficialLookupException catch (e) {
+        await rollbackAuthIfNeeded();
         if (!mounted) return;
         setState(() => _isLoading = false);
         await _finishAutofill(shouldSave: false);
@@ -186,6 +220,7 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
 
       if (officialRecord != null &&
           officialRecord.enrollmentStatus != 'Active') {
+        await rollbackAuthIfNeeded();
         if (!mounted) return;
         setState(() => _isLoading = false);
         await _finishAutofill(shouldSave: false);
@@ -206,22 +241,6 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                   officialRecord.enrollmentStatus == 'Active')
               ? 'approved'
               : 'pending';
-
-      // Prefer Firebase Auth. If Email/Password is not enabled in Console,
-      // fall back to salted hash in Firestore (never plaintext).
-      String uid;
-      String? passwordHash;
-      try {
-        final authUser = await AuthService().createUser(email, password);
-        uid = authUser.uid;
-      } on AuthServiceException catch (e) {
-        if (!AuthService.isConfigurationError(e)) rethrow;
-        uid = '${email.split('@').first}_id';
-        passwordHash = PasswordHasher.hash(password);
-        debugPrint(
-          'Firebase Auth not configured — using secure local hash fallback.',
-        );
-      }
 
       String profileImageBase64 = '';
       if (_webImage != null) {
@@ -246,7 +265,14 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         termsVersion: kStudentTermsVersion,
       );
 
-      await studentProvider.addStudent(student);
+      try {
+        await studentProvider.addStudent(student);
+      } catch (e) {
+        await rollbackAuthIfNeeded();
+        throw Exception(
+          'Could not save your student profile. Please try registering again. ($e)',
+        );
+      }
 
       // Controllers still hold values — commit Save password before navigating.
       await _finishAutofill(shouldSave: true);
@@ -281,6 +307,15 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         );
       }
     } on AuthServiceException catch (e) {
+      if (authAccountCreated) {
+        try {
+          await AuthService().currentUser?.delete();
+        } catch (_) {
+          try {
+            await AuthService().signOut();
+          } catch (_) {}
+        }
+      }
       if (!mounted) return;
       setState(() => _isLoading = false);
       await _finishAutofill(shouldSave: false);
@@ -289,6 +324,15 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
         SnackBar(content: Text(e.message), backgroundColor: Colors.red),
       );
     } catch (e) {
+      if (authAccountCreated) {
+        try {
+          await AuthService().currentUser?.delete();
+        } catch (_) {
+          try {
+            await AuthService().signOut();
+          } catch (_) {}
+        }
+      }
       if (!mounted) return;
       setState(() => _isLoading = false);
       await _finishAutofill(shouldSave: false);

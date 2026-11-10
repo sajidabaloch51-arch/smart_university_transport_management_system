@@ -5,13 +5,21 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    // Role comes from users/{uid}.role — never from email domain.
+    function userDoc() {
+      return get(userDocPath()).data;
+    }
+
+    // Role from users/{uid}.role only — never from email domain.
+    // exists() required so brand-new Auth users (no profile yet) do not
+    // abort rule evaluation when isAdmin()/isDriver() are checked.
     function userRole() {
-      return signedIn() && userDoc().keys().hasAny(['role'])
+      return signedIn()
+        && exists(userDocPath())
+        && userDoc().keys().hasAny(['role'])
         ? userDoc().role
         : '';
     }
@@ -24,99 +32,169 @@ service cloud.firestore {
       return signedIn() && userRole() == 'driver';
     }
 
-    // Full user profiles: open read needed for demo passwordHash login /
-    // email lookup. Students must NOT rely on this for driver contact —
-    // use routes.* and driverPublic instead.
-    //
-    // Role is taken ONLY from users/{uid}.role (never email domain).
-    // Non-admins cannot create/escalate to driver or admin.
-    function createRoleIsStudentOnly() {
-      return request.resource.data.keys().hasAny(['role'])
-        && request.resource.data.role == 'student';
+    function isStudent() {
+      return signedIn() && userRole() == 'student';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function authEmail() {
+      return signedIn() && request.auth.token.email != null
+        ? request.auth.token.email
+        : '';
     }
 
     function roleUnchanged() {
       return request.resource.data.role == resource.data.role;
     }
 
-    // Assignment fields are admin-only. Drivers may edit their own profile
-    // but cannot reassign themselves to a route/bus.
-    function assignmentFieldsUnchanged() {
+    function createRoleIsStudentOnly() {
+      return request.resource.data.keys().hasAny(['role'])
+        && request.resource.data.role == 'student';
+    }
+
+    // Drivers cannot reassign their own route/bus (Admin only).
+    function driverAssignmentFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny([
             'assignedRouteId',
             'assignedBusId',
             'assignedRouteName',
-            'assignedBusNumber'
+            'assignedBusNumber',
+            'assignedBusCode'
           ]);
     }
 
+    // Students may join/cancel routes (assigned*), but cannot change
+    // verificationStatus or escalate role.
+    function studentStatusUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['verificationStatus']);
+    }
+
+    // -------- users --------
+    // Create: signed-in user may create ONLY their own doc as role=student
+    // with verificationStatus pending|approved (registration). Admin may create
+    // any role. Nobody can self-create as admin/driver.
     match /users/{userId} {
-      allow read: if true;
-      allow create: if isAdmin()
+      allow read: if isAdmin()
+        || isOwner(userId)
         || (signedIn()
-            && request.auth.uid == userId
-            && createRoleIsStudentOnly());
+            && resource.data.keys().hasAny(['email'])
+            && resource.data.email == authEmail());
+
+      allow create: if (isOwner(userId)
+            && createRoleIsStudentOnly()
+            && request.resource.data.keys().hasAny(['verificationStatus'])
+            && request.resource.data.verificationStatus in ['pending', 'approved'])
+        || isAdmin();
+
       allow update: if isAdmin()
-        || (signedIn()
-            && request.auth.uid == userId
+        || (isOwner(userId)
             && roleUnchanged()
-            && assignmentFieldsUnchanged());
+            && request.resource.data.role == 'student'
+            && studentStatusUnchanged())
+        || (isOwner(userId)
+            && isDriver()
+            && roleUnchanged()
+            && driverAssignmentFieldsUnchanged());
+
       allow delete: if isAdmin();
     }
 
-    // Limited public driver contact (name, phone, busNo, routeId).
-    // Students may read; only admins write.
+    // Duplicate-roll index used by registration (doc id = rollNoKey).
+    // Signed-in users may get a single key; only Admin may list all.
+    match /studentRollIndex/{rollKey} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        || (signedIn()
+            && request.resource.data.keys().hasAll(['uid', 'role'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.role == 'student');
+      allow update, delete: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // Limited public driver contact for students (name, phone, busNo, routeId, isOnDuty).
     match /driverPublic/{driverId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin()
+        || (isDriver() && request.auth.uid == driverId);
     }
 
-    // Drivers may read their own duties; students/admins may read all for demo UX.
     match /duties/{dutyId} {
-      allow read: if true;
+      allow read: if isAdmin()
+        || (isDriver() && resource.data.driverId == request.auth.uid);
       allow create, update, delete: if isAdmin();
     }
 
-    // Drivers may read alerts targeted at them or all_drivers.
+    // Legacy alerts collection kept for one-time migration read; no new writes
+    // from the app. Admin may still read/delete; drivers no longer consume it.
     match /alerts/{alertId} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
     match /schedules/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
     }
+
+    // Unified Notices (replaces Alerts). Missing audience/isActive treated as
+    // all / active for legacy docs.
+    function noticeAudience() {
+      return resource.data.keys().hasAny(['audience'])
+        ? resource.data.audience
+        : (resource.data.keys().hasAny(['targetAudience'])
+            ? resource.data.targetAudience
+            : 'all');
+    }
+
+    function noticeIsActive() {
+      return !resource.data.keys().hasAny(['isActive'])
+        || resource.data.isActive == true;
+    }
+
+    function noticeReadableByCaller() {
+      return noticeIsActive()
+        && (noticeAudience() == 'all'
+            || (noticeAudience() == 'drivers' && isDriver())
+            || (noticeAudience() == 'students' && isStudent()));
+    }
+
     match /notices/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if isAdmin() || (signedIn() && noticeReadableByCaller());
+      allow create, update, delete: if isAdmin();
     }
 
-    // Buses: public read (busNo + assigned driver name for students).
-    // Only admin writes assignments.
     match /buses/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
     }
 
-    // Routes include public assignment fields: driverId, driverName,
-    // driverPhone, busId, busNo. Students may read; only admins write.
     match /routes/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
     }
 
+    // Official university roster. Docs are keyed by rollNoKey.
+    // Non-admins: get by id only (registration). Admin: full access.
     match /officialStudents/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
+
+    // Allowlist check by document id (= normalized email). No open list.
     match /approvedAdmins/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
-    // Student feedback: create own "new" docs; read own only.
-    // Admin (users/{uid}.role == admin) can read/update/delete all.
+
     function feedbackCreateValid() {
       return request.resource.data.keys().hasAll([
                'category', 'message', 'studentUid', 'status', 'createdAt'
@@ -135,13 +213,21 @@ service cloud.firestore {
     match /feedback/{id} {
       allow create: if signedIn() && feedbackCreateValid();
       allow read: if isAdmin()
-        || (signedIn()
-            && resource.data.studentUid == request.auth.uid);
+        || (signedIn() && resource.data.studentUid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
+
+    // Legacy Firestore GPS mirror (primary live tracking is RTDB).
+    match /liveLocations/{driverId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        || (isDriver() && request.auth.uid == driverId);
+      allow delete: if isAdmin();
+    }
+
     match /_meta/{id} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

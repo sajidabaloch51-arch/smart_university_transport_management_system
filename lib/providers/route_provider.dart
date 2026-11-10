@@ -122,7 +122,37 @@ class RouteProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await db.collection('routes').doc(route.id).set(route.toMap());
+      // Merge so assignment fields (driverId/busId) set by Edit Driver /
+      // RouteAssignmentService are not wiped by form-only edits.
+      await db
+          .collection('routes')
+          .doc(route.id)
+          .set(route.toMap(), SetOptions(merge: true));
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Form-only save from Add/Edit Route — never clears driver/bus/isActive
+  /// unless those keys are explicitly included in [fields].
+  Future<void> saveRouteFields(
+    String routeId,
+    Map<String, dynamic> fields,
+  ) async {
+    final db = LiveFirestore.db;
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await db
+          .collection('routes')
+          .doc(routeId)
+          .set(fields, SetOptions(merge: true));
     } finally {
       _isLoading = false;
       notifyListeners();

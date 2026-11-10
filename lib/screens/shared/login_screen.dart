@@ -36,6 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = false;
+  bool _hasSavedCredentials = false;
   bool _isLoading = false;
   bool _autofillFinished = false;
   List<String> _savedEmails = [];
@@ -73,20 +74,40 @@ class _LoginScreenState extends State<LoginScreen> {
   void _loadSavedEmails() async {
     final prefs = await SharedPreferences.getInstance();
     final roleKey = 'saved_emails_$_portalRole';
-    final remembered = await RememberMeStore.readEmail(_portalRole);
+    final remembered = await RememberMeStore.readCredentials(_portalRole);
     if (!mounted) return;
     setState(() {
       _savedEmails = prefs.getStringList(roleKey) ?? [];
-      if (remembered != null && remembered.isNotEmpty) {
-        _emailController.text = remembered;
+      if (remembered != null && remembered.email.isNotEmpty) {
+        _emailController.text = remembered.email;
+        if (remembered.password.isNotEmpty) {
+          _passwordController.text = remembered.password;
+        }
         _rememberMe = true;
-        if (!_savedEmails.contains(remembered)) {
-          _savedEmails = [..._savedEmails, remembered];
+        _hasSavedCredentials = remembered.password.isNotEmpty ||
+            remembered.email.isNotEmpty;
+        if (!_savedEmails.contains(remembered.email)) {
+          _savedEmails = [..._savedEmails, remembered.email];
         }
       } else {
-        _rememberMe = _savedEmails.isNotEmpty;
+        _rememberMe = false;
+        _hasSavedCredentials = false;
       }
     });
+  }
+
+  Future<void> _forgetSavedCredentials() async {
+    await RememberMeStore.clearCredentials(_portalRole);
+    if (!mounted) return;
+    setState(() {
+      _emailController.clear();
+      _passwordController.clear();
+      _rememberMe = false;
+      _hasSavedCredentials = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saved login credentials removed')),
+    );
   }
 
   void _showEmailSuggestions() {
@@ -248,15 +269,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
       targetRole = portalRole;
 
-      // Remember Me: email only (never the password). Email → secure storage.
+      // Remember Me: email + password in flutter_secure_storage only.
       if (_rememberMe) {
         await prefs.setBool('is_logged_in', true);
         await prefs.setString('uid', uid);
-        await RememberMeStore.writeEmail(portalRole, email);
+        await RememberMeStore.writeCredentials(portalRole, email, password);
+        if (mounted) setState(() => _hasSavedCredentials = true);
       } else {
         await prefs.setBool('is_logged_in', false);
         await prefs.remove('uid');
-        await RememberMeStore.clearEmail(portalRole);
+        await RememberMeStore.clearCredentials(portalRole);
+        if (mounted) setState(() => _hasSavedCredentials = false);
       }
       await prefs.setString('user_role', targetRole);
 
@@ -460,6 +483,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
+                    if (_hasSavedCredentials)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: _isLoading ? null : _forgetSavedCredentials,
+                          child: const Text(
+                            'Forget Saved Credentials',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     CustomButton(
                       text: 'LOGIN',

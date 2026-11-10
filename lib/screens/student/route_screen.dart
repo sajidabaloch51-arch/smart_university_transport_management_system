@@ -139,14 +139,6 @@ class _RouteScreenState extends State<RouteScreen> {
               .timeout(const Duration(seconds: 3));
           phone = pub.data()?['phone']?.toString().trim() ?? '';
         }
-        if (phone.isEmpty) {
-          final user = await db
-              .collection('users')
-              .doc(id)
-              .get(const GetOptions(source: Source.serverAndCache))
-              .timeout(const Duration(seconds: 3));
-          phone = user.data()?['phone']?.toString().trim() ?? '';
-        }
         _phoneByDriverId[id] = phone;
       } catch (e) {
         debugPrint('prefetch phone for $id failed: $e');
@@ -408,7 +400,7 @@ class _RouteScreenState extends State<RouteScreen> {
         assignedArrivalTime: null,
         verificationStatus: currentStudent?.verificationStatus ?? 'approved',
         passwordHash: currentStudent?.passwordHash,
-        termsAccepted: currentStudent?.termsAccepted ?? false,
+        termsAccepted: currentStudent?.termsAccepted ?? true,
         termsVersion: currentStudent?.termsVersion,
       );
 
@@ -474,6 +466,9 @@ class _RouteScreenState extends State<RouteScreen> {
         assignedDepartureTime: routeData['departureTime'] as String?,
         assignedArrivalTime: routeData['arrivalTime'] as String?,
         verificationStatus: currentStudent?.verificationStatus ?? 'pending',
+        passwordHash: currentStudent?.passwordHash,
+        termsAccepted: currentStudent?.termsAccepted ?? false,
+        termsVersion: currentStudent?.termsVersion,
       );
 
       await provider.updateStudent(updatedStudent);
@@ -484,7 +479,7 @@ class _RouteScreenState extends State<RouteScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        context.push('/live-tracking');
+        context.push('/live-tracking', extra: updatedStudent);
       }
     } catch (e) {
       if (mounted) {
@@ -514,10 +509,6 @@ class _RouteScreenState extends State<RouteScreen> {
       final db = FirebaseFirestore.instance;
       final pub = await db.collection('driverPublic').doc(driverId).get();
       phone = pub.data()?['phone']?.toString().trim() ?? '';
-      if (phone.isEmpty) {
-        final user = await db.collection('users').doc(driverId).get();
-        phone = user.data()?['phone']?.toString().trim() ?? '';
-      }
       _phoneByDriverId[driverId] = phone;
       if (mounted) setState(() {});
     } catch (_) {}

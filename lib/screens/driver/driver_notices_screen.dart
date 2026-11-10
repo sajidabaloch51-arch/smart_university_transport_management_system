@@ -1,84 +1,66 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/notice_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../providers/notice_provider.dart';
+import '../../widgets/async_state_view.dart';
+import '../../widgets/notice_card.dart';
 
-/// Standalone driver notices page — same data source as admin NoticeProvider.
-class DriverNoticesScreen extends StatelessWidget {
+/// Standalone driver notices page — same notices stream as the Notices tab.
+class DriverNoticesScreen extends StatefulWidget {
   const DriverNoticesScreen({super.key});
+
+  @override
+  State<DriverNoticesScreen> createState() => _DriverNoticesScreenState();
+}
+
+class _DriverNoticesScreenState extends State<DriverNoticesScreen> {
+  Stream<List<NoticeModel>>? _stream;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_stream != null) return;
+    final ids = <String>{};
+    final d = context.read<DriverProvider>().driver?.uid;
+    final a = context.read<AuthProvider>().uid;
+    if (d != null && d.isNotEmpty) ids.add(d);
+    if (a != null && a.isNotEmpty) ids.add(a);
+    ids.add('driver_id');
+    final list = ids.toList();
+    _stream = context.read<NoticeProvider>().streamNoticesForDriver(
+          list.isEmpty ? '' : list.first,
+          alternateDriverIds: list.skip(1).toList(),
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Driver Notices')),
-      body: Consumer<NoticeProvider>(
-        builder: (context, noticeProvider, child) {
-          final notices = noticeProvider.noticesForRole('driver');
-
-          if (notices.isEmpty) {
-            return const Center(
-              child: Text('No notices from admin yet.', style: TextStyle(color: Colors.grey)),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: notices.length,
-            padding: const EdgeInsets.all(16),
-            itemBuilder: (context, index) {
-              final notice = notices[index];
-              Color typeColor = Colors.blue;
-              if (notice.type == NoticeType.emergency) typeColor = Colors.red;
-              if (notice.type == NoticeType.delay) typeColor = Colors.orange;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              notice.type.name.toUpperCase(),
-                              style: TextStyle(color: typeColor, fontWeight: FontWeight.bold, fontSize: 10),
-                            ),
-                          ),
-                          Text(
-                            DateFormat('dd MMM').format(notice.date),
-                            style: const TextStyle(color: Colors.grey, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        notice.title,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(notice.description, style: const TextStyle(color: Colors.black87)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'From: ${notice.postedBy}',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+      body: _stream == null
+          ? const Center(child: CircularProgressIndicator())
+          : AsyncStateView<List<NoticeModel>>(
+              stream: _stream!,
+              isEmpty: (n) => n.isEmpty,
+              emptyMessage: 'No notices from admin yet.',
+              timeout: const Duration(seconds: 12),
+              onRetry: () => setState(() => _stream = null),
+              builder: (context, notices) {
+                return ListView.builder(
+                  itemCount: notices.length,
+                  padding: const EdgeInsets.all(16),
+                  itemBuilder: (context, index) {
+                    final notice = notices[index];
+                    return NoticeCard(
+                      notice: notice,
+                      onReadMore: () {},
+                    );
+                  },
+                );
+              },
+            ),
     );
   }
 }

@@ -94,15 +94,16 @@ class UniversityDBService {
     }
 
     try {
-      final snap = await db
+      // Docs are seeded with id == rollNoKey. Use get-by-id so non-admins
+      // do not need collection list permission on officialStudents.
+      final doc = await db
           .collection(collection)
-          .where('rollNoKey', isEqualTo: key)
-          .limit(1)
+          .doc(key)
           .get()
           .timeout(const Duration(seconds: 12));
 
-      if (snap.docs.isEmpty) return null;
-      return UniversityStudentRecord.fromMap(snap.docs.first.data());
+      if (!doc.exists || doc.data() == null) return null;
+      return UniversityStudentRecord.fromMap(doc.data()!);
     } on OfficialLookupException {
       rethrow;
     } on FirebaseException catch (e) {
@@ -130,6 +131,7 @@ class UniversityDBService {
     }
 
     try {
+      // Collection query requires Admin list permission. Non-admins skip.
       final snap = await db
           .collection(collection)
           .where('regNumberKey', isEqualTo: key)
@@ -142,6 +144,10 @@ class UniversityDBService {
     } on OfficialLookupException {
       rethrow;
     } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        // Student registration uses roll number as primary key; reg is optional.
+        return null;
+      }
       throw OfficialLookupException(
         'Cannot reach university records (${e.code}). Check your internet and try again.',
       );

@@ -22,6 +22,8 @@ class StudentProvider extends ChangeNotifier {
   List<StudentModel> get cachedPending => _cachedPending;
 
   /// Returns an existing student if this roll number is already registered.
+  /// Uses [studentRollIndex]/{rollNoKey} so registration does not need a
+  /// collection-wide query on [users] (blocked for non-admins by rules).
   Future<StudentModel?> findByRollNo(String rollNo) async {
     final key = UniversityDBService.normalizeRollNo(rollNo);
     if (key.isEmpty) return null;
@@ -29,37 +31,47 @@ class StudentProvider extends ChangeNotifier {
     if (db == null) return null;
 
     try {
-      // Prefer indexed rollNoKey (string — preserves leading zeros).
-      var snap = await db
-          .collection('users')
-          .where('rollNoKey', isEqualTo: key)
-          .limit(5)
+      final index = await db
+          .collection('studentRollIndex')
+          .doc(key)
           .get()
           .timeout(const Duration(seconds: 12));
+      if (!index.exists || index.data() == null) return null;
 
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        if ((data['role'] ?? '') == 'student') {
-          return StudentModel.fromMap(data, doc.id);
-        }
-      }
-
-      // Fallback for older docs without rollNoKey
-      final all = await db
-          .collection('users')
-          .where('role', isEqualTo: 'student')
-          .get()
-          .timeout(const Duration(seconds: 12));
-      for (final doc in all.docs) {
-        final data = doc.data();
-        final existing = UniversityDBService.normalizeRollNo(
-          (data['rollNo'] ?? '').toString(),
+      final uid = (index.data()!['uid'] ?? '').toString();
+      if (uid.isEmpty) {
+        return StudentModel(
+          uid: key,
+          name: '',
+          email: '',
+          phone: '',
+          role: 'student',
+          regNumber: '',
+          department: '',
+          rollNo: rollNo,
         );
-        if (existing == key) {
-          return StudentModel.fromMap(data, doc.id);
-        }
       }
-      return null;
+
+      try {
+        final user = await db.collection('users').doc(uid).get().timeout(
+              const Duration(seconds: 8),
+            );
+        if (user.exists && user.data() != null) {
+          return StudentModel.fromMap(user.data()!, user.id);
+        }
+      } catch (_) {
+        // Caller only needs existence for duplicate-roll checks.
+      }
+      return StudentModel(
+        uid: uid,
+        name: '',
+        email: '',
+        phone: '',
+        role: 'student',
+        regNumber: '',
+        department: '',
+        rollNo: rollNo,
+      );
     } catch (e) {
       debugPrint('findByRollNo failed: $e');
       rethrow;
@@ -307,7 +319,17 @@ class StudentProvider extends ChangeNotifier {
       data['termsAcceptedAt'] = FieldValue.serverTimestamp();
       data['role'] = 'student';
     }
-    await db.collection('users').doc(student.uid).set(data);
+    final rollKey = UniversityDBService.normalizeRollNo(student.rollNo);
+    final batch = db.batch();
+    batch.set(db.collection('users').doc(student.uid), data);
+    if (rollKey.isNotEmpty) {
+      batch.set(db.collection('studentRollIndex').doc(rollKey), {
+        'uid': student.uid,
+        'role': 'student',
+        'rollNoKey': rollKey,
+      });
+    }
+    await batch.commit();
     _studentCache[student.uid] = student;
     notifyListeners();
   }
@@ -315,7 +337,27 @@ class StudentProvider extends ChangeNotifier {
   Future<void> deleteStudent(String uid) async {
     final db = _db;
     if (db == null) return;
-    await db.collection('users').doc(uid).delete();
+    String? rollKey;
+    try {
+      final doc = await db.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        rollKey = (data['rollNoKey'] ?? '').toString();
+        if (rollKey.isEmpty) {
+          rollKey = UniversityDBService.normalizeRollNo(
+            (data['rollNo'] ?? '').toString(),
+          );
+        }
+      }
+    } catch (_) {}
+
+    final batch = db.batch();
+    batch.delete(db.collection('users').doc(uid));
+    if (rollKey != null && rollKey.isNotEmpty) {
+      batch.delete(db.collection('studentRollIndex').doc(rollKey));
+    }
+    await batch.commit();
+    _studentCache.remove(uid);
     notifyListeners();
   }
 }

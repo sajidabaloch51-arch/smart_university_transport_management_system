@@ -1,10 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Remember Me stores **email only** (never the password).
-///
-/// Email is kept in [FlutterSecureStorage]. Session flags (role / uid /
-/// is_logged_in) stay in SharedPreferences — those are not credentials.
+/// Remember Me credentials stored only in [FlutterSecureStorage]
+/// (Android encrypted SharedPreferences / iOS Keychain).
+/// Never writes the password to SharedPreferences or Firestore.
 class RememberMeStore {
   RememberMeStore._();
 
@@ -13,28 +12,54 @@ class RememberMeStore {
   );
 
   static String _emailKey(String role) => 'remembered_email_$role';
+  static String _passwordKey(String role) => 'remembered_password_$role';
 
-  static Future<String?> readEmail(String role) async {
-    final secure = await _secure.read(key: _emailKey(role));
-    if (secure != null && secure.isNotEmpty) return secure;
+  static Future<({String email, String password})?> readCredentials(
+    String role,
+  ) async {
+    final email = await _secure.read(key: _emailKey(role));
+    final password = await _secure.read(key: _passwordKey(role));
 
-    // One-time migrate from legacy SharedPreferences (email only — never password).
+    if (email != null &&
+        email.isNotEmpty &&
+        password != null &&
+        password.isNotEmpty) {
+      return (email: email, password: password);
+    }
+
+    // Migrate legacy email-only remember (no password available).
+    if (email != null && email.isNotEmpty) {
+      return (email: email, password: '');
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final legacy = prefs.getString('remembered_email');
     if (legacy != null && legacy.isNotEmpty) {
-      await writeEmail(role, legacy);
+      await _secure.write(
+        key: _emailKey(role),
+        value: legacy.trim().toLowerCase(),
+      );
       await prefs.remove('remembered_email');
-      return legacy;
+      return (email: legacy, password: '');
     }
     return null;
   }
 
-  static Future<void> writeEmail(String role, String email) async {
-    await _secure.write(key: _emailKey(role), value: email.trim().toLowerCase());
+  static Future<void> writeCredentials(
+    String role,
+    String email,
+    String password,
+  ) async {
+    await _secure.write(
+      key: _emailKey(role),
+      value: email.trim().toLowerCase(),
+    );
+    await _secure.write(key: _passwordKey(role), value: password);
   }
 
-  static Future<void> clearEmail(String role) async {
+  static Future<void> clearCredentials(String role) async {
     await _secure.delete(key: _emailKey(role));
+    await _secure.delete(key: _passwordKey(role));
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('remembered_email');
   }

@@ -9,10 +9,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notice_provider.dart';
 import '../../models/duty_model.dart';
-import '../../models/alert_model.dart';
+import '../../models/notice_model.dart';
 import '../../services/duty_service.dart';
-import '../../services/alert_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/autofill_policy.dart';
 import '../../services/password_hasher.dart';
@@ -20,7 +20,7 @@ import '../../core/validators/app_validators.dart';
 import '../../utils/karachi_time.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/duty_card.dart';
-import '../../widgets/alert_card.dart';
+import '../../widgets/notice_card.dart';
 import 'driver_route_screen.dart';
 import 'duty_screen.dart';
 import 'driver_notice_screen.dart';
@@ -228,10 +228,9 @@ class DashboardSummary extends StatefulWidget {
 
 class _DashboardSummaryState extends State<DashboardSummary> {
   final _dutyService = DutyService();
-  final _alertService = AlertService();
 
   Stream<List<DutyModel>>? _dutiesStream;
-  Stream<List<AlertModel>>? _alertsStream;
+  Stream<List<NoticeModel>>? _noticesStream;
   String? _boundDriverId;
   String? _boundDutyDate;
   Timer? _waitTimer;
@@ -320,11 +319,11 @@ class _DashboardSummaryState extends State<DashboardSummary> {
       dutyDate: today,
       alternateDriverIds: ids.skip(1).toList(),
     );
-    _alertsStream = _alertService.streamDriverAlerts(
-      primary,
-      limit: 5,
-      alternateDriverIds: ids.skip(1).toList(),
-    );
+    _noticesStream = context.read<NoticeProvider>().streamNoticesForDriver(
+          primary,
+          alternateDriverIds: ids.skip(1).toList(),
+          limit: 5,
+        );
     _armWaitTimeout();
     if (mounted) setState(() {});
   }
@@ -498,21 +497,21 @@ class _DashboardSummaryState extends State<DashboardSummary> {
                   },
                 ),
                 const SizedBox(height: 30),
-                _sectionTitle('Recent Alerts'),
-                StreamBuilder<List<AlertModel>>(
-                  stream: _alertsStream,
-                  builder: (context, alertSnap) {
-                    if (alertSnap.hasError) {
-                      _logSnapError('alerts', alertSnap.error);
+                _sectionTitle('Recent Notices'),
+                StreamBuilder<List<NoticeModel>>(
+                  stream: _noticesStream,
+                  builder: (context, noticeSnap) {
+                    if (noticeSnap.hasError) {
+                      _logSnapError('notices', noticeSnap.error);
                     }
-                    if (alertSnap.hasData || alertSnap.hasError) {
+                    if (noticeSnap.hasData || noticeSnap.hasError) {
                       _waitTimer?.cancel();
                     }
-                    if (_alertsStream == null ||
-                        (alertSnap.connectionState ==
+                    if (_noticesStream == null ||
+                        (noticeSnap.connectionState ==
                                 ConnectionState.waiting &&
-                            !alertSnap.hasData &&
-                            !alertSnap.hasError)) {
+                            !noticeSnap.hasData &&
+                            !noticeSnap.hasError)) {
                       if (_waitTimedOut) {
                         return _errorBox(
                           "Can't reach the server. Check your connection",
@@ -524,22 +523,22 @@ class _DashboardSummaryState extends State<DashboardSummary> {
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    if (alertSnap.hasError) {
+                    if (noticeSnap.hasError) {
                       return _errorBox(
-                        _friendlyError(alertSnap.error),
+                        _friendlyError(noticeSnap.error),
                         onRetry: widget.onRetry,
                       );
                     }
-                    final alerts = alertSnap.data ?? [];
-                    if (alerts.isEmpty) {
-                      return _emptyBox('No active transport alerts.');
+                    final notices = noticeSnap.data ?? [];
+                    if (notices.isEmpty) {
+                      return _emptyBox('No active notices.');
                     }
                     return Column(
-                      children: alerts
+                      children: notices
                           .map(
-                            (a) => AlertCard(
-                              alert: a,
-                              onTap: widget.onNavigateToNotices,
+                            (n) => NoticeCard(
+                              notice: n,
+                              onReadMore: widget.onNavigateToNotices,
                             ),
                           )
                           .toList(),

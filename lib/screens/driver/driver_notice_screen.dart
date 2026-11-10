@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../models/alert_model.dart';
+import '../../models/notice_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
-import '../../services/alert_service.dart';
-import '../../widgets/alert_card.dart';
+import '../../providers/notice_provider.dart';
 import '../../widgets/async_state_view.dart';
+import '../../widgets/notice_card.dart';
 
-/// Driver Notices tab — live alerts from Admin (`alerts` collection).
+/// Driver Notices tab — active notices for drivers (and "all").
 class DriverNoticeScreen extends StatefulWidget {
   final int refreshToken;
   const DriverNoticeScreen({super.key, this.refreshToken = 0});
@@ -18,8 +18,7 @@ class DriverNoticeScreen extends StatefulWidget {
 }
 
 class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
-  final _alertService = AlertService();
-  Stream<List<AlertModel>>? _stream;
+  Stream<List<NoticeModel>>? _stream;
   String? _boundUid;
 
   @override
@@ -38,27 +37,26 @@ class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
     }
   }
 
-  void _bind() {
+  List<String> _resolveDriverIds() {
     final ids = <String>{};
     final dUid = context.read<DriverProvider>().driver?.uid;
     final aUid = context.read<AuthProvider>().uid;
     if (dUid != null && dUid.isNotEmpty) ids.add(dUid);
     if (aUid != null && aUid.isNotEmpty) ids.add(aUid);
     ids.add('driver_id');
-    if (ids.isEmpty) {
-      debugPrint('DriverNoticeScreen waiting for uid…');
-      return;
-    }
+    return ids.toList();
+  }
+
+  void _bind() {
+    final ids = _resolveDriverIds();
+    if (ids.isEmpty) return;
     final key = ids.join('|');
     if (_stream != null && _boundUid == key) return;
     _boundUid = key;
-    final primary = ids.first;
-    debugPrint('DriverNoticeScreen binding stream ids=$ids');
-    // No Stream.timeout — live snapshots stay quiet between updates.
-    _stream = _alertService.streamDriverAlerts(
-      primary,
-      alternateDriverIds: ids.skip(1).toList(),
-    );
+    _stream = context.read<NoticeProvider>().streamNoticesForDriver(
+          ids.first,
+          alternateDriverIds: ids.skip(1).toList(),
+        );
     if (mounted) setState(() {});
   }
 
@@ -71,17 +69,16 @@ class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
       });
     }
     if (driver == null) {
-      return const Center(child: Text('Error loading alerts'));
+      return const Center(child: Text('Error loading notices'));
     }
-
     if (_stream == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return AsyncStateView<List<AlertModel>>(
+    return AsyncStateView<List<NoticeModel>>(
       stream: _stream!,
-      isEmpty: (alerts) => alerts.isEmpty,
-      emptyMessage: 'No active transport alerts.',
+      isEmpty: (notices) => notices.isEmpty,
+      emptyMessage: 'No active notices.',
       timeout: const Duration(seconds: 12),
       onRetry: () {
         setState(() {
@@ -90,17 +87,15 @@ class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
         });
         _bind();
       },
-      builder: (context, alerts) {
-        // Keep builder body below — former StreamBuilder success path.
-
+      builder: (context, notices) {
         return ListView.builder(
           padding: const EdgeInsets.all(20),
-          itemCount: alerts.length,
+          itemCount: notices.length,
           itemBuilder: (context, index) {
-            final alert = alerts[index];
-            return AlertCard(
-              alert: alert,
-              onTap: () => _showDetails(context, alert),
+            final notice = notices[index];
+            return NoticeCard(
+              notice: notice,
+              onReadMore: () => _showDetails(context, notice),
             );
           },
         );
@@ -108,20 +103,21 @@ class _DriverNoticeScreenState extends State<DriverNoticeScreen> {
     );
   }
 
-  void _showDetails(BuildContext context, AlertModel alert) {
+  void _showDetails(BuildContext context, NoticeModel notice) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(alert.title),
+        title: Text(notice.title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(alert.message),
+            Text(notice.message),
             const SizedBox(height: 12),
             Text(
-              'Severity: ${alert.severity} • ${DateFormat('dd MMM yyyy, hh:mm a').format(alert.createdAt.toLocal())}',
+              'Priority: ${notice.priority} • '
+              '${DateFormat('dd MMM yyyy, hh:mm a').format(notice.createdAt.toLocal())}',
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],

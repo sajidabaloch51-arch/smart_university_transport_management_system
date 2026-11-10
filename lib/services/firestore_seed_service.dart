@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
-import '../models/alert_model.dart';
 import '../models/bus_model.dart';
 import '../models/driver_model.dart';
 import '../models/duty_model.dart';
@@ -222,12 +221,13 @@ class FirestoreSeedService {
         NoticeModel(
           id: noticeId,
           title: 'Welcome to SUTMS',
-          description:
+          message:
               'University of Gwadar transport is online. Check your assigned bus and live tracking.',
-          date: now,
-          type: NoticeType.general,
-          postedBy: 'Transport Admin',
-          targetAudience: 'all',
+          audience: 'all',
+          priority: 'normal',
+          isActive: true,
+          createdBy: 'Transport Admin',
+          createdAt: now.toUtc(),
         ).toMap(),
       );
 
@@ -356,28 +356,27 @@ class FirestoreSeedService {
           .doc(duty.id)
           .set(duty.toMap(), SetOptions(merge: true));
 
-      final alert = AlertModel(
-        id: 'alert_demo_welcome',
+      final notice = NoticeModel(
+        id: 'notice_demo_drivers',
         title: 'Transport Desk',
         message:
             'Welcome drivers. Check Today\'s Active Duties for your assigned shift.',
-        severity: 'info',
-        target: 'all_drivers',
-        driverId: null,
+        audience: 'drivers',
+        priority: 'normal',
         isActive: true,
         createdBy: adminUid,
         createdAt: DateTime.now().toUtc(),
       );
       await db
-          .collection('alerts')
-          .doc(alert.id)
-          .set(alert.toMap(), SetOptions(merge: true));
+          .collection('notices')
+          .doc(notice.id)
+          .set(notice.toMap(), SetOptions(merge: true));
 
       debugPrint(
-        '✅ Demo duty ($today → $driverUid) + broadcast alert ready',
+        '✅ Demo duty ($today → $driverUid) + driver notice ready',
       );
     } catch (e) {
-      debugPrint('Demo duties/alerts upsert skipped: $e');
+      debugPrint('Demo duties/notices upsert skipped: $e');
     }
   }
 

@@ -12,8 +12,6 @@ import '../../models/route_model.dart';
 import '../../models/duty_model.dart';
 import '../../services/duty_service.dart';
 import '../../services/feedback_service.dart';
-import '../../services/firestore_seed_service.dart';
-import '../../services/live_firestore.dart';
 import '../../utils/karachi_time.dart';
 import '../../utils/perf_log.dart';
 
@@ -133,8 +131,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             _buildModulesGrid(context, crossAxisCount, isDesktop, isTablet),
             const SizedBox(height: 24),
             const _FeedbackBoardTile(),
-            const SizedBox(height: 12),
-            const _SeedSampleDataTile(),
             const SizedBox(height: 24),
           ],
         ),
@@ -393,12 +389,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         color: const Color(0xFFEF4444),
         path: '/manage-notices',
       ),
-      (
-        title: 'Alerts',
-        icon: Icons.add_alert_outlined,
-        color: const Color(0xFFDC2626),
-        path: '/manage-alerts',
-      ),
     ];
 
     return GridView.builder(
@@ -421,99 +411,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onTap: () => context.push(m.path),
         );
       },
-    );
-  }
-}
-
-class _SeedSampleDataTile extends StatefulWidget {
-  const _SeedSampleDataTile();
-
-  @override
-  State<_SeedSampleDataTile> createState() => _SeedSampleDataTileState();
-}
-
-class _SeedSampleDataTileState extends State<_SeedSampleDataTile> {
-  bool _busy = false;
-
-  Future<void> _run() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Seed sample data?'),
-        content: const Text(
-          'TEST DATA ONLY.\n\n'
-          'Writes demo routes, buses, drivers, schedules, duties and alerts '
-          'into Firestore so you can test the app. Safe to re-run.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Seed now'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      LiveFirestore.log('AdminSeed', collection: '_meta/seed');
-      final done = await FirestoreSeedService.ensureSeedData(force: true);
-      if (!done) {
-        throw StateError('Firestore not reachable. Check internet / project.');
-      }
-      LiveFirestore.restartAll();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sample data seeded (TEST DATA).'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      debugPrint('Seed sample data failed: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.orange.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: Colors.orange.shade200),
-      ),
-      child: ListTile(
-        onTap: _busy ? null : _run,
-        leading: _busy
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(Icons.science_outlined, color: Colors.orange.shade800),
-        title: Text(
-          'Seed sample data (TEST DATA)',
-          style: TextStyle(
-            color: Colors.orange.shade900,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: const Text(
-          'Creates demo routes / drivers / duties for testing',
-        ),
-        trailing: const Icon(Icons.chevron_right),
-      ),
     );
   }
 }

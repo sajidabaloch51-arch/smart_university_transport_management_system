@@ -58,8 +58,48 @@ class LiveTrackingProvider extends ChangeNotifier {
     try {
       await _ensurePermissions();
       await _loadRoute(student.assignedRouteId);
+      // Prefer profile driver id; fall back to route.driverId (source of truth).
+      final driverId = (student.assignedDriverId != null &&
+              student.assignedDriverId!.trim().isNotEmpty)
+          ? student.assignedDriverId!.trim()
+          : (_route?.driverId?.trim().isNotEmpty == true
+              ? _route!.driverId!.trim()
+              : null);
+      if (driverId != null &&
+          (student.assignedDriverId == null ||
+              student.assignedDriverId!.trim().isEmpty)) {
+        _student = StudentModel(
+          uid: student.uid,
+          name: student.name,
+          email: student.email,
+          phone: student.phone,
+          role: student.role,
+          regNumber: student.regNumber,
+          department: student.department,
+          profileImage: student.profileImage,
+          routeAddress: student.routeAddress,
+          rollNo: student.rollNo,
+          assignedRouteId: student.assignedRouteId ?? _route?.id,
+          assignedRouteName:
+              student.assignedRouteName ?? _route?.routeName,
+          assignedBusId: student.assignedBusId ?? _route?.busId,
+          assignedBusName: student.assignedBusName ?? _route?.busNo,
+          assignedBusCode: student.assignedBusCode ?? _route?.busNo,
+          assignedDriverId: driverId,
+          assignedDriverName:
+              student.assignedDriverName ?? _route?.displayDriverName,
+          assignedDriverPhone:
+              student.assignedDriverPhone ?? _route?.driverPhone,
+          assignedDepartureTime: student.assignedDepartureTime,
+          assignedArrivalTime: student.assignedArrivalTime,
+          verificationStatus: student.verificationStatus,
+          passwordHash: student.passwordHash,
+          termsAccepted: student.termsAccepted,
+          termsVersion: student.termsVersion,
+        );
+      }
       _listenToStudentLocation();
-      _listenToBus(student.assignedDriverId);
+      _listenToBus(driverId);
     } catch (e) {
       _error = e.toString();
     } finally {

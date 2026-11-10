@@ -278,7 +278,7 @@ class DriverProvider extends ChangeNotifier {
 
     _subscribeAssignedRoute(_driver!.assignedRouteId);
 
-    // Notices are shown via AlertService on the dashboard — do not subscribe
+    // Notices are shown via NoticeProvider on the dashboard — do not subscribe
     // to the old notices composite-index query (it slows / fails cold start).
 
     if (_driver!.isOnDuty) {

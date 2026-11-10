@@ -196,10 +196,21 @@ class FirestoreService {
     final db = _db;
     if (db == null) return;
     try {
-      await db.collection('users').doc(driverId).update({
+      final batch = db.batch();
+      batch.update(db.collection('users').doc(driverId), {
         'isOnDuty': isOnDuty,
         'lastDutyStart': isOnDuty ? FieldValue.serverTimestamp() : null,
       });
+      // Public mirror so students can read ON DUTY without users/{driverId}.
+      batch.set(
+        db.collection('driverPublic').doc(driverId),
+        {
+          'isOnDuty': isOnDuty,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
     } catch (e) {
       debugPrint('$e');
     }

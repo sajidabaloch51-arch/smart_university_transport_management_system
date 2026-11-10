@@ -195,7 +195,6 @@ class LiveFirestore {
           db.collection('notices').orderBy('date', descending: true).limit(50),
       'notices',
     );
-    _touch('alerts_all', (db) => db.collection('alerts').limit(50), 'alerts');
   }
 }
 

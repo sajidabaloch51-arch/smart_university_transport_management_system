@@ -133,7 +133,8 @@ class RouteModel {
       estimatedTime: map['estimatedTime'] ?? map['estimatedDuration'] ?? '',
       departureTime: map['departureTime']?.toString() ?? '',
       arrivalTime: map['arrivalTime']?.toString() ?? '',
-      isActive: map['isActive'] ?? true,
+      // Missing isActive → treat as active (student lists / dashboards).
+      isActive: map['isActive'] != false,
       driverId: (rawDriverId == null || rawDriverId.isEmpty) ? null : rawDriverId,
       driverName: map['driverName']?.toString() ?? '',
       driverPhone: map['driverPhone']?.toString() ?? '',

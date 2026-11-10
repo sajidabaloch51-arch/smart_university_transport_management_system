@@ -407,7 +407,7 @@ class _OnDutyChipState extends State<_OnDutyChip> {
     try {
       if (Firebase.apps.isNotEmpty) {
         _stream = FirebaseFirestore.instance
-            .collection('users')
+            .collection('driverPublic')
             .doc(widget.driverId)
             .snapshots(includeMetadataChanges: false);
       }

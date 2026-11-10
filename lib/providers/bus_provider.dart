@@ -119,6 +119,28 @@ class BusProvider extends ChangeNotifier {
     }
   }
 
+  /// Form-only save from Add/Edit Bus — does not touch assignments/isActive
+  /// unless those keys are present in [fields].
+  Future<void> saveBusFields(String busId, Map<String, dynamic> fields) async {
+    final db = LiveFirestore.db;
+    if (db == null) {
+      throw Exception(
+        'Firestore not available. Create the database in Firebase Console first.',
+      );
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await db
+          .collection('buses')
+          .doc(busId)
+          .set(fields, SetOptions(merge: true));
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> deleteBus(String id) async {
     final db = LiveFirestore.db;
     if (db == null) return;

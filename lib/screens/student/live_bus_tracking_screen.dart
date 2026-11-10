@@ -179,13 +179,21 @@ class _LiveBusTrackingScreenState extends State<LiveBusTrackingScreen> {
       _isLive = tracker.isBusLive;
       _busNumber = bus?.busNumber.isNotEmpty == true
           ? bus!.busNumber
-          : (student?.assignedBusCode ?? student?.assignedBusName ?? '—');
+          : (student?.assignedBusCode?.isNotEmpty == true
+              ? student!.assignedBusCode!
+              : (student?.assignedBusName?.isNotEmpty == true
+                  ? student!.assignedBusName!
+                  : (tracker.route?.displayBusCode ?? '—')));
       _driverName = bus?.driverName.isNotEmpty == true
           ? bus!.driverName
-          : (student?.assignedDriverName ?? '—');
+          : (student?.assignedDriverName?.isNotEmpty == true
+              ? student!.assignedDriverName!
+              : (tracker.route?.displayDriverName ?? '—'));
       _routeName = bus?.routeName.isNotEmpty == true
           ? bus!.routeName
-          : (tracker.route?.routeName ?? student?.assignedRouteName ?? '—');
+          : (tracker.route?.routeName.isNotEmpty == true
+              ? tracker.route!.routeName
+              : (student?.assignedRouteName ?? '—'));
       _lastUpdated = bus == null
           ? '—'
           : DateFormat('hh:mm:ss a').format(bus.lastUpdated);
