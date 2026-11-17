@@ -1,9 +1,17 @@
 import '../../utils/email_validator.dart';
 
 class AppValidators {
-  /// Delegates to [AppEmailValidator] — @uog.edu.pk or @gmail.com only.
+  /// Admin / Driver: @uog.edu.pk or @gmail.com only.
   static String? validateEmail(String? value) =>
       AppEmailValidator.validate(value);
+
+  /// Student panel only: also allows @student.ug.edu.pk.
+  static String? validateStudentEmail(String? value) =>
+      AppEmailValidator.validateStudent(value);
+
+  /// Role-aware email check (student gets the extra domain).
+  static String? validateEmailForRole(String? value, String? role) =>
+      AppEmailValidator.validateForRole(value, role);
 
   static String? validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';

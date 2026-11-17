@@ -11,7 +11,9 @@ import '../models/student_model.dart';
 import '../constants/demo_credentials.dart';
 import '../models/user_model.dart';
 import '../utils/karachi_time.dart';
+import 'auth_service.dart';
 import 'firebase_bootstrap.dart';
+import 'firestore_service.dart';
 import 'password_hasher.dart';
 import 'university_db_service.dart';
 
@@ -42,14 +44,27 @@ class FirestoreSeedService {
     _ensureDemoDutiesAndAlerts(db);
 
     try {
-      final meta = await db.collection('_meta').doc('seed').get().timeout(
-            const Duration(seconds: 3),
-          );
+      DocumentSnapshot<Map<String, dynamic>>? meta;
+      try {
+        meta = await db.collection('_meta').doc('seed').get().timeout(
+              const Duration(seconds: 12),
+            );
+      } catch (e) {
+        // Web cold start can exceed a short timeout — still ensure Auth demos.
+        debugPrint('⚠️ Seed meta read slow/failed: $e');
+        // ignore: unawaited_futures
+        _ensureApprovedAdmins(db);
+        // ignore: unawaited_futures
+        ensureDemoAuthAccounts();
+        return false;
+      }
       final current = meta.data()?['version'];
       if (!force && current == seedVersion) {
         // Fast path — do not block launch with extra writes.
         // ignore: unawaited_futures
         _ensureApprovedAdmins(db);
+        // ignore: unawaited_futures
+        ensureDemoAuthAccounts();
         debugPrint('✅ Firestore seed already applied ($seedVersion)');
         return true;
       }
@@ -256,6 +271,7 @@ class FirestoreSeedService {
       await _ensureDemoCredentials(db);
       await _ensureApprovedAdmins(db);
       await _ensureDemoDutiesAndAlerts(db);
+      await ensureDemoAuthAccounts();
       debugPrint('✅ Firestore lean seed applied ($seedVersion)');
       debugPrint(
         '🔑 Admin login: ${DemoCredentials.adminEmail} / ${DemoCredentials.adminPassword}',
@@ -429,6 +445,59 @@ class FirestoreSeedService {
       );
     } catch (e) {
       debugPrint('Demo credentials upsert skipped: $e');
+    }
+  }
+
+  /// Creates/fixes Email+Password Auth users for demo accounts and mirrors
+  /// `role` onto `users/{authUid}` so security rules `isAdmin()` / `isDriver()`
+  /// work even when seed profiles live at admin_id / driver_id / student_id.
+  static Future<void> ensureDemoAuthAccounts() async {
+    final auth = AuthService();
+    final fs = FirestoreService();
+    final demos = <({String email, String password, String role, String name})>[
+      (
+        email: DemoCredentials.adminEmail,
+        password: DemoCredentials.adminPassword,
+        role: 'admin',
+        name: 'Transport Admin',
+      ),
+      (
+        email: DemoCredentials.driverEmail,
+        password: DemoCredentials.driverPassword,
+        role: 'driver',
+        name: 'Ahmed Baloch',
+      ),
+      (
+        email: DemoCredentials.studentEmail,
+        password: DemoCredentials.studentPassword,
+        role: 'student',
+        name: 'Demo Student',
+      ),
+    ];
+
+    for (final demo in demos) {
+      try {
+        final authUid = await auth.ensureAuthUserKeepCurrentSession(
+          demo.email,
+          demo.password,
+        );
+        if (authUid == null || authUid.isEmpty) {
+          debugPrint(
+            '⚠️ Demo Auth user missing for ${demo.email} '
+            '(enable Email/Password in Firebase Console)',
+          );
+          continue;
+        }
+        await fs.ensureAuthUidRoleMirror(
+          authUid: authUid,
+          role: demo.role,
+          email: demo.email,
+          name: demo.name,
+        );
+        debugPrint('✅ Demo Auth ready ${demo.email} → $authUid (${demo.role})');
+      } catch (e) {
+        debugPrint('Demo Auth ensure skipped for ${demo.email}: $e');
+      }
     }
   }
 

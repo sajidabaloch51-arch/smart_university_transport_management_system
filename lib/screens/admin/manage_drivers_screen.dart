@@ -196,6 +196,10 @@ class _ManageDriversScreenState extends State<ManageDriversScreen> {
         perfKey: 'screen_ManageDrivers',
         emptyMessage: 'No drivers found.',
         isEmpty: (list) => _filter(list).isEmpty,
+        streamFactory: () {
+          driverProvider.restartDriversStream();
+          return driverProvider.streamDrivers();
+        },
         onRefresh: () => driverProvider.refreshDrivers(),
         builder: (context, data) {
           PerfLog.end('screen_ManageDrivers',

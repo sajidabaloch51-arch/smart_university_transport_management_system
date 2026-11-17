@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'config/app_router.dart';
 import 'theme/app_theme.dart';
@@ -8,6 +10,8 @@ import 'constants/strings.dart';
 import 'firebase_options.dart';
 import 'services/firebase_bootstrap.dart';
 import 'services/firestore_seed_service.dart';
+import 'services/firestore_web_fix.dart';
+
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/admin_provider.dart';
@@ -22,8 +26,6 @@ import 'widgets/offline_banner.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lightweight error UI — never inject a full Scaffold into the render tree
-  // (that caused parent/child assertion crashes on device).
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
       color: Colors.transparent,
@@ -40,8 +42,6 @@ void main() async {
     );
   };
 
-  // Only wait for Firebase init — then show UI immediately.
-  // Settings MUST be applied before any Firestore use.
   await _initializeFirebase();
   _enableFirestoreCache();
   debugPrint(
@@ -50,7 +50,6 @@ void main() async {
   );
   runApp(const SUTMSApp());
 
-  // Probes + seed run in the background (do not block first frame).
   // ignore: unawaited_futures
   _probeAndSeedBackend();
 }
@@ -79,28 +78,28 @@ Future<void> _probeAndSeedBackend() async {
 void _enableFirestoreCache() {
   try {
     if (Firebase.apps.isEmpty) return;
-    // Bounded cache — unlimited cache caused heavy main-thread work on device.
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: 40 * 1024 * 1024,
-    );
+    if (kIsWeb) {
+      configureWebFirestore();
+    } else {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: 40 * 1024 * 1024,
+      );
+    }
   } catch (e) {
     debugPrint('Firestore cache settings skipped: $e');
   }
 }
 
-/// Safe Firebase bootstrap: Android may already create [DEFAULT] via google-services.
 Future<void> _initializeFirebase() async {
   try {
     if (Firebase.apps.isNotEmpty) {
-      // Native / prior init already registered the default app.
       return;
     }
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
   } on FirebaseException catch (e) {
-    // Race or native auto-init: treat as success.
     if (e.code == 'duplicate-app') return;
     debugPrint('Firebase initialization failed: ${e.code} ${e.message}');
   } catch (e) {
@@ -110,14 +109,29 @@ Future<void> _initializeFirebase() async {
   }
 }
 
-class SUTMSApp extends StatelessWidget {
+class SUTMSApp extends StatefulWidget {
   const SUTMSApp({super.key});
+
+  @override
+  State<SUTMSApp> createState() => _SUTMSAppState();
+}
+
+class _SUTMSAppState extends State<SUTMSApp> {
+  late final AuthProvider _auth;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = AuthProvider();
+    _router = AppRouter.create(_auth);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider.value(value: _auth),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
@@ -131,7 +145,7 @@ class SUTMSApp extends StatelessWidget {
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        routerConfig: AppRouter.router,
+        routerConfig: _router,
         builder: (context, child) {
           return Column(
             children: [

@@ -46,30 +46,38 @@ class DriverModel extends UserModel {
   });
 
   factory DriverModel.fromMap(Map<String, dynamic> map, String docId) {
+    DateTime? asDate(dynamic v) {
+      if (v == null) return null;
+      if (v is Timestamp) return v.toDate();
+      if (v is DateTime) return v;
+      if (v is String) return DateTime.tryParse(v);
+      return null;
+    }
+
     return DriverModel(
       uid: docId,
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      phone: map['phone'] ?? '',
-      role: map['role'] ?? 'driver',
-      driverId: map['driverId'] ?? '',
-      licenseNumber: map['licenseNumber'],
-      cnicOrLicense: map['cnicOrLicense'],
-      licenseExpiryDate: map['licenseExpiryDate'] != null
-          ? (map['licenseExpiryDate'] as Timestamp).toDate()
-          : null,
-      address: map['address'],
-      experienceYears: map['experienceYears'],
-      status: map['status'] ?? 'Active',
-      profileImg: map['profileImg'] ?? '',
-      assignedBusId: map['assignedBusId'] ?? '',
-      assignedBusNumber: map['assignedBusNumber'] ?? '',
-      assignedRouteId: map['assignedRouteId'] ?? '',
-      assignedRouteName: map['assignedRouteName'] ?? '',
-      isOnDuty: map['isOnDuty'] ?? false,
-      lastDutyStart: map['lastDutyStart'] != null
-          ? (map['lastDutyStart'] as Timestamp).toDate()
-          : null,
+      name: map['name']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      phone: map['phone']?.toString() ?? '',
+      role: map['role']?.toString() ?? 'driver',
+      driverId: map['driverId']?.toString() ?? '',
+      licenseNumber: map['licenseNumber']?.toString(),
+      cnicOrLicense: map['cnicOrLicense']?.toString(),
+      licenseExpiryDate: asDate(map['licenseExpiryDate']),
+      address: map['address']?.toString(),
+      experienceYears: map['experienceYears'] is int
+          ? map['experienceYears'] as int
+          : int.tryParse('${map['experienceYears'] ?? ''}'),
+      status: map['status']?.toString() ?? 'Active',
+      profileImg: map['profileImg']?.toString() ?? '',
+      assignedBusId: map['assignedBusId']?.toString() ?? '',
+      assignedBusNumber: map['assignedBusNumber']?.toString() ?? '',
+      assignedRouteId: map['assignedRouteId']?.toString() ?? '',
+      assignedRouteName: map['assignedRouteName']?.toString() ?? '',
+      isOnDuty: map['isOnDuty'] == true ||
+          map['isOnDuty'] == 1 ||
+          map['isOnDuty']?.toString().trim().toLowerCase() == 'true',
+      lastDutyStart: asDate(map['lastDutyStart']),
       mustChangePassword: map['mustChangePassword'] == true,
       verificationStatus: map['verificationStatus']?.toString() ?? 'approved',
     );

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../utils/firestore_query_exception.dart';
 import '../utils/perf_log.dart';
 
 /// Shared live Firestore listener that:
@@ -72,29 +73,93 @@ class LiveFirestore {
     }
   }
 
+  static Future<String?> _waitForAuthUid({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final existing = authUid;
+    if (existing != null && existing.isNotEmpty) return existing;
+    try {
+      final user = await FirebaseAuth.instance
+          .authStateChanges()
+          .firstWhere((u) => u != null)
+          .timeout(timeout);
+      return user?.uid;
+    } catch (_) {
+      return authUid;
+    }
+  }
+
   /// Shared broadcast of raw snapshots. Safe for many listeners.
+  ///
+  /// Waits briefly for Firebase Auth before failing — Admin list screens used
+  /// to subscribe while currentUser was still null (passwordHash-only login
+  /// or splash race) and every screen showed a generic error at once.
   static Stream<QuerySnapshot<Map<String, dynamic>>> snapshots(
     String key,
     Query<Map<String, dynamic>> Function(FirebaseFirestore db) buildQuery, {
     String? collectionLabel,
   }) {
+    final label = collectionLabel ?? key;
     final firestore = db;
     if (firestore == null) {
       return Stream.error(
-        StateError('Firestore not available. Check Firebase setup.'),
+        FirestoreQueryException.wrap(
+          collection: label,
+          query: key,
+          cause: StateError('Firestore not available. Check Firebase setup.'),
+        ),
       );
     }
 
-    var entry = _entries[key];
-    if (entry == null) {
-      entry = _LiveEntry(
-        key: key,
-        collectionLabel: collectionLabel ?? key,
-        buildQuery: buildQuery,
+    return Stream.multi((controller) async {
+      final uid = await _waitForAuthUid();
+      if (uid == null || uid.isEmpty) {
+        log(
+          key,
+          collection: label,
+          error: 'skipped: Firebase Auth not ready (authUid=null)',
+        );
+        final err = FirestoreQueryException(
+          collection: label,
+          query: key,
+          authUid: null,
+          cause: StateError('Please log in again to load data.'),
+        );
+        if (!controller.isClosed) {
+          controller.addError(err);
+          await controller.close();
+        }
+        return;
+      }
+
+      var entry = _entries[key];
+      if (entry == null) {
+        entry = _LiveEntry(
+          key: key,
+          collectionLabel: label,
+          buildQuery: buildQuery,
+        );
+        _entries[key] = entry;
+      }
+
+      final sub = entry.stream.listen(
+        controller.add,
+        onError: (Object e, StackTrace st) {
+          final wrapped = e is FirestoreQueryException
+              ? e
+              : FirestoreQueryException.wrap(
+                  collection: label,
+                  query: key,
+                  cause: e,
+                  causeStack: st,
+                );
+          if (!controller.isClosed) controller.addError(wrapped, st);
+        },
+        onDone: controller.close,
+        cancelOnError: false,
       );
-      _entries[key] = entry;
-    }
-    return entry.stream;
+      controller.onCancel = sub.cancel;
+    });
   }
 
   /// Convenience: shared snapshots + per-call map (do not cache the result).
@@ -104,11 +169,23 @@ class LiveFirestore {
     T Function(QuerySnapshot<Map<String, dynamic>> snap) convert, {
     String? collectionLabel,
   }) {
+    final label = collectionLabel ?? key;
     return snapshots(
       key,
       buildQuery,
-      collectionLabel: collectionLabel,
-    ).map(convert);
+      collectionLabel: label,
+    ).map((snap) {
+      try {
+        return convert(snap);
+      } catch (e, st) {
+        throw FirestoreQueryException.wrap(
+          collection: label,
+          query: key,
+          cause: e,
+          causeStack: st,
+        );
+      }
+    });
   }
 
   static void restart(String key) {
@@ -135,6 +212,10 @@ class LiveFirestore {
   /// Secondary lists are staggered so a slow network is not saturated.
   static void warmAdminLists() {
     if (db == null) return;
+    if (authUid == null) {
+      debugPrint('🔎 warmAdminLists skipped — authUid=null');
+      return;
+    }
     // Never do Firestore subscribe work on the login/navigation frame.
     scheduleMicrotask(() {
       // ignore: discarded_futures
@@ -339,12 +420,12 @@ class _LiveEntry {
   }
 
   /// If cache is empty and the network is slow, nudge with a one-shot get.
-  /// Must stay longer than a cold DNS/TLS handshake — the old 2s+4s window
-  /// raced the UI's 5s timer and poisoned secondary Admin lists.
+  /// Keep this under [AsyncStateView]'s 15s UI timeout so screens show Retry
+  /// instead of spinning forever.
   void _armFirstEventWatchdog(Query<Map<String, dynamic>> query) {
     _firstEventTimer?.cancel();
     if (_firstEventDelivered || _last != null) return;
-    _firstEventTimer = Timer(const Duration(seconds: 8), () async {
+    _firstEventTimer = Timer(const Duration(seconds: 5), () async {
       if (_firstEventDelivered || _last != null || _controller.isClosed) return;
       LiveFirestore.log(
         key,
@@ -364,7 +445,7 @@ class _LiveEntry {
           if (needsServer) {
             snap = await query
                 .get(const GetOptions(source: Source.serverAndCache))
-                .timeout(const Duration(seconds: 12));
+                .timeout(const Duration(seconds: 8));
           }
         }
         if (_firstEventDelivered || _controller.isClosed || snap == null) {

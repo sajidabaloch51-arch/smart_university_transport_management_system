@@ -23,11 +23,12 @@ class FirebaseBootstrap {
 
     try {
       // Lightweight read against a reserved meta doc (may not exist — that's OK).
+      // Web long-polling first connect can exceed 2s on cold start.
       await db
           .collection('_meta')
           .doc('health')
           .get(const GetOptions(source: Source.serverAndCache))
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 12));
       return null;
     } on FirebaseException catch (e) {
       if (e.code == 'not-found' ||

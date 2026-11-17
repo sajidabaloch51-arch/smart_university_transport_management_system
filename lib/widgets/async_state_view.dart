@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/firestore_error_messages.dart';
@@ -15,6 +14,8 @@ class AsyncStateView<T> extends StatefulWidget {
   final VoidCallback? onRetry;
   final Duration timeout;
   final T? initialData;
+  /// When set, Retry rebuilds from a fresh stream (required after auth errors).
+  final Stream<T> Function()? streamFactory;
 
   const AsyncStateView({
     super.key,
@@ -26,6 +27,7 @@ class AsyncStateView<T> extends StatefulWidget {
     this.onRetry,
     this.timeout = const Duration(seconds: 15),
     this.initialData,
+    this.streamFactory,
   });
 
   @override
@@ -38,11 +40,14 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   Object? _lastError;
   StackTrace? _lastStack;
   String? _resolvedMessage;
+  String? _detailsText;
   int _retryToken = 0;
+  late Stream<T> _stream;
 
   @override
   void initState() {
     super.initState();
+    _stream = widget.stream;
     _armTimeout();
   }
 
@@ -50,10 +55,12 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   void didUpdateWidget(covariant AsyncStateView<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stream != widget.stream) {
+      _stream = widget.stream;
       _timedOut = false;
       _lastError = null;
       _lastStack = null;
       _resolvedMessage = null;
+      _detailsText = null;
       _armTimeout();
     }
   }
@@ -74,6 +81,7 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
       setState(() {
         _timedOut = true;
         _lastError = err;
+        _detailsText = FirestoreErrorMessages.debugDetails(err, _lastStack);
       });
       // ignore: discarded_futures
       _resolveMessage(err, _lastStack);
@@ -82,8 +90,12 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
 
   Future<void> _resolveMessage(Object error, StackTrace? stack) async {
     final msg = await FirestoreErrorMessages.friendlyAsync(error, stack);
+    final details = FirestoreErrorMessages.debugDetails(error, stack);
     if (!mounted) return;
-    setState(() => _resolvedMessage = msg);
+    setState(() {
+      _resolvedMessage = msg;
+      _detailsText = details;
+    });
   }
 
   void _retry() {
@@ -92,7 +104,11 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
       _lastError = null;
       _lastStack = null;
       _resolvedMessage = null;
+      _detailsText = null;
       _retryToken++;
+      if (widget.streamFactory != null) {
+        _stream = widget.streamFactory!();
+      }
     });
     _armTimeout();
     widget.onRetry?.call();
@@ -102,7 +118,7 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   Widget build(BuildContext context) {
     return StreamBuilder<T>(
       key: ValueKey('async-$_retryToken'),
-      stream: widget.stream,
+      stream: _stream,
       initialData: widget.initialData,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -117,9 +133,11 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
                   snapshot.error!,
                   snapshot.stackTrace,
                 ),
-            details: kDebugMode
-                ? FirestoreErrorMessages.debugDetails(snapshot.error!)
-                : null,
+            details: _detailsText ??
+                FirestoreErrorMessages.debugDetails(
+                  snapshot.error!,
+                  snapshot.stackTrace,
+                ),
             onRetry: _retry,
           );
         }
@@ -132,7 +150,9 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
             return _EmptyPane(
               message: widget.emptyMessage,
               subtitle: widget.emptySubtitle,
-              onRetry: widget.onRetry == null ? null : _retry,
+              onRetry: widget.onRetry == null && widget.streamFactory == null
+                  ? null
+                  : _retry,
             );
           }
           return widget.builder(context, data);
@@ -144,8 +164,8 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
           return _ErrorPane(
             message: _resolvedMessage ??
                 FirestoreErrorMessages.friendly(err, _lastStack),
-            details:
-                kDebugMode ? FirestoreErrorMessages.debugDetails(err) : null,
+            details: _detailsText ??
+                FirestoreErrorMessages.debugDetails(err, _lastStack),
             onRetry: _retry,
           );
         }
@@ -162,23 +182,16 @@ class _AsyncStateViewState<T> extends State<AsyncStateView<T>> {
   }
 }
 
-class _ErrorPane extends StatefulWidget {
+class _ErrorPane extends StatelessWidget {
   final String message;
-  final String? details;
+  final String details;
   final VoidCallback onRetry;
 
   const _ErrorPane({
     required this.message,
     required this.onRetry,
-    this.details,
+    required this.details,
   });
-
-  @override
-  State<_ErrorPane> createState() => _ErrorPaneState();
-}
-
-class _ErrorPaneState extends State<_ErrorPane> {
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -191,30 +204,15 @@ class _ErrorPaneState extends State<_ErrorPane> {
             Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade500),
             const SizedBox(height: 12),
             Text(
-              widget.message,
+              message,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, color: Color(0xFF334155)),
             ),
-            if (widget.details != null) ...[
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _expanded = !_expanded),
-                child: Text(_expanded ? 'Hide details' : 'Details'),
-              ),
-              if (_expanded)
-                Text(
-                  widget.details!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-            ],
+            const SizedBox(height: 8),
+            FirestoreErrorDetailsPanel(details: details),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: widget.onRetry,
+              onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
             ),

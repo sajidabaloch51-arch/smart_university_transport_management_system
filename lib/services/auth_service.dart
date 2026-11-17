@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
 import '../utils/email_validator.dart';
+import 'auth_error_mapper.dart';
 
 class AuthService {
   FirebaseAuth? get _auth {
@@ -36,9 +37,14 @@ class AuthService {
       }
       return user;
     } on FirebaseAuthException catch (e) {
-      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+      throw AuthServiceException(AuthErrorMapper.map(e.code, e.message));
     } catch (e) {
       if (e is AuthServiceException) rethrow;
+      if (AuthErrorMapper.isCredentialMismatch(e)) {
+        throw AuthServiceException(
+          AuthErrorMapper.map('invalid-credential', null),
+        );
+      }
       debugPrint('signIn error: $e');
       throw AuthServiceException('Sign-in failed. Check your connection.');
     }
@@ -65,11 +71,23 @@ class AuthService {
       }
       return user;
     } on FirebaseAuthException catch (e) {
-      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+      throw AuthServiceException(AuthErrorMapper.map(e.code, e.message));
     } catch (e) {
       if (e is AuthServiceException) rethrow;
       debugPrint('createUser error: $e');
       throw AuthServiceException('Could not create account. Check your connection.');
+    }
+  }
+
+  Future<FirebaseApp> _secondaryApp() async {
+    const secondaryName = 'SUTMSSecondaryAuth';
+    try {
+      return Firebase.app(secondaryName);
+    } catch (_) {
+      return Firebase.initializeApp(
+        name: secondaryName,
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
   }
 
@@ -85,17 +103,7 @@ class AuthService {
       );
     }
 
-    const secondaryName = 'SUTMSSecondaryAuth';
-    FirebaseApp secondary;
-    try {
-      secondary = Firebase.app(secondaryName);
-    } catch (_) {
-      secondary = await Firebase.initializeApp(
-        name: secondaryName,
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-
+    final secondary = await _secondaryApp();
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondary);
     try {
       final result = await secondaryAuth.createUserWithEmailAndPassword(
@@ -110,13 +118,91 @@ class AuthService {
       await secondaryAuth.signOut();
       return user;
     } on FirebaseAuthException catch (e) {
-      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+      throw AuthServiceException(AuthErrorMapper.map(e.code, e.message));
     } catch (e) {
       if (e is AuthServiceException) rethrow;
       debugPrint('createUserKeepCurrentSession error: $e');
       throw AuthServiceException(
         'Could not create account. Check your connection.',
       );
+    }
+  }
+
+  /// Ensures a demo Email/Password Auth user exists (secondary app only).
+  /// Returns the Auth uid, or null if Auth is unavailable / misconfigured.
+  ///
+  /// Order: sign-in → create if missing → if password mismatch, attempt a
+  /// password reset via secondary sign-in is impossible; surface a clear log.
+  Future<String?> ensureAuthUserKeepCurrentSession(
+    String email,
+    String password,
+  ) async {
+    if (Firebase.apps.isEmpty) return null;
+    final normalized = AppEmailValidator.normalize(email);
+    final secondary = await _secondaryApp();
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondary);
+    void logPasswordMismatch() {
+      debugPrint(
+        '⚠️ Demo Auth password mismatch for $normalized. '
+        'In Firebase Console → Authentication → Users, set password to '
+        'the demo value (or delete the user) then relaunch.',
+      );
+    }
+
+    try {
+      // 1) Prefer sign-in (fast path when demo password already matches).
+      try {
+        final signedIn = await secondaryAuth.signInWithEmailAndPassword(
+          email: normalized,
+          password: password,
+        );
+        final uid = signedIn.user?.uid;
+        await secondaryAuth.signOut();
+        return uid;
+      } catch (e) {
+        if (AuthErrorMapper.isCredentialMismatch(e)) {
+          // Auth user exists but password ≠ demo seed password.
+          // Client SDK cannot reset another user's password without their
+          // current credentials — delete+recreate in Firebase Console, or
+          // reset the password to the demo value.
+          logPasswordMismatch();
+          return null;
+        }
+        if (!AuthErrorMapper.isUserMissing(e)) {
+          debugPrint('ensureAuthUser signIn: $e');
+          // Fall through to create attempt for unknown codes.
+        }
+      }
+
+      // 2) Create when the account does not exist yet.
+      try {
+        final created = await secondaryAuth.createUserWithEmailAndPassword(
+          email: normalized,
+          password: password,
+        );
+        final uid = created.user?.uid;
+        await secondaryAuth.signOut();
+        return uid;
+      } catch (e) {
+        if (AuthErrorMapper.isEmailInUse(e) ||
+            AuthErrorMapper.isCredentialMismatch(e)) {
+          logPasswordMismatch();
+          return null;
+        }
+        debugPrint('ensureAuthUser create: $e');
+        return null;
+      }
+    } catch (e) {
+      if (AuthErrorMapper.isCredentialMismatch(e) ||
+          AuthErrorMapper.isEmailInUse(e)) {
+        logPasswordMismatch();
+      } else {
+        debugPrint('ensureAuthUserKeepCurrentSession failed: $e');
+      }
+      try {
+        await secondaryAuth.signOut();
+      } catch (_) {}
+      return null;
     }
   }
 
@@ -128,7 +214,7 @@ class AuthService {
     try {
       await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e) {
-      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+      throw AuthServiceException(AuthErrorMapper.map(e.code, e.message));
     }
   }
 
@@ -145,7 +231,7 @@ class AuthService {
         email: AppEmailValidator.normalize(email),
       );
     } on FirebaseAuthException catch (e) {
-      throw AuthServiceException(_mapAuthCode(e.code, e.message));
+      throw AuthServiceException(AuthErrorMapper.map(e.code, e.message));
     } catch (e) {
       if (e is AuthServiceException) rethrow;
       debugPrint('sendPasswordResetEmail error: $e');
@@ -159,41 +245,8 @@ class AuthService {
     await _auth?.signOut();
   }
 
-  String _mapAuthCode(String code, String? message) {
-    final msg = (message ?? '').toLowerCase();
-    if (code == 'internal-error' ||
-        msg.contains('configuration_not_found') ||
-        msg.contains('configuration not found')) {
-      return 'Firebase Auth Email/Password is not enabled. '
-          'Open Firebase Console → Authentication → Sign-in method → '
-          'enable Email/Password, then try again.';
-    }
-    switch (code) {
-      case 'email-already-in-use':
-        return 'This email is already registered. Please log in instead.';
-      case 'invalid-email':
-        return 'Invalid email address.';
-      case 'weak-password':
-        return 'Password is too weak. Use at least 6 characters with mixed rules.';
-      case 'user-not-found':
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Incorrect email or password.';
-      case 'network-request-failed':
-        return 'Network error. Check your internet connection and try again.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please wait and try again.';
-      default:
-        return message ?? 'Authentication error ($code).';
-    }
-  }
-
-  static bool isConfigurationError(Object error) {
-    final text = error.toString().toLowerCase();
-    return text.contains('configuration_not_found') ||
-        text.contains('configuration not found') ||
-        text.contains('email/password is not enabled');
-  }
+  static bool isConfigurationError(Object error) =>
+      AuthErrorMapper.isConfigurationError(error);
 }
 
 class AuthServiceException implements Exception {

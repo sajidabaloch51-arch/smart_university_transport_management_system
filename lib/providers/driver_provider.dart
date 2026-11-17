@@ -207,53 +207,18 @@ class DriverProvider extends ChangeNotifier {
           _localDrivers[driverId] = _driver!;
         } else if (_localDrivers.containsKey(driverId)) {
           _driver = _localDrivers[driverId];
-        } else if (_driver == null) {
-          _loadMockData(driverId);
         }
-      } else if (_driver == null) {
-        if (_localDrivers.containsKey(driverId)) {
-          _driver = _localDrivers[driverId];
-        } else {
-          _loadMockData(driverId);
-        }
+        // Do not invent a fake driver — empty profile shows Retry/empty UI.
+      } else if (_driver == null && _localDrivers.containsKey(driverId)) {
+        _driver = _localDrivers[driverId];
       }
       _subscribeToRealtimeStreams();
     } catch (e) {
       debugPrint("Driver init error: $e");
-      if (_driver == null) _loadMockData(driverId);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  void _loadMockData(String driverId) {
-    // Prefer already-registered driver profile; otherwise create a blank shell
-    if (_localDrivers.containsKey(driverId)) {
-      _driver = _localDrivers[driverId];
-    } else {
-      _driver = DriverModel(
-        uid: driverId,
-        name: 'Driver',
-        email: '',
-        phone: '',
-        role: 'driver',
-        driverId: driverId,
-        licenseNumber: '',
-        profileImg: '',
-        assignedBusId: '',
-        assignedBusNumber: 'Not Assigned',
-        assignedRouteId: '',
-        assignedRouteName: 'Not Assigned',
-        isOnDuty: false,
-        status: 'Active',
-      );
-      _localDrivers[driverId] = _driver!;
-    }
-    _assignedRoute = null;
-    _todaySchedules = [];
-    _notices = [];
-    notifyListeners();
   }
 
   void _subscribeToRealtimeStreams() {

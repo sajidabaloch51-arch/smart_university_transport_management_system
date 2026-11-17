@@ -118,19 +118,36 @@ class RouteModel {
 
   factory RouteModel.fromMap(String id, Map<String, dynamic> map) {
     final rawDriverId = map['driverId']?.toString().trim();
+    final viaRaw = map['viaStops'];
+    final viaStops = <String>[];
+    if (viaRaw is List) {
+      for (final v in viaRaw) {
+        if (v != null) viaStops.add(v.toString());
+      }
+    }
+    final stops = <RouteStop>[];
+    final stopsRaw = map['stops'];
+    if (stopsRaw is List) {
+      for (final s in stopsRaw) {
+        if (s is Map) {
+          try {
+            stops.add(RouteStop.fromMap(Map<String, dynamic>.from(s)));
+          } catch (_) {}
+        }
+      }
+    }
     return RouteModel(
       id: id,
-      universityId: map['universityId'] ?? '',
-      routeName: map['routeName'] ?? '',
-      routeNumber: map['routeNumber'] ?? '',
-      startLocation: map['startLocation'] ?? map['startPoint'] ?? '',
-      endLocation: map['endLocation'] ?? map['endPoint'] ?? '',
-      viaStops: List<String>.from(map['viaStops'] ?? []),
-      stops: (map['stops'] as List? ?? [])
-          .map((s) => RouteStop.fromMap(s as Map<String, dynamic>))
-          .toList(),
-      distanceKm: map['distanceKm'] ?? map['totalDistance'] ?? '',
-      estimatedTime: map['estimatedTime'] ?? map['estimatedDuration'] ?? '',
+      universityId: map['universityId']?.toString() ?? '',
+      routeName: map['routeName']?.toString() ?? '',
+      routeNumber: map['routeNumber']?.toString() ?? '',
+      startLocation: (map['startLocation'] ?? map['startPoint'])?.toString() ?? '',
+      endLocation: (map['endLocation'] ?? map['endPoint'])?.toString() ?? '',
+      viaStops: viaStops,
+      stops: stops,
+      distanceKm: (map['distanceKm'] ?? map['totalDistance'])?.toString() ?? '',
+      estimatedTime:
+          (map['estimatedTime'] ?? map['estimatedDuration'])?.toString() ?? '',
       departureTime: map['departureTime']?.toString() ?? '',
       arrivalTime: map['arrivalTime']?.toString() ?? '',
       // Missing isActive → treat as active (student lists / dashboards).

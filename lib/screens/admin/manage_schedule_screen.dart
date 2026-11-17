@@ -40,6 +40,10 @@ class _ManageScheduleScreenState extends State<ManageScheduleScreen> {
         initialData: initial,
         emptyMessage: 'No schedules found for this period.',
         isEmpty: (list) => list.isEmpty,
+        streamFactory: () {
+          scheduleProvider.restartSchedulesStream();
+          return scheduleProvider.streamSchedules();
+        },
         onRefresh: () => scheduleProvider.refreshSchedules(),
         builder: (context, schedules) {
           PerfLog.end('screen_ManageSchedules',

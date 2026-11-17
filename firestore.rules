@@ -24,16 +24,24 @@ service cloud.firestore {
         : '';
     }
 
+    // Accept common casing variants. Also allow approvedAdmins/{email} so
+    // Auth uid ≠ seed doc id (admin_id) still passes isAdmin() for lists.
     function isAdmin() {
-      return signedIn() && userRole() == 'admin';
+      return signedIn()
+        && (userRole() == 'admin'
+            || userRole() == 'Admin'
+            || userRole() == 'ADMIN'
+            || isAllowlistedAdmin());
     }
 
     function isDriver() {
-      return signedIn() && userRole() == 'driver';
+      return signedIn()
+        && (userRole() == 'driver' || userRole() == 'Driver' || userRole() == 'DRIVER');
     }
 
     function isStudent() {
-      return signedIn() && userRole() == 'student';
+      return signedIn()
+        && (userRole() == 'student' || userRole() == 'Student' || userRole() == 'STUDENT');
     }
 
     function isOwner(userId) {
@@ -44,6 +52,16 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email != null
         ? request.auth.token.email
         : '';
+    }
+
+    // approvedAdmins doc ids are normalized lowercase emails.
+    function authEmailKey() {
+      return authEmail() == '' ? '' : authEmail().lower();
+    }
+
+    function isAllowlistedAdmin() {
+      return authEmailKey() != ''
+        && exists(/databases/$(database)/documents/approvedAdmins/$(authEmailKey()));
     }
 
     function roleUnchanged() {
@@ -225,8 +243,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // health doc is used by the app connectivity probe (may be unauthenticated).
     match /_meta/{id} {
-      allow read: if isAdmin();
+      allow read: if id == 'health' || isAdmin();
       allow write: if isAdmin();
     }
   }

@@ -181,6 +181,19 @@ class _LoginScreenState extends State<LoginScreen> {
         debugPrint(
           'Login Auth uid=${authUser.uid} profileUid=$uid role=$accountRole',
         );
+        // Security rules read users/{request.auth.uid}.role — mirror role onto
+        // the Auth uid doc when the seed profile lives at admin_id/driver_id.
+        if (firestoreUser != null &&
+            firestoreUser.uid != authUser.uid &&
+            accountRole.isNotEmpty) {
+          await FirestoreService().ensureAuthUidRoleMirror(
+            authUid: authUser.uid,
+            role: accountRole,
+            email: email,
+            name: firestoreUser.name,
+            phone: firestoreUser.phone,
+          );
+        }
       } on AuthServiceException catch (authErr) {
         // Firestore fallback for demo admin/driver/student when Auth is off.
         final profile = await FirestoreService().getUserAuthProfile(email);
@@ -231,6 +244,27 @@ class _LoginScreenState extends State<LoginScreen> {
         accountRole = profile.role;
       }
 
+      // Firestore rules require request.auth. A passwordHash-only "login"
+      // leaves currentUser null → every Admin/Student list fails at once.
+      final signedIn = AuthService().currentUser;
+      if (signedIn == null) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        await _finishAutofill(shouldSave: false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Firebase sign-in required. Use the Email/Password account '
+              'for this user (Authentication → Users), then try again.',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+
       // Role comes from Firestore (or the portal), never from the email domain.
       String targetRole =
           accountRole.isNotEmpty ? accountRole : portalRole;
@@ -269,19 +303,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
       targetRole = portalRole;
 
-      // Remember Me: email + password in flutter_secure_storage only.
+      // Session prefs always track the live Firebase Auth user so splash /
+      // LiveFirestore never run queries with authUid=null.
+      // Remember Me only stores email+password in secure storage.
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('uid', uid);
+      await prefs.setString('user_role', targetRole);
       if (_rememberMe) {
-        await prefs.setBool('is_logged_in', true);
-        await prefs.setString('uid', uid);
         await RememberMeStore.writeCredentials(portalRole, email, password);
         if (mounted) setState(() => _hasSavedCredentials = true);
       } else {
-        await prefs.setBool('is_logged_in', false);
-        await prefs.remove('uid');
         await RememberMeStore.clearCredentials(portalRole);
         if (mounted) setState(() => _hasSavedCredentials = false);
       }
-      await prefs.setString('user_role', targetRole);
 
       if (!mounted) return;
 
@@ -290,6 +324,11 @@ class _LoginScreenState extends State<LoginScreen> {
         final access = await StudentAccessGuard.evaluate(
           studentProvider: context.read<StudentProvider>(),
           uid: uid,
+        ).timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => const StudentAccessResult.denied(
+            'Connection timed out. Check your internet and try again.',
+          ),
         );
 
         if (!access.allowed) {
@@ -416,10 +455,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     CustomTextField(
                       controller: _emailController,
                       labelText: 'Email Address',
-                      hintText: AppEmailValidator.hint,
-                      helperText: AppEmailValidator.hint,
+                      hintText: AppEmailValidator.hintForRole(_portalRole),
+                      helperText: AppEmailValidator.hintForRole(_portalRole),
                       prefixIcon: Icons.email_outlined,
-                      validator: AppValidators.validateEmail,
+                      validator: (v) =>
+                          AppValidators.validateEmailForRole(v, _portalRole),
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       // Do not steal focus with a custom sheet — Google autofill needs the tap.

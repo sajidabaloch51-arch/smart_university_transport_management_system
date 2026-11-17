@@ -50,34 +50,45 @@ class StudentModel extends UserModel {
   });
 
   /// Ignores legacy Firestore keys: fatherName, gender, dob, semester.
+  /// Tolerant of missing / wrong-typed fields so one bad doc cannot fail a list.
   factory StudentModel.fromMap(Map<String, dynamic> map, String id) {
+    String str(dynamic v, [String fallback = '']) =>
+        v == null ? fallback : v.toString();
+    String? strOrNull(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString();
+      return s.isEmpty ? null : s;
+    }
+
     return StudentModel(
       uid: id,
-      name: map['name'] ?? map['fullName'] ?? '',
-      email: map['email'] ?? '',
-      phone: map['phone'] ?? '',
-      role: map['role'] ?? 'student',
-      regNumber: map['regNumber'] ?? '',
-      department: map['department'] ?? '',
-      profileImage: map['profileImage'] ?? map['profilePhoto'] ?? '',
-      routeAddress: map['routeAddress'] ?? '',
-      rollNo: map['rollNo'] ?? map['serialNumber'] ?? '',
-      assignedRouteId: map['assignedRouteId'],
-      assignedRouteName: map['assignedRouteName'],
-      assignedBusId: map['assignedBusId'],
-      assignedBusName: map['assignedBusName'],
-      assignedBusCode: map['assignedBusCode'] ?? map['assignedBusName'],
-      assignedDriverId: map['assignedDriverId'],
-      assignedDriverName: map['assignedDriverName'],
-      assignedDriverPhone: map['assignedDriverPhone'],
-      assignedDepartureTime: map['assignedDepartureTime'],
-      assignedArrivalTime: map['assignedArrivalTime'],
+      name: str(map['name'] ?? map['fullName']),
+      email: str(map['email']),
+      phone: str(map['phone']),
+      role: str(map['role'], 'student'),
+      regNumber: str(map['regNumber']),
+      department: str(map['department']),
+      profileImage: str(map['profileImage'] ?? map['profilePhoto']),
+      routeAddress: str(map['routeAddress']),
+      rollNo: str(map['rollNo'] ?? map['serialNumber']),
+      assignedRouteId: strOrNull(map['assignedRouteId']),
+      assignedRouteName: strOrNull(map['assignedRouteName']),
+      assignedBusId: strOrNull(map['assignedBusId']),
+      assignedBusName: strOrNull(map['assignedBusName']),
+      assignedBusCode: strOrNull(map['assignedBusCode'] ?? map['assignedBusName']),
+      assignedDriverId: strOrNull(map['assignedDriverId']),
+      assignedDriverName: strOrNull(map['assignedDriverName']),
+      assignedDriverPhone: strOrNull(map['assignedDriverPhone']),
+      assignedDepartureTime: strOrNull(map['assignedDepartureTime']),
+      assignedArrivalTime: strOrNull(map['assignedArrivalTime']),
       verificationStatus: _normalizeVerificationStatus(
         map['verificationStatus'],
       ),
-      passwordHash: map['passwordHash'] as String?,
-      termsAccepted: map['termsAccepted'] == true,
-      termsVersion: map['termsVersion']?.toString(),
+      passwordHash: strOrNull(map['passwordHash']),
+      termsAccepted: map['termsAccepted'] == true ||
+          map['termsAccepted'] == 1 ||
+          map['termsAccepted']?.toString().trim().toLowerCase() == 'true',
+      termsVersion: strOrNull(map['termsVersion']),
     );
   }
 

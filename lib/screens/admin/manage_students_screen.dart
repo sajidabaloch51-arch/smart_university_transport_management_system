@@ -92,6 +92,10 @@ class _ManageStudentsScreenState extends State<ManageStudentsScreen> {
         initialData: initial,
         emptyMessage: 'No students found.',
         isEmpty: (list) => _filter(list).isEmpty,
+        streamFactory: () {
+          studentProvider.restartStudentStreams();
+          return studentProvider.streamStudents();
+        },
         onRefresh: () => studentProvider.refreshStudents(),
         builder: (context, data) {
           PerfLog.end('screen_ManageStudents',

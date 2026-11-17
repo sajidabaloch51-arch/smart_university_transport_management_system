@@ -76,6 +76,35 @@ class FirestoreService {
     );
   }
 
+  /// Ensures `users/{authUid}` has [role] so security rules `isAdmin()` /
+  /// `isDriver()` work when the seed profile lives at a different doc id
+  /// (e.g. `admin_id` / `driver_id`).
+  Future<void> ensureAuthUidRoleMirror({
+    required String authUid,
+    required String role,
+    required String email,
+    String name = '',
+    String phone = '',
+  }) async {
+    final db = _db;
+    if (db == null || authUid.isEmpty || role.isEmpty) return;
+    try {
+      await db.collection('users').doc(authUid).set({
+        'uid': authUid,
+        'role': role.trim().toLowerCase(),
+        'email': AppEmailValidator.normalize(email),
+        if (name.isNotEmpty) 'name': name,
+        if (phone.isNotEmpty) 'phone': phone,
+        'isActive': true,
+      }, SetOptions(merge: true));
+      debugPrint(
+        'ensureAuthUidRoleMirror ok authUid=$authUid role=$role',
+      );
+    } catch (e) {
+      debugPrint('ensureAuthUidRoleMirror failed: $e');
+    }
+  }
+
   /// True only if [email] is on the university admin allowlist (or demo admin).
   Future<bool> isApprovedAdminEmail(String email) async {
     final normalized = AppEmailValidator.normalize(email);

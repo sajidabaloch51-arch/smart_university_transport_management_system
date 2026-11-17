@@ -133,6 +133,10 @@ class _ManageNoticesScreenState extends State<ManageNoticesScreen> {
         initialData: initial,
         emptyMessage: 'No notices found.',
         isEmpty: (list) => list.isEmpty,
+        streamFactory: () {
+          noticeProvider.restartNoticesStream();
+          return noticeProvider.streamNotices();
+        },
         onRefresh: () => noticeProvider.refreshNotices(),
         builder: (context, notices) {
           PerfLog.end(

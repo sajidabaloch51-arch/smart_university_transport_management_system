@@ -59,14 +59,14 @@ class MapsLauncherService {
   static Future<bool> _launchPreferNative(Uri native, Uri fallback) async {
     try {
       if (await canLaunchUrl(native)) {
-        return launchUrl(native, mode: LaunchMode.externalApplication);
+        return await launchUrl(native, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       debugPrint('Native Maps launch failed: $e');
     }
     try {
       if (await canLaunchUrl(fallback)) {
-        return launchUrl(fallback, mode: LaunchMode.externalApplication);
+        return await launchUrl(fallback, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       debugPrint('Web Maps launch failed: $e');

@@ -543,12 +543,12 @@ class _StudentRegistrationScreenState extends State<StudentRegistrationScreen> {
                     CustomTextField(
                       controller: _emailController,
                       labelText: 'Email Address',
-                      hintText: AppEmailValidator.hint,
-                      helperText: AppEmailValidator.hint,
+                      hintText: AppEmailValidator.studentHint,
+                      helperText: AppEmailValidator.studentHint,
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      validator: AppValidators.validateEmail,
+                      validator: AppValidators.validateStudentEmail,
                       autofillHints: const [
                         AutofillHints.username,
                         AutofillHints.email,

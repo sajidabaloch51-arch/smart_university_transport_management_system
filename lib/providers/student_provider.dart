@@ -195,10 +195,11 @@ class StudentProvider extends ChangeNotifier {
     final db = _db;
     if (db == null) return _studentCache[uid];
     try {
+      // serverAndCache: Source.server alone can hang on web WebChannel issues.
       final doc = await db
           .collection('users')
           .doc(uid)
-          .get(const GetOptions(source: Source.server))
+          .get(const GetOptions(source: Source.serverAndCache))
           .timeout(const Duration(seconds: 8));
       if (doc.exists && doc.data() != null) {
         final model = StudentModel.fromMap(doc.data()!, doc.id);

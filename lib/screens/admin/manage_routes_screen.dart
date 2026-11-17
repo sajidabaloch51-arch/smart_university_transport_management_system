@@ -93,6 +93,10 @@ class _ManageRoutesScreenState extends State<ManageRoutesScreen> {
         initialData: initial,
         emptyMessage: 'No routes configured.',
         isEmpty: (list) => list.isEmpty,
+        streamFactory: () {
+          routeProvider.restartRoutesStream();
+          return routeProvider.streamRoutes();
+        },
         onRefresh: () => routeProvider.refreshRoutes(),
         builder: (context, routes) {
           PerfLog.end('screen_ManageRoutes',

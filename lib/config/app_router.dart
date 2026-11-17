@@ -1,4 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../providers/auth_provider.dart';
+import 'auth_route_guard.dart';
 import '../screens/shared/splash_screen.dart';
 import '../screens/shared/onboarding_screen.dart';
 import '../screens/shared/login_screen.dart';
@@ -20,7 +26,6 @@ import '../screens/driver/driver_notices_screen.dart';
 import '../screens/driver/driver_route_screen.dart';
 import '../screens/driver/edit_driver_profile_screen.dart';
 
-// Admin Screens
 import '../screens/admin/admin_dashboard.dart';
 import '../screens/admin/manage_students_screen.dart';
 import '../screens/admin/add_edit_student_screen.dart';
@@ -41,7 +46,6 @@ import '../screens/admin/admin_profile_screen.dart';
 import '../screens/admin/system_reports_screen.dart';
 import '../screens/admin/student_details_screen.dart';
 
-// Models
 import '../models/student_model.dart';
 import '../models/driver_model.dart';
 import '../models/bus_model.dart';
@@ -51,111 +55,257 @@ import '../models/notice_model.dart';
 import '../models/duty_model.dart';
 
 import '../screens/auth/student_registration_screen.dart';
-
 import '../screens/admin/student_verification_screen.dart';
 import '../screens/admin/verify_student_details_screen.dart';
-
 import '../screens/auth/student_portal_entry_screen.dart';
 import '../screens/auth/driver_portal_entry_screen.dart';
 
 class AppRouter {
-  static final router = GoRouter(
-    initialLocation: '/',
-    routes: [
-      GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
-      GoRoute(path: '/onboarding', builder: (context, state) => const OnboardingScreen()),
-      GoRoute(path: '/role-selection', builder: (context, state) => const RoleSelectionScreen()),
-      GoRoute(path: '/student-portal-entry', builder: (context, state) => const StudentPortalEntryScreen()),
-      GoRoute(path: '/driver-portal-entry', builder: (context, state) => const DriverPortalEntryScreen()),
-      GoRoute(path: '/login', builder: (context, state) => LoginScreen(role: state.extra as String?)),
-      GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
-      
-      // Registration Routes (students only — drivers/admins are provisioned by Admin)
-      GoRoute(path: '/student-registration', builder: (context, state) => const StudentRegistrationScreen()),
-      
-      // Admin Action Routes
-      GoRoute(path: '/add-edit-student', builder: (context, state) {
-        final student = state.extra is StudentModel ? state.extra as StudentModel : null;
-        return AddEditStudentScreen(student: student);
-      }),
-      GoRoute(path: '/add-edit-driver', builder: (context, state) {
-        final driver = state.extra is DriverModel ? state.extra as DriverModel : null;
-        return AddEditDriverScreen(driver: driver);
-      }),
-      GoRoute(path: '/add-edit-route', builder: (context, state) {
-        final route = state.extra is RouteModel ? state.extra as RouteModel : null;
-        return AddEditRouteScreen(route: route);
-      }),
-      GoRoute(path: '/add-edit-bus', builder: (context, state) {
-        final bus = state.extra is BusModel ? state.extra as BusModel : null;
-        return AddEditBusScreen(bus: bus);
-      }),
-      GoRoute(path: '/add-edit-schedule', builder: (context, state) {
-        final schedule = state.extra is ScheduleModel ? state.extra as ScheduleModel : null;
-        return AddEditScheduleScreen(schedule: schedule);
-      }),
-      GoRoute(path: '/add-edit-notice', builder: (context, state) {
-        final notice = state.extra is NoticeModel ? state.extra as NoticeModel : null;
-        return PostNoticeScreen(notice: notice);
-      }),
-      
-      // Student Routes
-      GoRoute(path: '/student-dashboard', builder: (context, state) => const StudentDashboard()),
-      GoRoute(path: '/student-home', builder: (context, state) => const StudentHomeScreen()),
-      GoRoute(path: '/student-routes', builder: (context, state) => const RouteScreen()),
-      GoRoute(path: '/route-detail/:id', builder: (context, state) => RouteDetailScreen(routeId: state.pathParameters['id'] ?? 'A')),
-      GoRoute(
-        path: '/live-tracking',
-        builder: (context, state) => LiveBusTrackingScreen(
-          student: state.extra is StudentModel ? state.extra as StudentModel : null,
-        ),
-      ),
-      GoRoute(path: '/notices', builder: (context, state) => const NoticeScreen()),
-      GoRoute(path: '/notice-detail', builder: (context, state) {
-        final notice = state.extra as NoticeModel?;
-        if (notice == null) return const NoticeScreen();
-        return NoticeDetailScreen(notice: notice);
-      }),
-      GoRoute(path: '/feedback', builder: (context, state) => const FeedbackScreen()),
-      GoRoute(path: '/schedule', builder: (context, state) {
-        final routeId = state.extra as String?;
-        return ScheduleScreen(routeId: routeId);
-      }),
-      GoRoute(path: '/personal-info', builder: (context, state) => const PersonalInfoScreen()),
-      
-      // Driver Routes
-      GoRoute(path: '/driver-dashboard', builder: (context, state) => const DriverDashboard()),
-      GoRoute(path: '/driver-profile', builder: (context, state) => const DriverProfileScreen()),
-      GoRoute(path: '/edit-driver-profile', builder: (context, state) => const EditDriverProfileScreen()),
-      GoRoute(path: '/driver-notices', builder: (context, state) => const DriverNoticesScreen()),
-      GoRoute(path: '/driver-route', builder: (context, state) => const DriverRouteScreen()),
+  AppRouter._();
 
-      // Admin Routes
-      GoRoute(path: '/admin-dashboard', builder: (context, state) => const AdminDashboard()),
-      GoRoute(path: '/student-verification', builder: (context, state) => const StudentVerificationScreen()),
-      GoRoute(path: '/verify-details', builder: (context, state) {
-        final student = state.extra as StudentModel;
-        return VerifyStudentDetailsScreen(student: student);
-      }),
-      GoRoute(path: '/manage-students', builder: (context, state) => const ManageStudentsScreen()),
-      GoRoute(path: '/student-details', builder: (context, state) {
-        final student = state.extra as StudentModel?;
-        if (student == null) return const ManageStudentsScreen();
-        return StudentDetailsScreen(student: student);
-      }),
-      GoRoute(path: '/manage-drivers', builder: (context, state) => const ManageDriversScreen()),
-      GoRoute(path: '/manage-routes', builder: (context, state) => const ManageRoutesScreen()),
-      GoRoute(path: '/manage-buses', builder: (context, state) => const ManageBusesScreen()),
-      GoRoute(path: '/manage-schedules', builder: (context, state) => const ManageScheduleScreen()),
-      GoRoute(path: '/manage-notices', builder: (context, state) => const ManageNoticesScreen()),
-      GoRoute(path: '/manage-duties', builder: (context, state) => const ManageDutiesScreen()),
-      GoRoute(path: '/assign-duty', builder: (context, state) {
-        final duty = state.extra is DutyModel ? state.extra as DutyModel : null;
-        return AssignDutyScreen(duty: duty);
-      }),
-      GoRoute(path: '/view-feedback', builder: (context, state) => const admin_feedback.FeedbackScreen()),
-      GoRoute(path: '/system-reports', builder: (context, state) => const SystemReportsScreen()),
-      GoRoute(path: '/admin-profile', builder: (context, state) => const AdminProfileScreen()),
-    ],
-  );
+  static bool _hasFirebaseUser() {
+    try {
+      if (Firebase.apps.isEmpty) return false;
+      return FirebaseAuth.instance.currentUser != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static GoRouter create(AuthProvider auth) {
+    return GoRouter(
+      initialLocation: '/',
+      refreshListenable: auth,
+      redirect: (BuildContext context, GoRouterState state) {
+        return AuthRouteGuard.redirect(
+          location: state.matchedLocation,
+          appAuthenticated: auth.isAuthenticated,
+          hasFirebaseUser: _hasFirebaseUser(),
+          role: auth.userRole,
+        );
+      },
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const OnboardingScreen(),
+        ),
+        GoRoute(
+          path: '/role-selection',
+          builder: (context, state) => const RoleSelectionScreen(),
+        ),
+        GoRoute(
+          path: '/student-portal-entry',
+          builder: (context, state) => const StudentPortalEntryScreen(),
+        ),
+        GoRoute(
+          path: '/driver-portal-entry',
+          builder: (context, state) => const DriverPortalEntryScreen(),
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (context, state) =>
+              LoginScreen(role: state.extra as String?),
+        ),
+        GoRoute(
+          path: '/forgot-password',
+          builder: (context, state) => const ForgotPasswordScreen(),
+        ),
+        GoRoute(
+          path: '/student-registration',
+          builder: (context, state) => const StudentRegistrationScreen(),
+        ),
+        GoRoute(
+          path: '/add-edit-student',
+          builder: (context, state) {
+            final student =
+                state.extra is StudentModel ? state.extra as StudentModel : null;
+            return AddEditStudentScreen(student: student);
+          },
+        ),
+        GoRoute(
+          path: '/add-edit-driver',
+          builder: (context, state) {
+            final driver =
+                state.extra is DriverModel ? state.extra as DriverModel : null;
+            return AddEditDriverScreen(driver: driver);
+          },
+        ),
+        GoRoute(
+          path: '/add-edit-route',
+          builder: (context, state) {
+            final route =
+                state.extra is RouteModel ? state.extra as RouteModel : null;
+            return AddEditRouteScreen(route: route);
+          },
+        ),
+        GoRoute(
+          path: '/add-edit-bus',
+          builder: (context, state) {
+            final bus = state.extra is BusModel ? state.extra as BusModel : null;
+            return AddEditBusScreen(bus: bus);
+          },
+        ),
+        GoRoute(
+          path: '/add-edit-schedule',
+          builder: (context, state) {
+            final schedule = state.extra is ScheduleModel
+                ? state.extra as ScheduleModel
+                : null;
+            return AddEditScheduleScreen(schedule: schedule);
+          },
+        ),
+        GoRoute(
+          path: '/add-edit-notice',
+          builder: (context, state) {
+            final notice =
+                state.extra is NoticeModel ? state.extra as NoticeModel : null;
+            return PostNoticeScreen(notice: notice);
+          },
+        ),
+        GoRoute(
+          path: '/student-dashboard',
+          builder: (context, state) => const StudentDashboard(),
+        ),
+        GoRoute(
+          path: '/student-home',
+          builder: (context, state) => const StudentHomeScreen(),
+        ),
+        GoRoute(
+          path: '/student-routes',
+          builder: (context, state) => const RouteScreen(),
+        ),
+        GoRoute(
+          path: '/route-detail/:id',
+          builder: (context, state) =>
+              RouteDetailScreen(routeId: state.pathParameters['id'] ?? 'A'),
+        ),
+        GoRoute(
+          path: '/live-tracking',
+          builder: (context, state) => LiveBusTrackingScreen(
+            student:
+                state.extra is StudentModel ? state.extra as StudentModel : null,
+          ),
+        ),
+        GoRoute(
+          path: '/notices',
+          builder: (context, state) => const NoticeScreen(),
+        ),
+        GoRoute(
+          path: '/notice-detail',
+          builder: (context, state) {
+            final notice = state.extra as NoticeModel?;
+            if (notice == null) return const NoticeScreen();
+            return NoticeDetailScreen(notice: notice);
+          },
+        ),
+        GoRoute(
+          path: '/feedback',
+          builder: (context, state) => const FeedbackScreen(),
+        ),
+        GoRoute(
+          path: '/schedule',
+          builder: (context, state) {
+            final routeId = state.extra as String?;
+            return ScheduleScreen(routeId: routeId);
+          },
+        ),
+        GoRoute(
+          path: '/personal-info',
+          builder: (context, state) => const PersonalInfoScreen(),
+        ),
+        GoRoute(
+          path: '/driver-dashboard',
+          builder: (context, state) => const DriverDashboard(),
+        ),
+        GoRoute(
+          path: '/driver-profile',
+          builder: (context, state) => const DriverProfileScreen(),
+        ),
+        GoRoute(
+          path: '/edit-driver-profile',
+          builder: (context, state) => const EditDriverProfileScreen(),
+        ),
+        GoRoute(
+          path: '/driver-notices',
+          builder: (context, state) => const DriverNoticesScreen(),
+        ),
+        GoRoute(
+          path: '/driver-route',
+          builder: (context, state) => const DriverRouteScreen(),
+        ),
+        GoRoute(
+          path: '/admin-dashboard',
+          builder: (context, state) => const AdminDashboard(),
+        ),
+        GoRoute(
+          path: '/student-verification',
+          builder: (context, state) => const StudentVerificationScreen(),
+        ),
+        GoRoute(
+          path: '/verify-details',
+          builder: (context, state) {
+            final student = state.extra as StudentModel;
+            return VerifyStudentDetailsScreen(student: student);
+          },
+        ),
+        GoRoute(
+          path: '/manage-students',
+          builder: (context, state) => const ManageStudentsScreen(),
+        ),
+        GoRoute(
+          path: '/student-details',
+          builder: (context, state) {
+            final student = state.extra as StudentModel?;
+            if (student == null) return const ManageStudentsScreen();
+            return StudentDetailsScreen(student: student);
+          },
+        ),
+        GoRoute(
+          path: '/manage-drivers',
+          builder: (context, state) => const ManageDriversScreen(),
+        ),
+        GoRoute(
+          path: '/manage-routes',
+          builder: (context, state) => const ManageRoutesScreen(),
+        ),
+        GoRoute(
+          path: '/manage-buses',
+          builder: (context, state) => const ManageBusesScreen(),
+        ),
+        GoRoute(
+          path: '/manage-schedules',
+          builder: (context, state) => const ManageScheduleScreen(),
+        ),
+        GoRoute(
+          path: '/manage-notices',
+          builder: (context, state) => const ManageNoticesScreen(),
+        ),
+        GoRoute(
+          path: '/manage-duties',
+          builder: (context, state) => const ManageDutiesScreen(),
+        ),
+        GoRoute(
+          path: '/assign-duty',
+          builder: (context, state) {
+            final duty =
+                state.extra is DutyModel ? state.extra as DutyModel : null;
+            return AssignDutyScreen(duty: duty);
+          },
+        ),
+        GoRoute(
+          path: '/view-feedback',
+          builder: (context, state) => const admin_feedback.FeedbackScreen(),
+        ),
+        GoRoute(
+          path: '/system-reports',
+          builder: (context, state) => const SystemReportsScreen(),
+        ),
+        GoRoute(
+          path: '/admin-profile',
+          builder: (context, state) => const AdminProfileScreen(),
+        ),
+      ],
+    );
+  }
 }

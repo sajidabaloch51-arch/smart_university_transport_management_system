@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/firestore_error_messages.dart';
@@ -68,6 +67,8 @@ class CachedStreamList<T> extends StatefulWidget {
   final String emptyMessage;
   final Widget Function(BuildContext context, T data) builder;
   final Future<void> Function()? onRefresh;
+  /// Rebuilds a fresh stream on Retry (drops one-shot auth error streams).
+  final Stream<T> Function()? streamFactory;
   final String? perfKey;
   final Duration timeout;
 
@@ -79,6 +80,7 @@ class CachedStreamList<T> extends StatefulWidget {
     required this.emptyMessage,
     required this.builder,
     this.onRefresh,
+    this.streamFactory,
     this.perfKey,
     this.timeout = const Duration(seconds: 15),
   });
@@ -93,11 +95,14 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
   Object? _lastError;
   StackTrace? _lastStack;
   String? _resolvedMessage;
+  String? _detailsText;
   int _retryToken = 0;
+  late Stream<T> _stream;
 
   @override
   void initState() {
     super.initState();
+    _stream = widget.stream;
     _armTimeout();
   }
 
@@ -105,10 +110,12 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
   void didUpdateWidget(covariant CachedStreamList<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stream != widget.stream) {
+      _stream = widget.stream;
       _timedOut = false;
       _lastError = null;
       _lastStack = null;
       _resolvedMessage = null;
+      _detailsText = null;
       _armTimeout();
     }
   }
@@ -129,6 +136,7 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
       setState(() {
         _timedOut = true;
         _lastError = err;
+        _detailsText = FirestoreErrorMessages.debugDetails(err, _lastStack);
       });
       _resolveMessage(err, _lastStack);
     });
@@ -136,8 +144,12 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
 
   Future<void> _resolveMessage(Object error, StackTrace? stack) async {
     final msg = await FirestoreErrorMessages.friendlyAsync(error, stack);
+    final details = FirestoreErrorMessages.debugDetails(error, stack);
     if (!mounted) return;
-    setState(() => _resolvedMessage = msg);
+    setState(() {
+      _resolvedMessage = msg;
+      _detailsText = details;
+    });
   }
 
   Future<void> _retry() async {
@@ -146,7 +158,11 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
       _lastError = null;
       _lastStack = null;
       _resolvedMessage = null;
+      _detailsText = null;
       _retryToken++;
+      if (widget.streamFactory != null) {
+        _stream = widget.streamFactory!();
+      }
     });
     _armTimeout();
     if (widget.onRefresh != null) {
@@ -159,6 +175,7 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
             _lastError = e;
             _lastStack = st;
             _timedOut = true;
+            _detailsText = FirestoreErrorMessages.debugDetails(e, st);
           });
           await _resolveMessage(e, st);
         }
@@ -170,7 +187,7 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
   Widget build(BuildContext context) {
     return StreamBuilder<T>(
       key: ValueKey('cached-list-$_retryToken'),
-      stream: widget.stream,
+      stream: _stream,
       initialData: widget.initialData,
       builder: (context, snapshot) {
         if (snapshot.hasError && !snapshot.hasData) {
@@ -185,9 +202,11 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
                   snapshot.error!,
                   snapshot.stackTrace,
                 ),
-            details: kDebugMode
-                ? FirestoreErrorMessages.debugDetails(snapshot.error!)
-                : null,
+            details: _detailsText ??
+                FirestoreErrorMessages.debugDetails(
+                  snapshot.error!,
+                  snapshot.stackTrace,
+                ),
             onRetry: _retry,
           );
         }
@@ -198,9 +217,11 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
           final data = snapshot.data as T;
           if (widget.isEmpty(data)) {
             final empty = Center(child: Text(widget.emptyMessage));
-            if (widget.onRefresh == null) return empty;
+            if (widget.onRefresh == null && widget.streamFactory == null) {
+              return empty;
+            }
             return RefreshIndicator(
-              onRefresh: widget.onRefresh!,
+              onRefresh: _retry,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
@@ -214,9 +235,11 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
           }
 
           final child = widget.builder(context, data);
-          if (widget.onRefresh == null) return child;
+          if (widget.onRefresh == null && widget.streamFactory == null) {
+            return child;
+          }
           return RefreshIndicator(
-            onRefresh: widget.onRefresh!,
+            onRefresh: _retry,
             child: child,
           );
         }
@@ -227,9 +250,8 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
           return _ErrorBody(
             message: _resolvedMessage ??
                 FirestoreErrorMessages.friendly(err, _lastStack),
-            details: kDebugMode
-                ? FirestoreErrorMessages.debugDetails(err)
-                : null,
+            details: _detailsText ??
+                FirestoreErrorMessages.debugDetails(err, _lastStack),
             onRetry: _retry,
           );
         }
@@ -245,23 +267,16 @@ class _CachedStreamListState<T> extends State<CachedStreamList<T>> {
   }
 }
 
-class _ErrorBody extends StatefulWidget {
+class _ErrorBody extends StatelessWidget {
   final String message;
-  final String? details;
+  final String details;
   final Future<void> Function() onRetry;
 
   const _ErrorBody({
     required this.message,
     required this.onRetry,
-    this.details,
+    required this.details,
   });
-
-  @override
-  State<_ErrorBody> createState() => _ErrorBodyState();
-}
-
-class _ErrorBodyState extends State<_ErrorBody> {
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -274,33 +289,15 @@ class _ErrorBodyState extends State<_ErrorBody> {
             Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade500),
             const SizedBox(height: 12),
             Text(
-              widget.message,
+              message,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, color: Color(0xFF334155)),
             ),
-            if (widget.details != null) ...[
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _expanded = !_expanded),
-                child: Text(_expanded ? 'Hide details' : 'Details'),
-              ),
-              if (_expanded)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    widget.details!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-            ],
+            const SizedBox(height: 8),
+            FirestoreErrorDetailsPanel(details: details),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => widget.onRetry(),
+              onPressed: () => onRetry(),
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
             ),

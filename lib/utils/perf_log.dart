@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-/// Temporary timing helpers for screen / Firestore performance.
+/// Timing helpers for screen / Firestore performance and perf tests.
 class PerfLog {
   PerfLog._();
 
@@ -27,4 +27,31 @@ class PerfLog {
       '${count != null ? ' count=$count' : ''}',
     );
   }
+
+  /// Elapsed ms for an in-flight [key], or null if not started.
+  static int? elapsedMs(String key) => _watches[key]?.elapsedMilliseconds;
+
+  /// Runs [body] and returns wall time in milliseconds.
+  static int measureSync(String key, void Function() body) {
+    final sw = Stopwatch()..start();
+    body();
+    sw.stop();
+    debugPrint('⏱ MEASURE $key ${sw.elapsedMilliseconds}ms');
+    return sw.elapsedMilliseconds;
+  }
+
+  /// Async variant for I/O-bound checks (tests / screen loads).
+  static Future<int> measureAsync(
+    String key,
+    Future<void> Function() body,
+  ) async {
+    final sw = Stopwatch()..start();
+    await body();
+    sw.stop();
+    debugPrint('⏱ MEASURE $key ${sw.elapsedMilliseconds}ms');
+    return sw.elapsedMilliseconds;
+  }
+
+  @visibleForTesting
+  static void resetForTest() => _watches.clear();
 }

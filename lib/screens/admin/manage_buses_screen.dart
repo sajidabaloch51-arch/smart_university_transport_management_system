@@ -37,6 +37,10 @@ class _ManageBusesScreenState extends State<ManageBusesScreen> {
         initialData: initial,
         emptyMessage: 'No buses found.',
         isEmpty: (list) => list.isEmpty,
+        streamFactory: () {
+          busProvider.restartBusesStream();
+          return busProvider.streamBuses();
+        },
         onRefresh: () => busProvider.refreshBuses(),
         builder: (context, buses) {
           PerfLog.end('screen_ManageBuses',

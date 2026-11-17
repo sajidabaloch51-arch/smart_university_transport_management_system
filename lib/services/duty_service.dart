@@ -92,6 +92,8 @@ class DutyService {
     });
   }
 
+  void restartAllDutiesStream() => LiveFirestore.restart(_allKey);
+
   Future<void> refreshAllDuties() => LiveFirestore.forceRefresh(_allKey);
 
   /// Builds a driverId query. Uses `whereIn` when Auth uid ≠ Firestore doc id.

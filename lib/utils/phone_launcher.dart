@@ -30,11 +30,17 @@ class PhoneLauncher {
     final uri = Uri.parse('tel:$cleaned');
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok) _toast(context, 'Could not open the phone dialer');
+      if (!ok) {
+        if (context != null && context.mounted) {
+          _toast(context, 'Could not open the phone dialer');
+        }
+      }
       return ok;
     } catch (e) {
       debugPrint('PhoneLauncher.call failed: $e');
-      _toast(context, 'Could not open the phone dialer');
+      if (context != null && context.mounted) {
+        _toast(context, 'Could not open the phone dialer');
+      }
       return false;
     }
   }
@@ -48,11 +54,17 @@ class PhoneLauncher {
     final uri = Uri.parse('sms:$cleaned');
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok) _toast(context, 'Could not open Messages');
+      if (!ok) {
+        if (context != null && context.mounted) {
+          _toast(context, 'Could not open Messages');
+        }
+      }
       return ok;
     } catch (e) {
       debugPrint('PhoneLauncher.sms failed: $e');
-      _toast(context, 'Could not open Messages');
+      if (context != null && context.mounted) {
+        _toast(context, 'Could not open Messages');
+      }
       return false;
     }
   }

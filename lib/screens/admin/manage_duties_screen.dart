@@ -92,6 +92,10 @@ class _ManageDutiesScreenState extends State<ManageDutiesScreen> {
         initialData: initial,
         emptyMessage: 'No duties assigned yet.',
         isEmpty: (list) => list.isEmpty,
+        streamFactory: () {
+          _dutyService.restartAllDutiesStream();
+          return _dutyService.streamAllDuties();
+        },
         onRefresh: () => _dutyService.refreshAllDuties(),
         builder: (context, duties) {
           PerfLog.end('screen_ManageDuties',
