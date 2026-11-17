@@ -14,7 +14,8 @@ dependencies:
   firebase_database: ^10.5.7
   firebase_messaging: ^14.9.4
   firebase_storage: ^11.7.7
-  google_maps_flutter: ^2.6.1
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
   geolocator: ^10.1.0
   image_picker: ^1.0.7
   provider: ^6.1.2

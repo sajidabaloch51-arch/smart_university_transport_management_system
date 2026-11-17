@@ -26,7 +26,9 @@ class FirestoreErrorMessages {
     if (root is FirebaseException) {
       switch (root.code) {
         case 'permission-denied':
-          return "You don't have access to this data";
+          return "You don't have access to this data. "
+              'Log out and sign in again with the correct role, '
+              'or ask Admin if your account is approved.';
         case 'failed-precondition':
           debugPrint('🔥 missing index / precondition: ${root.message}');
           return 'Database index missing';

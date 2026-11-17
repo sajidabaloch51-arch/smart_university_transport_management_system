@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -8,8 +7,6 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Same Maps API key as AndroidManifest (enable Maps SDK for iOS in Cloud Console)
-    GMSServices.provideAPIKey("AIzaSyDtouw9raLD-fu9yAotY71sksxSEG-8jTg")
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

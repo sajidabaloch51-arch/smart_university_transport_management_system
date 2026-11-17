@@ -50,20 +50,18 @@ class FirebaseBootstrap {
     }
   }
 
+  /// Live bus GPS now uses Firestore trips/gps_locations — RTDB is optional.
   static Future<String?> probeRealtimeDatabase() async {
-    if (!isFirebaseReady) return 'Firebase is not initialized.';
+    if (!isFirebaseReady) return null;
     try {
       final ref = FirebaseDatabase.instance.ref('.info/connected');
-      final snap = await ref.get().timeout(const Duration(seconds: 3));
-      final connected = snap.value == true;
-      if (!connected) {
-        return 'Realtime Database not connected. Enable RTDB in Firebase Console '
-            'for project sutms-uog.';
+      final snap = await ref.get().timeout(const Duration(seconds: 2));
+      if (snap.value != true) {
+        debugPrint('RTDB optional probe: not connected (OK for OSM/Firestore GPS)');
       }
-      return null;
     } catch (e) {
-      debugPrint('RTDB probe failed: $e');
-      return 'Realtime Database unavailable. Enable it in Firebase Console.';
+      debugPrint('RTDB optional probe skipped: $e');
     }
+    return null;
   }
 }

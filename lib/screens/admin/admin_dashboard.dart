@@ -381,7 +381,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: 'Live Track',
         icon: Icons.map_outlined,
         color: const Color(0xFF06B6D4),
-        path: '/live-tracking',
+        path: '/admin-live-tracking',
       ),
       (
         title: 'Notices',

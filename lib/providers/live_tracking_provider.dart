@@ -1,27 +1,32 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/bus_live_location_model.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../models/gps_location_model.dart';
 import '../models/route_model.dart';
 import '../models/student_model.dart';
+import '../models/trip_model.dart';
 import '../services/location_service.dart';
-import '../services/realtime_location_service.dart';
+import '../services/trip_tracking_service.dart';
 
-/// Student-side live bus tracking (throttled to avoid UI/map crashes).
+/// Student-side live bus tracking via Firestore trips + gps_locations.
 class LiveTrackingProvider extends ChangeNotifier {
-  final RealtimeLocationService _realtime = RealtimeLocationService();
+  final TripTrackingService _trips = TripTrackingService();
   final LocationService _locationService = LocationService();
 
-  StreamSubscription<BusLiveLocationModel?>? _busSub;
+  StreamSubscription<TripModel?>? _tripSub;
+  StreamSubscription<GpsLocationModel?>? _gpsSub;
   StreamSubscription<Position>? _studentSub;
   Timer? _notifyThrottle;
 
   StudentModel? _student;
   RouteModel? _route;
-  BusLiveLocationModel? _busLocation;
+  TripModel? _trip;
+  GpsLocationModel? _gps;
   LatLng? _studentLatLng;
   String? _error;
   bool _loading = false;
@@ -31,21 +36,50 @@ class LiveTrackingProvider extends ChangeNotifier {
 
   StudentModel? get student => _student;
   RouteModel? get route => _route;
-  BusLiveLocationModel? get busLocation => _busLocation;
+  TripModel? get trip => _trip;
+  GpsLocationModel? get gps => _gps;
   LatLng? get studentLatLng => _studentLatLng;
-  LatLng? get busLatLng => _busLocation == null
-      ? null
-      : LatLng(_busLocation!.lat, _busLocation!.lng);
+  LatLng? get busLatLng {
+    final g = _gps;
+    if (g == null || !g.hasValidCoords) {
+      final t = _trip;
+      if (t?.lastLat != null && t?.lastLng != null) {
+        return LatLng(t!.lastLat!, t.lastLng!);
+      }
+      return null;
+    }
+    return LatLng(g.latitude, g.longitude);
+  }
+
   String? get error => _error;
   bool get loading => _loading;
   bool get permissionGranted => _permissionGranted;
+  bool get isBusLive => (_gps?.isLive ?? false) || (_trip?.isActive == true && busLatLng != null);
 
   String get statusLabel {
-    if (_busLocation == null) return 'Waiting for bus…';
-    return _busLocation!.isLive ? 'Live' : 'Offline';
+    if (_trip == null) return 'Bus is not currently active';
+    if (_gps?.isLive == true) return 'Live';
+    if (_trip!.isActive) return 'Waiting for GPS…';
+    return 'Trip ended';
   }
 
-  bool get isBusLive => _busLocation?.isLive ?? false;
+  String get busNumber =>
+      _trip?.busNumber.isNotEmpty == true
+          ? _trip!.busNumber
+          : (_student?.assignedBusCode ??
+              _student?.assignedBusName ??
+              _route?.busNo ??
+              '—');
+
+  String get driverName =>
+      _trip?.driverName.isNotEmpty == true
+          ? _trip!.driverName
+          : (_student?.assignedDriverName ?? _route?.displayDriverName ?? '—');
+
+  String get routeName =>
+      _trip?.routeName.isNotEmpty == true
+          ? _trip!.routeName
+          : (_student?.assignedRouteName ?? _route?.routeName ?? '—');
 
   Future<void> startTracking(StudentModel student) async {
     stopTracking();
@@ -58,48 +92,8 @@ class LiveTrackingProvider extends ChangeNotifier {
     try {
       await _ensurePermissions();
       await _loadRoute(student.assignedRouteId);
-      // Prefer profile driver id; fall back to route.driverId (source of truth).
-      final driverId = (student.assignedDriverId != null &&
-              student.assignedDriverId!.trim().isNotEmpty)
-          ? student.assignedDriverId!.trim()
-          : (_route?.driverId?.trim().isNotEmpty == true
-              ? _route!.driverId!.trim()
-              : null);
-      if (driverId != null &&
-          (student.assignedDriverId == null ||
-              student.assignedDriverId!.trim().isEmpty)) {
-        _student = StudentModel(
-          uid: student.uid,
-          name: student.name,
-          email: student.email,
-          phone: student.phone,
-          role: student.role,
-          regNumber: student.regNumber,
-          department: student.department,
-          profileImage: student.profileImage,
-          routeAddress: student.routeAddress,
-          rollNo: student.rollNo,
-          assignedRouteId: student.assignedRouteId ?? _route?.id,
-          assignedRouteName:
-              student.assignedRouteName ?? _route?.routeName,
-          assignedBusId: student.assignedBusId ?? _route?.busId,
-          assignedBusName: student.assignedBusName ?? _route?.busNo,
-          assignedBusCode: student.assignedBusCode ?? _route?.busNo,
-          assignedDriverId: driverId,
-          assignedDriverName:
-              student.assignedDriverName ?? _route?.displayDriverName,
-          assignedDriverPhone:
-              student.assignedDriverPhone ?? _route?.driverPhone,
-          assignedDepartureTime: student.assignedDepartureTime,
-          assignedArrivalTime: student.assignedArrivalTime,
-          verificationStatus: student.verificationStatus,
-          passwordHash: student.passwordHash,
-          termsAccepted: student.termsAccepted,
-          termsVersion: student.termsVersion,
-        );
-      }
       _listenToStudentLocation();
-      _listenToBus(driverId);
+      _listenForActiveTrip(student);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -113,7 +107,7 @@ class LiveTrackingProvider extends ChangeNotifier {
       _permissionGranted = await _locationService.checkPermissions();
       if (!_permissionGranted) {
         _error =
-            'Location permission is required to show your position on the map.';
+            'Location permission is optional for viewing the bus, but needed to show your position.';
       }
     } catch (e) {
       _permissionGranted = false;
@@ -122,121 +116,103 @@ class LiveTrackingProvider extends ChangeNotifier {
   }
 
   Future<void> _loadRoute(String? routeId) async {
-    if (routeId == null || routeId.isEmpty || Firebase.apps.isEmpty) {
-      _route = null;
-      return;
-    }
+    if (routeId == null || routeId.isEmpty || Firebase.apps.isEmpty) return;
     try {
       final doc = await FirebaseFirestore.instance
           .collection('routes')
           .doc(routeId)
-          .get()
-          .timeout(const Duration(seconds: 8));
+          .get();
       if (doc.exists && doc.data() != null) {
         _route = RouteModel.fromMap(doc.id, doc.data()!);
       }
     } catch (e) {
-      // Firestore may be missing — keep app running with offline/local data.
-      debugPrint('Failed to load route (Firestore unavailable?): $e');
-      _error ??=
-          'Cloud database unavailable. Create Firestore for project sutms-uog.';
+      debugPrint('load route failed: $e');
     }
   }
 
-  void _listenToStudentLocation() {
-    _studentSub?.cancel();
-    if (!_permissionGranted) return;
+  void _listenForActiveTrip(StudentModel student) {
+    _tripSub?.cancel();
+    _gpsSub?.cancel();
 
-    _locationService.getCurrentLocation().then((pos) {
-      if (_disposed) return;
-      _studentLatLng = LatLng(pos.latitude, pos.longitude);
-      _safeNotify();
-    }).catchError((e) {
-      debugPrint('getCurrentLocation failed: $e');
-    });
+    final busId = student.assignedBusId?.trim() ?? '';
+    final routeId = student.assignedRouteId?.trim() ?? _route?.id ?? '';
+    final driverId = student.assignedDriverId?.trim() ??
+        _route?.driverId?.trim() ??
+        '';
 
-    // Less frequent updates — avoids map widget thrashing on Realme devices.
-    _studentSub = _locationService
-        .getPositionStream(distanceFilterMeters: 25)
-        .listen((pos) {
-      if (_disposed) return;
-      _studentLatLng = LatLng(pos.latitude, pos.longitude);
-      _throttledNotify();
-    }, onError: (e) {
-      debugPrint('student position stream error: $e');
-    });
-  }
-
-  void _listenToBus(String? driverId) {
-    _busSub?.cancel();
-    if (driverId == null || driverId.isEmpty) {
-      _error = (_error == null || _error!.isEmpty)
-          ? 'No driver assigned to your route yet.'
-          : _error;
+    Stream<TripModel?> stream;
+    if (busId.isNotEmpty) {
+      stream = _trips.watchActiveTripForBus(busId);
+    } else if (routeId.isNotEmpty) {
+      stream = _trips.watchActiveTripForRoute(routeId);
+    } else if (driverId.isNotEmpty) {
+      stream = _trips.watchActiveTripForDriver(driverId);
+    } else {
+      _trip = null;
+      _gps = null;
+      _error = 'No bus or route assigned. Contact Admin.';
       _safeNotify();
       return;
     }
 
-    _busSub = _realtime.watchDriverLocation(driverId).listen((loc) {
-      if (_disposed) return;
-      _busLocation = loc;
-      _throttledNotify();
+    _tripSub = stream.listen((trip) {
+      _trip = trip;
+      _gpsSub?.cancel();
+      if (trip == null) {
+        _gps = null;
+        _safeNotify();
+        return;
+      }
+      _gpsSub = _trips.watchTripGps(trip.id).listen((gps) {
+        _gps = gps;
+        _safeNotify();
+      }, onError: (e) {
+        _error = 'GPS stream error: $e';
+        _safeNotify();
+      });
+      _safeNotify();
     }, onError: (e) {
-      if (_disposed) return;
-      _error = 'Live bus sync failed: $e';
+      _error = 'Trip stream error: $e';
       _safeNotify();
     });
   }
 
-  /// Coalesce rapid GPS/RTDB updates into ~500ms UI refreshes.
-  void _throttledNotify() {
-    _dirty = true;
-    if (_notifyThrottle?.isActive == true) return;
-    _notifyThrottle = Timer(const Duration(milliseconds: 500), () {
-      if (_disposed || !_dirty) return;
-      _dirty = false;
+  void _listenToStudentLocation() {
+    if (!_permissionGranted) return;
+    _studentSub?.cancel();
+    _studentSub = _locationService.getPositionStream().listen((pos) {
+      _studentLatLng = LatLng(pos.latitude, pos.longitude);
       _safeNotify();
-    });
+    }, onError: (_) {});
+  }
+
+  void stopTracking() {
+    _tripSub?.cancel();
+    _gpsSub?.cancel();
+    _studentSub?.cancel();
+    _notifyThrottle?.cancel();
+    _tripSub = null;
+    _gpsSub = null;
+    _studentSub = null;
+    _trip = null;
+    _gps = null;
   }
 
   void _safeNotify() {
     if (_disposed) return;
-    notifyListeners();
-  }
-
-  List<LatLng> get routePolylinePoints {
-    if (_route == null) return [];
-    final stops = [..._route!.stops]..sort((a, b) => a.order.compareTo(b.order));
-    return stops
-        .where((s) => s.lat != 0.0 || s.lng != 0.0)
-        .map((s) => LatLng(s.lat, s.lng))
-        .toList();
-  }
-
-  Future<void> refreshPermissions() async {
-    await _ensurePermissions();
-    if (_permissionGranted && _student != null) {
-      _listenToStudentLocation();
-    }
-    _safeNotify();
-  }
-
-  void stopTracking() {
-    _busSub?.cancel();
-    _studentSub?.cancel();
-    _notifyThrottle?.cancel();
-    _busSub = null;
-    _studentSub = null;
-    _notifyThrottle = null;
-    _busLocation = null;
-    // Keep last student lat/lng for faster reopen; clear on dispose.
+    _dirty = true;
+    _notifyThrottle ??= Timer(const Duration(milliseconds: 400), () {
+      _notifyThrottle = null;
+      if (_disposed || !_dirty) return;
+      _dirty = false;
+      notifyListeners();
+    });
   }
 
   @override
   void dispose() {
     _disposed = true;
     stopTracking();
-    _studentLatLng = null;
     super.dispose();
   }
 }

@@ -27,6 +27,7 @@ import '../screens/driver/driver_route_screen.dart';
 import '../screens/driver/edit_driver_profile_screen.dart';
 
 import '../screens/admin/admin_dashboard.dart';
+import '../screens/admin/admin_live_tracking_screen.dart';
 import '../screens/admin/manage_students_screen.dart';
 import '../screens/admin/add_edit_student_screen.dart';
 import '../screens/admin/manage_drivers_screen.dart';
@@ -186,6 +187,10 @@ class AppRouter {
             student:
                 state.extra is StudentModel ? state.extra as StudentModel : null,
           ),
+        ),
+        GoRoute(
+          path: '/admin-live-tracking',
+          builder: (context, state) => const AdminLiveTrackingScreen(),
         ),
         GoRoute(
           path: '/notices',

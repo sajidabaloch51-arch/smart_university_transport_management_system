@@ -8,26 +8,26 @@ import '../models/driver_model.dart';
 import '../models/route_model.dart';
 import '../models/notice_model.dart';
 import '../models/schedule_model.dart';
-import '../models/bus_live_location_model.dart';
 import '../services/firestore_service.dart';
 import '../services/live_firestore.dart';
 import '../services/location_service.dart';
-import '../services/realtime_location_service.dart';
 import '../services/route_assignment_service.dart';
+import '../services/trip_tracking_service.dart';
 
 class DriverProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final LocationService _locationService = LocationService();
-  final RealtimeLocationService _realtimeLocation = RealtimeLocationService();
+  final TripTrackingService _tripService = TripTrackingService();
 
   DriverModel? _driver;
   RouteModel? _assignedRoute;
-  List<NoticeModel> _notices = [];
+  final List<NoticeModel> _notices = [];
   List<ScheduleModel> _todaySchedules = [];
   
   Position? _currentPosition;
   bool _isLoading = false;
   String? _error;
+  String? _activeTripId;
   
   // Local cache for registered drivers
   final Map<String, DriverModel> _localDrivers = {};
@@ -35,8 +35,19 @@ class DriverProvider extends ChangeNotifier {
   StreamSubscription? _positionSubscription;
   StreamSubscription? _profileSubscription;
   StreamSubscription? _routeSubscription;
+  StreamSubscription? _schedulesSubscription;
   Timer? _dutyTimer;
   Duration _dutyDuration = Duration.zero;
+
+  /// Auth uid for trips/gps_locations rules (`driverId == request.auth.uid`).
+  /// Profile may still live at seed doc `users/driver_id`.
+  String get _authUidForTrip {
+    try {
+      final u = FirebaseAuth.instance.currentUser?.uid;
+      if (u != null && u.isNotEmpty) return u;
+    } catch (_) {}
+    return _driver?.uid ?? '';
+  }
 
   // Getters
   DriverModel? get driver => _driver;
@@ -47,6 +58,7 @@ class DriverProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   Duration get dutyDuration => _dutyDuration;
+  String? get activeTripId => _activeTripId;
 
   // Safe getter for FirebaseFirestore
   FirebaseFirestore? get _db {
@@ -255,6 +267,8 @@ class DriverProvider extends ChangeNotifier {
   void _subscribeAssignedRoute(String routeId) {
     _routeSubscription?.cancel();
     _routeSubscription = null;
+    _schedulesSubscription?.cancel();
+    _schedulesSubscription = null;
     _assignedRoute = null;
     _todaySchedules = [];
     if (routeId.isEmpty || routeId.toLowerCase() == 'not assigned') {
@@ -265,67 +279,111 @@ class DriverProvider extends ChangeNotifier {
         _firestoreService.getAssignedRoute(routeId).listen((route) {
       _assignedRoute = route;
       notifyListeners();
+    }, onError: (e) {
+      debugPrint('Assigned route stream error: $e');
     });
-    _firestoreService.getTodaySchedules(routeId).listen((schedules) {
+    _schedulesSubscription =
+        _firestoreService.getTodaySchedules(routeId).listen((schedules) {
       _todaySchedules = schedules;
       notifyListeners();
+    }, onError: (e) {
+      debugPrint('Today schedules stream error: $e');
     });
   }
 
-  /// Toggle Duty Status
+  /// Stop GPS + cancel Firestore listeners (call on logout).
+  void clearSession() {
+    _stopLocationTracking();
+    _stopTimer();
+    _profileSubscription?.cancel();
+    _profileSubscription = null;
+    _routeSubscription?.cancel();
+    _routeSubscription = null;
+    _schedulesSubscription?.cancel();
+    _schedulesSubscription = null;
+    _activeTripId = null;
+    _error = null;
+    _driver = null;
+    _assignedRoute = null;
+    _todaySchedules = [];
+    notifyListeners();
+  }
+
+  /// START TRIP / END TRIP — GPS only while trip is ACTIVE (Firestore).
   Future<void> toggleDuty() async {
     if (_driver == null) return;
 
-    bool newStatus = !_driver!.isOnDuty;
+    final starting = !_driver!.isOnDuty;
     _isLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
-      if (newStatus) {
-        bool hasPermission = true;
+      if (starting) {
+        TripTrackingService.assertCanStartTrip(
+          verificationStatus: _driver!.verificationStatus,
+          busId: _driver!.assignedBusId,
+          routeId: _driver!.assignedRouteId,
+        );
+
+        bool hasPermission = false;
         try {
           hasPermission = await _locationService.checkPermissions();
-        } catch (_) {
-          // Web/desktop may not support geolocation; allow duty anyway
-          hasPermission = true;
+        } catch (e) {
+          throw Exception(
+            'Location services unavailable. Enable GPS and try again. ($e)',
+          );
         }
-        if (!hasPermission) throw Exception('Location permissions required');
-        
+        if (!hasPermission) {
+          throw Exception(
+            'Location permission denied. Allow location to start a trip.',
+          );
+        }
+
+        final tripDriverId = _authUidForTrip;
+        if (tripDriverId.isEmpty) {
+          throw Exception('Not signed in. Log in again to start a trip.');
+        }
+        final tripId = await _tripService.startTrip(
+          driverId: tripDriverId,
+          driverName: _driver!.name,
+          busId: _driver!.assignedBusId,
+          busNumber: _driver!.assignedBusNumber,
+          routeId: _driver!.assignedRouteId,
+          routeName: _driver!.assignedRouteName,
+          verificationStatus: _driver!.verificationStatus,
+        );
+        _activeTripId = tripId;
+        _tripService.resetDedupe();
+
         _driver = _driver!.copyWith(
           isOnDuty: true,
           lastDutyStart: DateTime.now(),
         );
         _localDrivers[_driver!.uid] = _driver!;
-        
+
         _startLocationTracking();
         _startTimer();
+        // Prefer profile doc (may be seed id); fall back to Auth uid mirror.
         await _firestoreService.updateDriverStatus(_driver!.uid, true);
-        // Seed RTDB immediately so students see Live before first GPS tick
-        await _publishLiveLocation(
-          lat: _currentPosition?.latitude ?? 0,
-          lng: _currentPosition?.longitude ?? 0,
-          speed: _currentPosition?.speed ?? 0,
-          heading: _currentPosition?.heading ?? 0,
-          isOnDuty: true,
-        );
       } else {
+        final tripId = _activeTripId;
+        _stopLocationTracking();
+        _stopTimer();
+        if (tripId != null && tripId.isNotEmpty) {
+          await _tripService.endTrip(tripId, driverId: _authUidForTrip);
+        }
+        _activeTripId = null;
         _driver = _driver!.copyWith(
           isOnDuty: false,
           lastDutyStart: null,
         );
         _localDrivers[_driver!.uid] = _driver!;
-        _stopLocationTracking();
-        _stopTimer();
         await _firestoreService.updateDriverStatus(_driver!.uid, false);
-        await _realtimeLocation.markOffline(_driver!.uid);
-        // Keep Firestore mirror in sync
-        await _firestoreService.updateLiveLocation(_driver!.uid, {
-          'isOnDuty': false,
-          'lastUpdated': DateTime.now(),
-        });
       }
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst('Exception: ', '');
+      debugPrint('toggleDuty/trip error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -336,30 +394,21 @@ class DriverProvider extends ChangeNotifier {
     if (Firebase.apps.isEmpty) return;
     _positionSubscription?.cancel();
 
-    // One-shot fix so first publish has real coords
     _locationService.getCurrentLocation().then((pos) {
       _currentPosition = pos;
-      _publishLiveLocation(
-        lat: pos.latitude,
-        lng: pos.longitude,
-        speed: pos.speed,
-        heading: pos.heading,
-        isOnDuty: true,
-      );
+      _publishTripGps(pos);
       notifyListeners();
     }).catchError((e) {
       debugPrint('Initial GPS fix failed: $e');
+      _error = 'Could not get GPS fix. Move outdoors and retry.';
+      notifyListeners();
     });
 
-    _positionSubscription = _locationService.getPositionStream().listen((pos) {
+    _positionSubscription = _locationService
+        .getPositionStream(foregroundNotification: true)
+        .listen((pos) {
       _currentPosition = pos;
-      _publishLiveLocation(
-        lat: pos.latitude,
-        lng: pos.longitude,
-        speed: pos.speed,
-        heading: pos.heading,
-        isOnDuty: true,
-      );
+      _publishTripGps(pos);
       notifyListeners();
     }, onError: (e) {
       debugPrint('GPS stream error: $e');
@@ -368,54 +417,24 @@ class DriverProvider extends ChangeNotifier {
     });
   }
 
-  Future<void> _publishLiveLocation({
-    required double lat,
-    required double lng,
-    required double speed,
-    required double heading,
-    required bool isOnDuty,
-  }) async {
+  Future<void> _publishTripGps(Position pos) async {
     if (_driver == null) return;
-
-    final payload = BusLiveLocationModel(
-      driverId: _driver!.uid,
-      driverName: _driver!.name,
-      busId: _driver!.assignedBusId,
-      busNumber: _driver!.assignedBusNumber,
-      routeId: _driver!.assignedRouteId,
-      routeName: _driver!.assignedRouteName,
-      lat: lat,
-      lng: lng,
-      speed: speed,
-      heading: heading,
-      isOnDuty: isOnDuty,
-      lastUpdatedMillis: DateTime.now().millisecondsSinceEpoch,
-    );
-
-    // Primary: Firebase Realtime Database (students listen here)
+    final tripId = _activeTripId;
+    if (tripId == null || tripId.isEmpty) return;
+    final driverId = _authUidForTrip;
+    if (driverId.isEmpty) return;
     try {
-      await _realtimeLocation.publishLocation(payload);
+      await _tripService.upsertGps(
+        tripId: tripId,
+        busId: _driver!.assignedBusId,
+        driverId: driverId,
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        speed: pos.speed.isNaN ? 0 : pos.speed,
+        heading: pos.heading.isNaN ? 0 : pos.heading,
+      );
     } catch (e) {
-      debugPrint('RTDB publish failed: $e');
-    }
-
-    // Secondary mirror: Firestore (legacy screens / fallback)
-    try {
-      await _firestoreService.updateLiveLocation(_driver!.uid, {
-        'lat': lat,
-        'lng': lng,
-        'speed': speed,
-        'heading': heading,
-        'isOnDuty': isOnDuty,
-        'routeId': _driver!.assignedRouteId,
-        'busId': _driver!.assignedBusId,
-        'busNumber': _driver!.assignedBusNumber,
-        'driverName': _driver!.name,
-        'routeName': _driver!.assignedRouteName,
-        'lastUpdated': DateTime.now(),
-      });
-    } catch (e) {
-      debugPrint('Firestore liveLocation mirror failed: $e');
+      debugPrint('Firestore gps_locations upsert failed: $e');
     }
   }
 
@@ -448,6 +467,7 @@ class DriverProvider extends ChangeNotifier {
     _positionSubscription?.cancel();
     _profileSubscription?.cancel();
     _routeSubscription?.cancel();
+    _schedulesSubscription?.cancel();
     _dutyTimer?.cancel();
     super.dispose();
   }

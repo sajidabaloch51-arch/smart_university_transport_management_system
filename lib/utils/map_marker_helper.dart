@@ -1,92 +1,46 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
-/// Creates custom BitmapDescriptor markers for the live map.
+import '../models/route_model.dart';
+import '../widgets/osm_map_view.dart';
+
+/// Helpers for OSM map markers / polylines (no Google Maps).
 class MapMarkerHelper {
-  static Future<BitmapDescriptor> createBusMarker({
-    Color color = const Color(0xFF1565C0),
-    double size = 96,
-  }) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final paint = Paint()..color = color;
+  MapMarkerHelper._();
 
-    final center = Offset(size / 2, size / 2);
-    canvas.drawCircle(center, size / 2, paint);
-    canvas.drawCircle(
-      center,
-      size / 2 - 3,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
-    );
-
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: '🚌',
-        style: TextStyle(fontSize: 42),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        (size - textPainter.width) / 2,
-        (size - textPainter.height) / 2 - 2,
-      ),
-    );
-
-    final image = await recorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  static List<LatLng> routePolyline(RouteModel? route) {
+    if (route == null) return const [];
+    final stops = [...route.stops]
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final pts = <LatLng>[];
+    for (final s in stops) {
+      if (s.lat.abs() > 0.0001 || s.lng.abs() > 0.0001) {
+        pts.add(LatLng(s.lat, s.lng));
+      }
+    }
+    return pts;
   }
 
-  static Future<BitmapDescriptor> createStudentMarker({
-    Color color = const Color(0xFFE53935),
-    double size = 80,
-  }) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
+  static List<OsmStopMarker> stopMarkers(RouteModel? route) {
+    if (route == null) return const [];
+    final stops = [...route.stops]
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final out = <OsmStopMarker>[];
+    for (var i = 0; i < stops.length; i++) {
+      final s = stops[i];
+      if (s.lat.abs() < 0.0001 && s.lng.abs() < 0.0001) continue;
+      out.add(
+        OsmStopMarker(
+          point: LatLng(s.lat, s.lng),
+          label: s.stopName.isEmpty ? 'Stop ${i + 1}' : s.stopName,
+          isTerminal: i == 0 || i == stops.length - 1,
+        ),
+      );
+    }
+    return out;
+  }
 
-    canvas.drawCircle(
-      Offset(size / 2, size / 2),
-      size / 2,
-      Paint()..color = color,
-    );
-    canvas.drawCircle(
-      Offset(size / 2, size / 2),
-      size / 2 - 3,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
-    );
-
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: '📍',
-        style: TextStyle(fontSize: 34),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        (size - textPainter.width) / 2,
-        (size - textPainter.height) / 2 - 2,
-      ),
-    );
-
-    final image = await recorder.endRecording().toImage(
-      size.toInt(),
-      size.toInt(),
-    );
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  static Widget busIcon({Color color = const Color(0xFF0D47A1)}) {
+    return Icon(Icons.directions_bus, color: color, size: 32);
   }
 }

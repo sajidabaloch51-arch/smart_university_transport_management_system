@@ -188,9 +188,17 @@ class _ManageRoutesScreenState extends State<ManageRoutesScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              provider.deleteRoute(id);
+            onPressed: () async {
               Navigator.pop(context);
+              try {
+                await provider.deleteRoute(id);
+              } catch (e) {
+                if (!context.mounted) return;
+                final msg = e.toString().replaceFirst('Bad state: ', '');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(msg)),
+                );
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),

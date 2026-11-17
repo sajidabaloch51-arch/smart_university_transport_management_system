@@ -1,24 +1,30 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sutms/config/auth_route_guard.dart';
 import 'package:sutms/constants/demo_credentials.dart';
 import 'package:sutms/core/validators/app_validators.dart';
+import 'package:sutms/models/gps_location_model.dart';
 import 'package:sutms/models/student_model.dart';
+import 'package:sutms/models/trip_model.dart';
 import 'package:sutms/providers/auth_provider.dart';
 import 'package:sutms/screens/shared/role_selection_screen.dart';
 import 'package:sutms/services/auth_error_mapper.dart';
 import 'package:sutms/services/auth_role_resolver.dart';
 import 'package:sutms/services/password_hasher.dart';
 import 'package:sutms/services/student_access_guard.dart';
+import 'package:sutms/services/trip_tracking_service.dart';
 import 'package:sutms/utils/email_validator.dart';
 import 'package:sutms/utils/firestore_error_messages.dart';
 import 'package:sutms/utils/firestore_query_exception.dart';
 import 'package:sutms/widgets/async_state_view.dart';
+import 'package:sutms/widgets/osm_map_view.dart';
 
 /// Acceptance tests: business / UAT criteria in Given–When–Then form.
 /// Validates what stakeholders accept for University of Gwadar SUTMS.
@@ -569,6 +575,230 @@ void main() {
           ),
           "Can't reach the server",
         );
+      },
+    );
+  });
+
+  group('AT-12 Driver START TRIP acceptance (UAT: share bus GPS)', () {
+    test(
+      'Given an approved driver with bus and route, When START TRIP is requested, '
+      'Then the trip is allowed',
+      () {
+        expect(
+          () => TripTrackingService.assertCanStartTrip(
+            verificationStatus: 'approved',
+            busId: 'bus_1',
+            routeId: 'route_1',
+          ),
+          returnsNormally,
+        );
+      },
+    );
+
+    test(
+      'Given a pending or unassigned driver, When START TRIP is requested, '
+      'Then the system blocks with a clear admin message',
+      () {
+        expect(
+          () => TripTrackingService.assertCanStartTrip(
+            verificationStatus: 'pending',
+            busId: 'bus_1',
+            routeId: 'route_1',
+          ),
+          throwsA(
+            isA<TripStartException>().having(
+              (e) => e.message.toLowerCase(),
+              'message',
+              allOf(contains('approved'), contains('admin')),
+            ),
+          ),
+        );
+        expect(
+          () => TripTrackingService.assertCanStartTrip(
+            verificationStatus: 'approved',
+            busId: 'Not Assigned',
+            routeId: 'route_1',
+          ),
+          throwsA(
+            isA<TripStartException>().having(
+              (e) => e.message.toLowerCase(),
+              'message',
+              contains('bus'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'Given Auth uid differs from seed driver_id, When a trip is published, '
+      'Then driverId on trip/GPS must be the Auth uid (rules match)',
+      () {
+        const authUid = 'firebase_driver_uid';
+        const seedDocId = 'driver_id';
+        expect(authUid, isNot(seedDocId));
+
+        final trip = TripModel(
+          id: 't1',
+          busId: 'bus_1',
+          driverId: authUid,
+          routeId: 'route_1',
+          busNumber: 'UG-01',
+          status: 'ACTIVE',
+        );
+        final gps = GpsLocationModel(
+          tripId: 't1',
+          busId: 'bus_1',
+          driverId: authUid,
+          latitude: 25.145,
+          longitude: 62.36,
+        );
+        expect(trip.driverId, authUid);
+        expect(gps.toMap()['driverId'], authUid);
+        expect(gps.hasValidCoords, isTrue);
+      },
+    );
+  });
+
+  group('AT-13 Student/Admin live bus map acceptance', () {
+    testWidgets(
+      'Given an ACTIVE trip with valid GPS, When student opens live tracking, '
+      'Then a free OSM map shows the bus without Google Maps SDK',
+      (tester) async {
+        final pubspec = File('pubspec.yaml').readAsStringSync();
+        expect(pubspec.contains('flutter_map:'), isTrue);
+        expect(pubspec.contains('google_maps_flutter'), isFalse);
+
+        final oldOnError = FlutterError.onError;
+        FlutterError.onError = (details) {
+          final msg = details.exceptionAsString();
+          if (msg.contains('ClientException') || msg.contains('status 400')) {
+            return;
+          }
+          oldOnError?.call(details);
+        };
+        addTearDown(() => FlutterError.onError = oldOnError);
+
+        final trip = TripModel.fromMap({
+          'busId': 'b1',
+          'driverId': 'uid_1',
+          'routeId': 'r1',
+          'busNumber': 'UG-01',
+          'status': 'ACTIVE',
+        }, 't1');
+        final gps = GpsLocationModel.fromMap({
+          'busId': 'b1',
+          'driverId': 'uid_1',
+          'latitude': 25.145,
+          'longitude': 62.36,
+          'isActive': true,
+        }, 't1');
+        expect(trip.isActive, isTrue);
+        expect(gps.hasValidCoords, isTrue);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const Text('LIVE_TRACKING'),
+                  Text('Bus ${trip.busNumber}'),
+                  SizedBox(
+                    width: 360,
+                    height: 240,
+                    child: OsmMapView(
+                      busLocation: LatLng(gps.latitude, gps.longitude),
+                      busLabel: trip.busNumber,
+                      followBus: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(find.text('LIVE_TRACKING'), findsOneWidget);
+        expect(find.text('Bus UG-01'), findsOneWidget);
+        expect(find.byType(OsmMapView), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    test(
+      'Given no active trip, When student views live tracking status, '
+      'Then they see that the bus is not currently active',
+      () {
+        final idle = TripModel.fromMap({
+          'busId': 'b1',
+          'driverId': 'uid',
+          'routeId': 'r1',
+          'status': 'COMPLETED',
+        }, 't2');
+        expect(idle.isActive, isFalse);
+      },
+    );
+  });
+
+  group('AT-14 Live-tracking role access acceptance', () {
+    test(
+      'Given each role, When opening live-tracking paths, '
+      'Then only the correct audience is allowed',
+      () {
+        expect(
+          AuthRouteGuard.redirect(
+            location: '/live-tracking',
+            appAuthenticated: true,
+            hasFirebaseUser: true,
+            role: 'student',
+          ),
+          isNull,
+        );
+        expect(
+          AuthRouteGuard.redirect(
+            location: '/admin-live-tracking',
+            appAuthenticated: true,
+            hasFirebaseUser: true,
+            role: 'admin',
+          ),
+          isNull,
+        );
+        expect(
+          AuthRouteGuard.redirect(
+            location: '/live-tracking',
+            appAuthenticated: true,
+            hasFirebaseUser: true,
+            role: 'driver',
+          ),
+          '/driver-dashboard',
+        );
+        expect(
+          AuthRouteGuard.redirect(
+            location: '/admin-live-tracking',
+            appAuthenticated: true,
+            hasFirebaseUser: true,
+            role: 'student',
+          ),
+          '/student-dashboard',
+        );
+      },
+    );
+  });
+
+  group('AT-15 Free OSM / no paid Maps acceptance', () {
+    test(
+      'Given the shipped app stack, When stakeholders require free maps, '
+      'Then flutter_map is used and Google Maps SDK is absent',
+      () {
+        final pubspec = File('pubspec.yaml').readAsStringSync();
+        final appDelegate =
+            File('ios/Runner/AppDelegate.swift').readAsStringSync();
+        expect(pubspec.contains('flutter_map:'), isTrue);
+        expect(pubspec.contains('latlong2:'), isTrue);
+        expect(pubspec.contains('google_maps_flutter'), isFalse);
+        expect(appDelegate.contains('GMSServices'), isFalse);
+        expect(OsmMapView.gwadarFallback.latitude.isFinite, isTrue);
       },
     );
   });

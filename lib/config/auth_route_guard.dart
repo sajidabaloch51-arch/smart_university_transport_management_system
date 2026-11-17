@@ -29,6 +29,7 @@ class AuthRouteGuard {
         loc == '/assign-duty' ||
         loc == '/view-feedback' ||
         loc == '/system-reports' ||
+        loc == '/admin-live-tracking' ||
         loc.startsWith('/add-edit-');
   }
 

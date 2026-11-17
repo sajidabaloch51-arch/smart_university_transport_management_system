@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/route_model.dart';
 import '../../providers/route_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../widgets/osm_map_view.dart';
 
 class AddEditRouteScreen extends StatefulWidget {
   final RouteModel? route;
@@ -103,6 +105,42 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
   void _addStop() {
     setState(() => _stops.add(_StopEditors()));
+  }
+
+  void _onMapTap(LatLng point) {
+    setState(() {
+      _stops.add(
+        _StopEditors(
+          name: 'Stop ${_stops.length + 1}',
+          lat: point.latitude.toStringAsFixed(6),
+          lng: point.longitude.toStringAsFixed(6),
+        ),
+      );
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Added stop at ${point.latitude.toStringAsFixed(5)}, '
+          '${point.longitude.toStringAsFixed(5)} — rename it below',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  List<({LatLng point, String label})> get _previewStops {
+    final out = <({LatLng point, String label})>[];
+    for (var i = 0; i < _stops.length; i++) {
+      final s = _stops[i];
+      final lat = double.tryParse(s.lat.text.trim());
+      final lng = double.tryParse(s.lng.text.trim());
+      if (lat == null || lng == null) continue;
+      out.add((
+        point: LatLng(lat, lng),
+        label: s.name.text.trim().isEmpty ? 'Stop ${i + 1}' : s.name.text.trim(),
+      ));
+    }
+    return out;
   }
 
   List<RouteStop> _buildStops() {
@@ -283,8 +321,32 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Add ordered GPS points. These are drawn as the route polyline on Live Bus Tracking.',
+                'Tap the map to place stops (no paid geocoding). '
+                'Reorder by editing the list. Points become the live-tracking polyline.',
                 style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 220,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: OsmMapView(
+                    routePoints:
+                        _previewStops.map((e) => e.point).toList(growable: false),
+                    stops: [
+                      for (var i = 0; i < _previewStops.length; i++)
+                        OsmStopMarker(
+                          point: _previewStops[i].point,
+                          label: _previewStops[i].label,
+                          isTerminal:
+                              i == 0 || i == _previewStops.length - 1,
+                        ),
+                    ],
+                    onTap: _onMapTap,
+                    followBus: false,
+                    initialZoom: 13,
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               ...List.generate(_stops.length, (index) {

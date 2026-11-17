@@ -34,9 +34,20 @@ service cloud.firestore {
             || isAllowlistedAdmin());
     }
 
+    // Demo / allowlisted driver emails can use driver APIs even when the seed
+    // profile lives at users/driver_id (Auth uid ≠ seed doc id).
+    function isAllowlistedDriver() {
+      return authEmailKey() != ''
+        && (authEmailKey() == 'driver@uog.edu.pk'
+            || exists(/databases/$(database)/documents/approvedDrivers/$(authEmailKey())));
+    }
+
     function isDriver() {
       return signedIn()
-        && (userRole() == 'driver' || userRole() == 'Driver' || userRole() == 'DRIVER');
+        && (userRole() == 'driver'
+            || userRole() == 'Driver'
+            || userRole() == 'DRIVER'
+            || isAllowlistedDriver());
     }
 
     function isStudent() {
@@ -73,6 +84,16 @@ service cloud.firestore {
         && request.resource.data.role == 'student';
     }
 
+    // Allow Auth-uid role mirror for allowlisted drivers (no get() on seed doc —
+    // get() would deny and abort the whole rule if the caller cannot read it).
+    function canMirrorDriverRoleOnOwnDoc() {
+      return signedIn()
+        && request.resource.data.keys().hasAny(['role', 'email'])
+        && request.resource.data.role == 'driver'
+        && request.resource.data.email == authEmail()
+        && isAllowlistedDriver();
+    }
+
     // Drivers cannot reassign their own route/bus (Admin only).
     function driverAssignmentFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys()
@@ -107,6 +128,7 @@ service cloud.firestore {
             && createRoleIsStudentOnly()
             && request.resource.data.keys().hasAny(['verificationStatus'])
             && request.resource.data.verificationStatus in ['pending', 'approved'])
+        || (isOwner(userId) && canMirrorDriverRoleOnOwnDoc())
         || isAdmin();
 
       allow update: if isAdmin()
@@ -117,7 +139,11 @@ service cloud.firestore {
         || (isOwner(userId)
             && isDriver()
             && roleUnchanged()
-            && driverAssignmentFieldsUnchanged());
+            && driverAssignmentFieldsUnchanged())
+        // First-time Auth-uid mirror (seed lives at users/driver_id).
+        || (isOwner(userId) && canMirrorDriverRoleOnOwnDoc()
+            && (!resource.data.keys().hasAny(['role'])
+                || resource.data.role == 'driver'));
 
       allow delete: if isAdmin();
     }
@@ -144,8 +170,11 @@ service cloud.firestore {
     }
 
     match /duties/{dutyId} {
+      // Own Auth uid always readable; seed duties use driverId == 'driver_id'
+      // for the demo driver after role mirror succeeds (isDriver()).
       allow read: if isAdmin()
-        || (isDriver() && resource.data.driverId == request.auth.uid);
+        || (signedIn() && resource.data.driverId == request.auth.uid)
+        || (isDriver() && resource.data.driverId == 'driver_id');
       allow create, update, delete: if isAdmin();
     }
 
@@ -213,6 +242,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Driver allowlist (doc id = normalized email). Readable for rule exists().
+    match /approvedDrivers/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     function feedbackCreateValid() {
       return request.resource.data.keys().hasAll([
                'category', 'message', 'studentUid', 'status', 'createdAt'
@@ -235,7 +271,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Legacy Firestore GPS mirror (primary live tracking is RTDB).
+    // Legacy mirror — kept for older clients; new path is trips/gps_locations.
     match /liveLocations/{driverId} {
       allow read: if signedIn();
       allow create, update: if isAdmin()
@@ -243,9 +279,37 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // health doc is used by the app connectivity probe (may be unauthenticated).
+    // Active bus trips (START/END TRIP). Drivers write only their own trip.
+    match /trips/{tripId} {
+      allow read: if signedIn();
+      allow create: if isAdmin()
+        || (isDriver()
+            && request.resource.data.driverId == request.auth.uid
+            && request.resource.data.status == 'ACTIVE');
+      allow update: if isAdmin()
+        || (isDriver()
+            && resource.data.driverId == request.auth.uid
+            && request.resource.data.driverId == resource.data.driverId
+            && request.resource.data.busId == resource.data.busId
+            && request.resource.data.routeId == resource.data.routeId);
+      allow delete: if isAdmin();
+    }
+
+    // One GPS doc per tripId — drivers update only their own active trip GPS.
+    match /gps_locations/{tripId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        || (isDriver()
+            && request.resource.data.driverId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // health: connectivity probe (may be unauthenticated).
+    // seed: version check for all signed-in roles (writes stay Admin-only).
     match /_meta/{id} {
-      allow read: if id == 'health' || isAdmin();
+      allow read: if id == 'health'
+        || (id == 'seed' && signedIn())
+        || isAdmin();
       allow write: if isAdmin();
     }
   }

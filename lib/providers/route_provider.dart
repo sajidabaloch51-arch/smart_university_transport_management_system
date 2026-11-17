@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/route_model.dart';
 import '../services/live_firestore.dart';
 import '../services/route_assignment_service.dart';
+import '../services/trip_tracking_service.dart';
 
 class RouteProvider extends ChangeNotifier {
   static const _streamKey = 'routes_all';
@@ -162,6 +163,11 @@ class RouteProvider extends ChangeNotifier {
   Future<void> deleteRoute(String id) async {
     final db = LiveFirestore.db;
     if (db == null) return;
+    if (await TripTrackingService().routeHasActiveTrip(id)) {
+      throw StateError(
+        'Cannot delete this route while a trip is ACTIVE. End the trip first.',
+      );
+    }
     await RouteAssignmentService().clearBeforeRouteDelete(id);
     await db.collection('routes').doc(id).delete();
   }

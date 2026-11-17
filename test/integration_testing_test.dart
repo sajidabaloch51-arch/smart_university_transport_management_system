@@ -3,20 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sutms/config/auth_route_guard.dart';
 import 'package:sutms/constants/demo_credentials.dart';
 import 'package:sutms/core/validators/app_validators.dart';
+import 'package:sutms/models/driver_model.dart';
+import 'package:sutms/models/gps_location_model.dart';
+import 'package:sutms/models/route_model.dart';
 import 'package:sutms/models/student_model.dart';
+import 'package:sutms/models/trip_model.dart';
 import 'package:sutms/providers/auth_provider.dart';
 import 'package:sutms/services/auth_error_mapper.dart';
 import 'package:sutms/services/auth_role_resolver.dart';
 import 'package:sutms/services/password_hasher.dart';
 import 'package:sutms/services/student_access_guard.dart';
+import 'package:sutms/services/trip_tracking_service.dart';
 import 'package:sutms/utils/firestore_error_messages.dart';
 import 'package:sutms/utils/firestore_query_exception.dart';
+import 'package:sutms/utils/map_marker_helper.dart';
 import 'package:sutms/widgets/async_state_view.dart';
+import 'package:sutms/widgets/osm_map_view.dart';
 
 /// Integration tests: multiple real modules wired together (router + auth +
 /// validators + error UI + prefs). No live Firebase / device required.
@@ -412,6 +420,257 @@ void main() {
         ),
         'Please log in again',
       );
+    });
+  });
+
+  group('IT-06 Driver trip + live map modules wired together', () {
+    testWidgets(
+      'driver session → START gate → trip/GPS auth uid → student map + RBAC',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        const authUid = 'firebase_driver_uid';
+        const seedDocId = 'driver_id';
+
+        expect(
+          AuthRoleResolver.needsRoleMirror(
+            authUid: authUid,
+            profileUid: seedDocId,
+            role: 'driver',
+          ),
+          isTrue,
+        );
+
+        final role = AuthRoleResolver.resolve(
+          firestoreRoleByUid: null,
+          firestoreRoleByEmail: 'driver',
+          prefsRole: 'student',
+        );
+        expect(role, 'driver');
+
+        final auth = AuthProvider();
+        auth.setAuthenticated(
+          true,
+          role: role,
+          uid: authUid,
+          email: DemoCredentials.driverEmail,
+        );
+
+        final profile = DriverModel(
+          uid: seedDocId,
+          name: 'Demo Driver',
+          email: DemoCredentials.driverEmail,
+          phone: '03000000000',
+          role: 'driver',
+          driverId: 'EMP-1',
+          assignedBusId: 'bus_1',
+          assignedBusNumber: 'UG-01',
+          assignedRouteId: 'route_1',
+          assignedRouteName: 'Campus Loop',
+          isOnDuty: false,
+          verificationStatus: 'approved',
+        );
+
+        expect(
+          () => TripTrackingService.assertCanStartTrip(
+            verificationStatus: profile.verificationStatus,
+            busId: profile.assignedBusId,
+            routeId: profile.assignedRouteId,
+          ),
+          returnsNormally,
+        );
+
+        final trip = TripModel(
+          id: 'trip_1',
+          busId: profile.assignedBusId,
+          driverId: auth.uid!,
+          routeId: profile.assignedRouteId,
+          busNumber: profile.assignedBusNumber,
+          routeName: profile.assignedRouteName,
+          driverName: profile.name,
+          status: 'ACTIVE',
+        );
+        final gps = GpsLocationModel(
+          tripId: trip.id,
+          busId: trip.busId,
+          driverId: auth.uid!,
+          latitude: 25.145,
+          longitude: 62.36,
+          isActive: true,
+        );
+        expect(trip.driverId, authUid);
+        expect(gps.driverId, authUid);
+        expect(gps.hasValidCoords, isTrue);
+
+        final route = RouteModel.fromMap('route_1', {
+          'routeName': 'Campus Loop',
+          'stops': [
+            {'stopName': 'Jetty', 'lat': 25.14, 'lng': 62.35, 'order': 1},
+            {'stopName': 'Campus', 'lat': 25.15, 'lng': 62.37, 'order': 2},
+          ],
+        });
+        final polyline = MapMarkerHelper.routePolyline(route);
+
+        final oldOnError = FlutterError.onError;
+        FlutterError.onError = (details) {
+          final msg = details.exceptionAsString();
+          if (msg.contains('ClientException') || msg.contains('status 400')) {
+            return;
+          }
+          oldOnError?.call(details);
+        };
+        addTearDown(() => FlutterError.onError = oldOnError);
+
+        // Student live-tracking surface consumes trip GPS + route polyline.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Text(trip.isActive ? 'TRIP ACTIVE' : 'TRIP OFFLINE'),
+                  Text('BUS ${trip.busNumber}'),
+                  SizedBox(
+                    width: 360,
+                    height: 240,
+                    child: OsmMapView(
+                      busLocation: LatLng(gps.latitude, gps.longitude),
+                      busLabel: trip.busNumber,
+                      routePoints: polyline,
+                      followBus: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(find.text('TRIP ACTIVE'), findsOneWidget);
+        expect(find.text('BUS UG-01'), findsOneWidget);
+        expect(find.byType(OsmMapView), findsOneWidget);
+        expect(tester.takeException(), isNull);
+
+        // Router RBAC: driver stays off student/admin live paths; student/admin OK.
+        final router = GoRouter(
+          initialLocation: '/driver-dashboard',
+          refreshListenable: auth,
+          redirect: (context, state) => AuthRouteGuard.redirect(
+            location: state.matchedLocation,
+            appAuthenticated: auth.isAuthenticated,
+            hasFirebaseUser: true,
+            role: auth.userRole,
+          ),
+          routes: [
+            GoRoute(
+              path: '/driver-dashboard',
+              builder: (_, __) => const Scaffold(body: Text('DRIVER_HOME')),
+            ),
+            GoRoute(
+              path: '/live-tracking',
+              builder: (_, __) => const Scaffold(body: Text('STUDENT_LIVE')),
+            ),
+            GoRoute(
+              path: '/admin-live-tracking',
+              builder: (_, __) => const Scaffold(body: Text('ADMIN_LIVE')),
+            ),
+            GoRoute(
+              path: '/student-dashboard',
+              builder: (_, __) => const Scaffold(body: Text('STUDENT_HOME')),
+            ),
+            GoRoute(
+              path: '/admin-dashboard',
+              builder: (_, __) => const Scaffold(body: Text('ADMIN_HOME')),
+            ),
+            GoRoute(
+              path: '/role-selection',
+              builder: (_, __) => const Scaffold(body: Text('ROLE_SELECTION')),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider.value(
+            value: auth,
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('DRIVER_HOME'), findsOneWidget);
+
+        router.go('/live-tracking');
+        await tester.pumpAndSettle();
+        expect(find.text('DRIVER_HOME'), findsOneWidget);
+        expect(find.text('STUDENT_LIVE'), findsNothing);
+
+        // Student consumer can open live tracking.
+        auth.setAuthenticated(
+          true,
+          role: 'student',
+          uid: 'stu_uid',
+          email: DemoCredentials.studentEmail,
+        );
+        await tester.pumpAndSettle();
+        router.go('/live-tracking');
+        await tester.pumpAndSettle();
+        expect(find.text('STUDENT_LIVE'), findsOneWidget);
+
+        // Admin consumer can open admin live tracking.
+        auth.setAuthenticated(
+          true,
+          role: 'admin',
+          uid: 'admin_uid',
+          email: DemoCredentials.adminEmail,
+        );
+        await tester.pumpAndSettle();
+        router.go('/admin-live-tracking');
+        await tester.pumpAndSettle();
+        expect(find.text('ADMIN_LIVE'), findsOneWidget);
+      },
+    );
+  });
+
+  group('IT-07 GPS permission error → AsyncStateView recovery', () {
+    testWidgets('gps_locations permission-denied shows access message + Retry',
+        (tester) async {
+      var builds = 0;
+      Stream<List<String>> factory() {
+        builds++;
+        if (builds == 1) {
+          return Stream.error(
+            FirestoreQueryException(
+              collection: 'gps_locations',
+              query: 'watch_active',
+              authUid: 'uid1',
+              cause: StateError('permission-denied'),
+            ),
+          );
+        }
+        return Stream.value(['trip_1']);
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AsyncStateView<List<String>>(
+              stream: factory(),
+              streamFactory: factory,
+              isEmpty: (d) => d.isEmpty,
+              emptyMessage: 'No active buses',
+              builder: (_, data) => Text('GPS:${data.first}'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('access'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('GPS:trip_1'), findsOneWidget);
     });
   });
 }

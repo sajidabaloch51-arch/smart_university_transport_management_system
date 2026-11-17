@@ -203,7 +203,10 @@ class DriverProfileScreen extends StatelessWidget {
           const SizedBox(height: 15),
           TextButton(
             onPressed: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
+              // Stop GPS + cancel Firestore listeners before sign-out.
+              context.read<DriverProvider>().clearSession();
               await authProvider.logout();
               if (context.mounted) {
                 context.go('/role-selection');

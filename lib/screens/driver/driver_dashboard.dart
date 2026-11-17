@@ -264,19 +264,22 @@ class _DashboardSummaryState extends State<DashboardSummary> {
   }
 
   /// All identity keys that may appear on duty/alert docs (Auth ≠ seed doc id).
+  /// Auth uid is first so Firestore rules (`driverId == auth.uid`) can succeed.
   List<String> _resolveDriverIds() {
-    final ids = <String>{};
-    final fromDriver = context.read<DriverProvider>().driver?.uid;
-    if (fromDriver != null && fromDriver.isNotEmpty) ids.add(fromDriver);
-    final fromAppAuth = context.read<AuthProvider>().uid;
-    if (fromAppAuth != null && fromAppAuth.isNotEmpty) ids.add(fromAppAuth);
+    final ids = <String>[];
+    void addId(String? id) {
+      if (id == null || id.isEmpty || ids.contains(id)) return;
+      ids.add(id);
+    }
+
+    addId(context.read<AuthProvider>().uid);
     try {
-      final authUid = FirebaseAuth.instance.currentUser?.uid;
-      if (authUid != null && authUid.isNotEmpty) ids.add(authUid);
+      addId(FirebaseAuth.instance.currentUser?.uid);
     } catch (_) {}
+    addId(context.read<DriverProvider>().driver?.uid);
     // Seeded demo driver doc id — Admin assign often uses this.
-    ids.add('driver_id');
-    return ids.toList();
+    addId('driver_id');
+    return ids;
   }
 
   void _bindIfReady() {

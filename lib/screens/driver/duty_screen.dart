@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../models/duty_model.dart';
 import '../../services/duty_service.dart';
+import '../../utils/map_marker_helper.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/duty_card.dart';
+import '../../widgets/osm_map_view.dart';
 
 class DutyScreen extends StatefulWidget {
   final int refreshToken;
@@ -38,12 +41,16 @@ class _DutyScreenState extends State<DutyScreen> {
   }
 
   void _bind() {
-    final ids = <String>{};
-    final dUid = context.read<DriverProvider>().driver?.uid;
-    final aUid = context.read<AuthProvider>().uid;
-    if (dUid != null && dUid.isNotEmpty) ids.add(dUid);
-    if (aUid != null && aUid.isNotEmpty) ids.add(aUid);
-    ids.add('driver_id');
+    // Ordered list: Auth uid first (rules-safe), then profile uid, then seed id.
+    final ids = <String>[];
+    void addId(String? id) {
+      if (id == null || id.isEmpty || ids.contains(id)) return;
+      ids.add(id);
+    }
+
+    addId(context.read<AuthProvider>().uid);
+    addId(context.read<DriverProvider>().driver?.uid);
+    addId('driver_id'); // seed duties; readable once isDriver() mirror works
     if (ids.isEmpty) {
       debugPrint('DutyScreen waiting for uid…');
       return;
@@ -76,55 +83,76 @@ class _DutyScreenState extends State<DutyScreen> {
         }
 
         final isOnDuty = driver.isOnDuty;
+        final media = MediaQuery.of(context);
+        final mapHeight =
+            (media.size.height * 0.35).clamp(240.0, 420.0).toDouble();
 
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              _StatusBadge(isOnDuty: isOnDuty),
-              const SizedBox(height: 20),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Assigned Duties',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1565C0),
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              16 + media.viewPadding.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _StatusBadge(isOnDuty: isOnDuty),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Assigned Duties',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1565C0),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 140,
-                child: _stream == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : AsyncStateView<List<DutyModel>>(
-                        stream: _stream!,
-                        isEmpty: (duties) => duties.isEmpty,
-                        emptyMessage: 'No duties assigned yet.',
-                        timeout: const Duration(seconds: 12),
-                        onRetry: () {
-                          setState(() {
-                            _stream = null;
-                            _boundUid = null;
-                          });
-                          _bind();
-                        },
-                        builder: (context, duties) {
-                          return ListView(
-                            children:
-                                duties.map((d) => DutyCard(duty: d)).toList(),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: GridView.count(
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 120),
+                  child: _stream == null
+                      ? const SizedBox(
+                          height: 120,
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : AsyncStateView<List<DutyModel>>(
+                          stream: _stream!,
+                          isEmpty: (duties) => duties.isEmpty,
+                          emptyMessage: 'No duties assigned yet.',
+                          emptySubtitle:
+                              'When Admin assigns a duty, it will show up here. '
+                              'You can still START TRIP if a bus and route are assigned.',
+                          timeout: const Duration(seconds: 12),
+                          onRetry: () {
+                            setState(() {
+                              _stream = null;
+                              _boundUid = null;
+                            });
+                            _bind();
+                          },
+                          builder: (context, duties) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (final d in duties) DutyCard(duty: d),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 16),
+                GridView.count(
                   crossAxisCount: 2,
-                  mainAxisSpacing: 20,
-                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 1.05,
                   children: [
                     _StatTile(
                       icon: Icons.timer,
@@ -152,19 +180,73 @@ class _DutyScreenState extends State<DutyScreen> {
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              CustomButton(
-                text: isOnDuty ? 'END DUTY' : 'START DUTY',
-                color: isOnDuty ? Colors.red : Colors.green,
-                isLoading: provider.isLoading,
-                icon: isOnDuty
-                    ? Icons.stop_circle_outlined
-                    : Icons.play_circle_fill_rounded,
-                onPressed: () => provider.toggleDuty(),
-              ),
-              const SizedBox(height: 20),
-            ],
+                if (provider.error != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    provider.error!,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 56,
+                  width: double.infinity,
+                  child: CustomButton(
+                    text: isOnDuty ? 'END TRIP' : 'START TRIP',
+                    color: isOnDuty ? Colors.red : Colors.green,
+                    isLoading: provider.isLoading,
+                    icon: isOnDuty
+                        ? Icons.stop_circle_outlined
+                        : Icons.play_circle_fill_rounded,
+                    onPressed: () async {
+                      await provider.toggleDuty();
+                      if (!context.mounted) return;
+                      final err = provider.error;
+                      if (err != null && err.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(err),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: mapHeight,
+                  width: double.infinity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: OsmMapView(
+                      busLocation: provider.currentPosition == null
+                          ? null
+                          : LatLng(
+                              provider.currentPosition!.latitude,
+                              provider.currentPosition!.longitude,
+                            ),
+                      routePoints: MapMarkerHelper.routePolyline(
+                        provider.assignedRoute,
+                      ),
+                      stops: MapMarkerHelper.stopMarkers(
+                        provider.assignedRoute,
+                      ),
+                      busLabel:
+                          provider.driver?.assignedBusNumber.isNotEmpty == true
+                              ? provider.driver!.assignedBusNumber
+                              : 'BUS',
+                      followBus: isOnDuty,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       },
@@ -180,10 +262,12 @@ class _DutyScreenState extends State<DutyScreen> {
 class _StatusBadge extends StatelessWidget {
   final bool isOnDuty;
   const _StatusBadge({required this.isOnDuty});
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isOnDuty ? Colors.green.shade50 : Colors.red.shade50,
         borderRadius: BorderRadius.circular(30),
@@ -193,35 +277,43 @@ class _StatusBadge extends StatelessWidget {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
             isOnDuty ? Icons.radar_rounded : Icons.offline_bolt_rounded,
-            size: 50,
+            size: 40,
             color: isOnDuty ? Colors.green : Colors.red,
           ),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isOnDuty ? 'TRACKING ACTIVE' : 'TRACKING OFFLINE',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: isOnDuty ? Colors.green.shade900 : Colors.red.shade900,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isOnDuty ? 'TRIP ACTIVE' : 'TRIP OFFLINE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color:
+                        isOnDuty ? Colors.green.shade900 : Colors.red.shade900,
+                  ),
                 ),
-              ),
-              Text(
-                isOnDuty
-                    ? 'Broadcasting live location'
-                    : 'Duty session not started',
-                style: TextStyle(
-                  color: isOnDuty ? Colors.green.shade700 : Colors.red.shade700,
-                  fontSize: 13,
+                Text(
+                  isOnDuty
+                      ? 'Sharing GPS with students & admin'
+                      : 'Start trip to share location',
+                  softWrap: true,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color:
+                        isOnDuty ? Colors.green.shade700 : Colors.red.shade700,
+                    fontSize: 13,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -238,10 +330,11 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.label,
   });
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -261,12 +354,16 @@ class _StatTile extends StatelessWidget {
           Text(
             value,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 5),
           Text(
             label,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ],

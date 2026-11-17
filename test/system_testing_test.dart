@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sutms/config/auth_route_guard.dart';
 import 'package:sutms/constants/demo_credentials.dart';
 import 'package:sutms/core/validators/app_validators.dart';
+import 'package:sutms/models/gps_location_model.dart';
+import 'package:sutms/models/trip_model.dart';
 import 'package:sutms/providers/auth_provider.dart';
 import 'package:sutms/screens/auth/driver_portal_entry_screen.dart';
 import 'package:sutms/screens/auth/student_portal_entry_screen.dart';
@@ -13,8 +16,10 @@ import 'package:sutms/screens/shared/role_selection_screen.dart';
 import 'package:sutms/services/auth_role_resolver.dart';
 import 'package:sutms/services/password_hasher.dart';
 import 'package:sutms/services/student_access_guard.dart';
+import 'package:sutms/services/trip_tracking_service.dart';
 import 'package:sutms/utils/firestore_query_exception.dart';
 import 'package:sutms/widgets/async_state_view.dart';
+import 'package:sutms/widgets/osm_map_view.dart';
 
 /// System tests: end-to-end journeys across real navigation screens + auth
 /// policy + session prefs + list error UI (Firebase Auth/Firestore stubbed).
@@ -74,6 +79,10 @@ void main() {
                   child: const Text('Open Students'),
                 ),
                 TextButton(
+                  onPressed: () => context.go('/admin-live-tracking'),
+                  child: const Text('Open Admin Live Tracking'),
+                ),
+                TextButton(
                   onPressed: () => context.read<AuthProvider>().logout(),
                   child: const Text('Logout'),
                 ),
@@ -95,14 +104,34 @@ void main() {
         ),
         GoRoute(
           path: '/driver-dashboard',
-          builder: (_, __) => const Scaffold(
-            body: Center(child: Text('DRIVER_DASHBOARD')),
+          builder: (context, __) => Scaffold(
+            body: Column(
+              children: [
+                const Text('DRIVER_DASHBOARD'),
+                TextButton(
+                  onPressed: () => context.go('/duty'),
+                  child: const Text('Open Duty'),
+                ),
+              ],
+            ),
           ),
         ),
         GoRoute(
+          path: '/duty',
+          builder: (_, __) => const _SystemDutyScreen(),
+        ),
+        GoRoute(
           path: '/student-dashboard',
-          builder: (_, __) => const Scaffold(
-            body: Center(child: Text('STUDENT_DASHBOARD')),
+          builder: (context, __) => Scaffold(
+            body: Column(
+              children: [
+                const Text('STUDENT_DASHBOARD'),
+                TextButton(
+                  onPressed: () => context.go('/live-tracking'),
+                  child: const Text('Open Live Tracking'),
+                ),
+              ],
+            ),
           ),
         ),
         GoRoute(
@@ -113,9 +142,13 @@ void main() {
         ),
         GoRoute(
           path: '/live-tracking',
-          builder: (_, __) => const Scaffold(
-            body: Center(child: Text('LIVE_TRACKING')),
-          ),
+          builder: (_, __) =>
+              const _SystemLiveTrackingScreen(roleLabel: 'STUDENT'),
+        ),
+        GoRoute(
+          path: '/admin-live-tracking',
+          builder: (_, __) =>
+              const _SystemLiveTrackingScreen(roleLabel: 'ADMIN'),
         ),
       ],
     );
@@ -132,6 +165,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     auth = AuthProvider();
     router = buildSystemRouter(auth);
+    _SystemDutyScreen.lastTrip = null;
+    _SystemDutyScreen.lastGps = null;
   });
 
   group('ST-01 Cold start → role selection → portals', () {
@@ -307,7 +342,7 @@ void main() {
 
       router.go('/live-tracking');
       await tester.pumpAndSettle();
-      expect(find.text('LIVE_TRACKING'), findsOneWidget);
+      expect(find.textContaining('STUDENT_LIVE'), findsOneWidget);
     });
 
     testWidgets('pending student is denied before dashboard', (tester) async {
@@ -445,6 +480,272 @@ void main() {
       expect(find.text('ADMIN_DASHBOARD'), findsOneWidget);
     });
   });
+
+  group('ST-07 Live bus tracking system journey', () {
+    testWidgets(
+      'driver login → START TRIP → student opens live map with bus GPS',
+      (tester) async {
+        final oldOnError = FlutterError.onError;
+        FlutterError.onError = (details) {
+          final msg = details.exceptionAsString();
+          if (msg.contains('ClientException') || msg.contains('status 400')) {
+            return;
+          }
+          oldOnError?.call(details);
+        };
+        addTearDown(() => FlutterError.onError = oldOnError);
+
+        await tester.pumpWidget(systemApp());
+        await tester.pumpAndSettle();
+
+        // Driver portal login
+        await tester.tap(find.text('Bus Driver'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Driver Login'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('sys_email')),
+          DemoCredentials.driverEmail,
+        );
+        await tester.enterText(
+          find.byKey(const Key('sys_password')),
+          DemoCredentials.driverPassword,
+        );
+        await tester.tap(find.byKey(const Key('sys_login_btn')));
+        await tester.pumpAndSettle();
+        expect(find.text('DRIVER_DASHBOARD'), findsOneWidget);
+
+        await tester.tap(find.text('Open Duty'));
+        await tester.pumpAndSettle();
+        expect(find.text('DUTY_SCREEN'), findsOneWidget);
+        expect(find.text('START TRIP'), findsOneWidget);
+
+        await tester.tap(find.text('START TRIP'));
+        await tester.pumpAndSettle();
+        expect(find.text('TRIP ACTIVE'), findsOneWidget);
+        expect(find.text('END TRIP'), findsOneWidget);
+        expect(_SystemDutyScreen.lastTrip?.driverId, auth.uid);
+        expect(_SystemDutyScreen.lastGps?.hasValidCoords, isTrue);
+
+        // Driver must not open student live tracking
+        router.go('/live-tracking');
+        await tester.pumpAndSettle();
+        expect(find.text('DRIVER_DASHBOARD'), findsOneWidget);
+
+        // Switch to approved student and open live tracking with same trip GPS
+        await auth.logout();
+        await tester.pumpAndSettle();
+        expect(find.text('Welcome to SUTMS'), findsOneWidget);
+
+        await tester.tap(find.text('Student'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Student Login'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('sys_email')),
+          DemoCredentials.studentEmail,
+        );
+        await tester.enterText(
+          find.byKey(const Key('sys_password')),
+          DemoCredentials.studentPassword,
+        );
+        await tester.tap(find.byKey(const Key('sys_approved_toggle')));
+        await tester.tap(find.byKey(const Key('sys_login_btn')));
+        await tester.pumpAndSettle();
+        expect(find.text('STUDENT_DASHBOARD'), findsOneWidget);
+
+        await tester.tap(find.text('Open Live Tracking'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('STUDENT_LIVE'), findsOneWidget);
+        expect(find.textContaining('UG-01'), findsWidgets);
+        expect(find.byType(OsmMapView), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('admin login → admin live tracking map', (tester) async {
+      final oldOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        final msg = details.exceptionAsString();
+        if (msg.contains('ClientException') || msg.contains('status 400')) {
+          return;
+        }
+        oldOnError?.call(details);
+      };
+      addTearDown(() => FlutterError.onError = oldOnError);
+
+      // Seed an active trip as if a driver already started one.
+      _SystemDutyScreen.lastTrip = const TripModel(
+        id: 't_admin',
+        busId: 'bus_1',
+        driverId: 'drv_uid',
+        routeId: 'route_1',
+        busNumber: 'UG-01',
+        routeName: 'Campus Loop',
+        driverName: 'Demo Driver',
+        status: 'ACTIVE',
+      );
+      _SystemDutyScreen.lastGps = const GpsLocationModel(
+        tripId: 't_admin',
+        busId: 'bus_1',
+        driverId: 'drv_uid',
+        latitude: 25.145,
+        longitude: 62.36,
+        isActive: true,
+      );
+
+      await tester.pumpWidget(systemApp());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Administrator'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('sys_email')),
+        DemoCredentials.adminEmail,
+      );
+      await tester.enterText(
+        find.byKey(const Key('sys_password')),
+        DemoCredentials.adminPassword,
+      );
+      await tester.tap(find.byKey(const Key('sys_login_btn')));
+      await tester.pumpAndSettle();
+      expect(find.text('ADMIN_DASHBOARD'), findsOneWidget);
+
+      await tester.tap(find.text('Open Admin Live Tracking'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('ADMIN_LIVE'), findsOneWidget);
+      expect(find.byType(OsmMapView), findsOneWidget);
+
+      // Admin cannot open student-only live path
+      router.go('/live-tracking');
+      await tester.pumpAndSettle();
+      expect(find.text('ADMIN_DASHBOARD'), findsOneWidget);
+    });
+  });
+}
+
+/// System-test duty stand-in: START/END TRIP without device GPS / Firestore.
+class _SystemDutyScreen extends StatefulWidget {
+  const _SystemDutyScreen();
+
+  static TripModel? lastTrip;
+  static GpsLocationModel? lastGps;
+
+  @override
+  State<_SystemDutyScreen> createState() => _SystemDutyScreenState();
+}
+
+class _SystemDutyScreenState extends State<_SystemDutyScreen> {
+  bool _onDuty = false;
+  String? _error;
+
+  void _toggle() {
+    final auth = context.read<AuthProvider>();
+    setState(() => _error = null);
+    if (!_onDuty) {
+      try {
+        TripTrackingService.assertCanStartTrip(
+          verificationStatus: 'approved',
+          busId: 'bus_1',
+          routeId: 'route_1',
+        );
+      } on TripStartException catch (e) {
+        setState(() => _error = e.message);
+        return;
+      }
+      final trip = TripModel(
+        id: 'sys_trip_1',
+        busId: 'bus_1',
+        driverId: auth.uid ?? 'missing',
+        routeId: 'route_1',
+        busNumber: 'UG-01',
+        routeName: 'Campus Loop',
+        driverName: 'Demo Driver',
+        status: 'ACTIVE',
+      );
+      final gps = GpsLocationModel(
+        tripId: trip.id,
+        busId: trip.busId,
+        driverId: trip.driverId,
+        latitude: 25.145,
+        longitude: 62.36,
+        isActive: true,
+      );
+      _SystemDutyScreen.lastTrip = trip;
+      _SystemDutyScreen.lastGps = gps;
+      setState(() => _onDuty = true);
+    } else {
+      final prev = _SystemDutyScreen.lastTrip;
+      _SystemDutyScreen.lastTrip = TripModel(
+        id: prev?.id ?? 'sys_trip_1',
+        busId: prev?.busId ?? 'bus_1',
+        driverId: prev?.driverId ?? '',
+        routeId: prev?.routeId ?? 'route_1',
+        busNumber: prev?.busNumber ?? 'UG-01',
+        routeName: prev?.routeName ?? '',
+        driverName: prev?.driverName ?? '',
+        status: 'COMPLETED',
+      );
+      final prevGps = _SystemDutyScreen.lastGps;
+      _SystemDutyScreen.lastGps = GpsLocationModel(
+        tripId: _SystemDutyScreen.lastTrip!.id,
+        busId: _SystemDutyScreen.lastTrip!.busId,
+        driverId: _SystemDutyScreen.lastTrip!.driverId,
+        latitude: prevGps?.latitude ?? 0,
+        longitude: prevGps?.longitude ?? 0,
+        isActive: false,
+      );
+      setState(() => _onDuty = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          const Text('DUTY_SCREEN'),
+          Text(_onDuty ? 'TRIP ACTIVE' : 'TRIP OFFLINE'),
+          if (_error != null) Text(_error!),
+          FilledButton(
+            onPressed: _toggle,
+            child: Text(_onDuty ? 'END TRIP' : 'START TRIP'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// System-test live tracking stand-in using last published trip GPS.
+class _SystemLiveTrackingScreen extends StatelessWidget {
+  final String roleLabel;
+  const _SystemLiveTrackingScreen({required this.roleLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final trip = _SystemDutyScreen.lastTrip;
+    final gps = _SystemDutyScreen.lastGps;
+    final active = trip?.isActive == true && (gps?.hasValidCoords ?? false);
+
+    return Scaffold(
+      body: Column(
+        children: [
+          Text('${roleLabel}_LIVE'),
+          Text(active ? 'Bus ${trip!.busNumber} live' : 'Bus is not currently active'),
+          if (active)
+            SizedBox(
+              width: 360,
+              height: 240,
+              child: OsmMapView(
+                busLocation: LatLng(gps!.latitude, gps.longitude),
+                busLabel: trip!.busNumber,
+                followBus: true,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// System-test login stand-in for production LoginScreen (no Firebase).

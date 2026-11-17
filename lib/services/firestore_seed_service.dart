@@ -55,6 +55,8 @@ class FirestoreSeedService {
         // ignore: unawaited_futures
         _ensureApprovedAdmins(db);
         // ignore: unawaited_futures
+        _ensureApprovedDrivers(db);
+        // ignore: unawaited_futures
         ensureDemoAuthAccounts();
         return false;
       }
@@ -63,6 +65,8 @@ class FirestoreSeedService {
         // Fast path — do not block launch with extra writes.
         // ignore: unawaited_futures
         _ensureApprovedAdmins(db);
+        // ignore: unawaited_futures
+        _ensureApprovedDrivers(db);
         // ignore: unawaited_futures
         ensureDemoAuthAccounts();
         debugPrint('✅ Firestore seed already applied ($seedVersion)');
@@ -270,6 +274,7 @@ class FirestoreSeedService {
       await batch.commit().timeout(const Duration(seconds: 20));
       await _ensureDemoCredentials(db);
       await _ensureApprovedAdmins(db);
+      await _ensureApprovedDrivers(db);
       await _ensureDemoDutiesAndAlerts(db);
       await ensureDemoAuthAccounts();
       debugPrint('✅ Firestore lean seed applied ($seedVersion)');
@@ -327,6 +332,21 @@ class FirestoreSeedService {
       debugPrint('✅ Approved admin allowlist ready ($email)');
     } catch (e) {
       debugPrint('Approved admins upsert skipped: $e');
+    }
+  }
+
+  /// Allowlisted driver emails (rules `isAllowlistedDriver` / role mirror).
+  static Future<void> _ensureApprovedDrivers(FirebaseFirestore db) async {
+    try {
+      final email = DemoCredentials.driverEmail.toLowerCase();
+      await db.collection('approvedDrivers').doc(email).set({
+        'email': email,
+        'name': 'Demo Driver',
+        'active': true,
+      }, SetOptions(merge: true));
+      debugPrint('✅ Approved driver allowlist ready ($email)');
+    } catch (e) {
+      debugPrint('Approved drivers upsert skipped: $e');
     }
   }
 
