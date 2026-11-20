@@ -339,7 +339,8 @@ void main() {
   group('RT-07 Live tracking status labels', () {
     test('default / waiting / ended wording remains plain English', () {
       final p = LiveTrackingProvider();
-      expect(p.statusLabel, 'Bus is not currently active');
+      // No assignment → prompt to select a route (not "inactive bus").
+      expect(p.statusLabel, 'Select a route first');
       expect(p.statusLabel.toLowerCase(), isNot(contains('null')));
       expect(p.statusLabel.toLowerCase(), isNot(contains('exception')));
     });

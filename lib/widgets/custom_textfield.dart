@@ -13,6 +13,8 @@ class CustomTextField extends StatefulWidget {
   final int? maxLines;
   final AutovalidateMode autovalidateMode;
   final VoidCallback? onTap;
+  final bool readOnly;
+  final Widget? suffixIcon;
   final Iterable<String>? autofillHints;
   final bool enableSuggestions;
   final bool autocorrect;
@@ -35,6 +37,8 @@ class CustomTextField extends StatefulWidget {
     this.maxLines = 1,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
     this.onTap,
+    this.readOnly = false,
+    this.suffixIcon,
     this.autofillHints,
     this.enableSuggestions = true,
     this.autocorrect = true,
@@ -65,6 +69,8 @@ class _CustomTextFieldState extends State<CustomTextField> {
         controller: widget.controller,
         focusNode: widget.focusNode,
         obscureText: widget.isPassword ? _obscureText : false,
+        readOnly: widget.readOnly,
+        showCursor: widget.readOnly ? false : null,
         keyboardType: widget.keyboardType,
         textInputAction: widget.textInputAction,
         onFieldSubmitted: widget.onFieldSubmitted,
@@ -95,7 +101,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
                     });
                   },
                 )
-              : null,
+              : widget.suffixIcon,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
           counterText: '',
         ),

@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:sutms/core/validators/app_validators.dart';
+import 'package:sutms/models/student_model.dart';
+import 'package:sutms/models/trip_model.dart';
 import 'package:sutms/providers/auth_provider.dart';
 import 'package:sutms/providers/live_tracking_provider.dart';
 import 'package:sutms/screens/shared/role_selection_screen.dart';
@@ -114,9 +116,61 @@ void main() {
   group('UX-02 Live tracking status language', () {
     test('inactive / waiting / ended labels are plain English', () {
       final p = LiveTrackingProvider();
+      // No assignment yet — guide the student to pick a route first.
+      expect(p.statusLabel, 'Select a route first');
+
+      final assigned = StudentModel(
+        uid: 's1',
+        name: 'Sara',
+        email: 'sara@uog.edu.pk',
+        phone: '03001234567',
+        role: 'student',
+        regNumber: '19-UOG-001',
+        department: 'CS',
+        rollNo: '01',
+        assignedRouteId: 'route-1',
+        assignedBusId: 'bus-1',
+        assignedBusCode: 'UOG-01',
+      );
+      p.seedForUiTest(student: assigned);
       expect(p.statusLabel, 'Bus is not currently active');
-      expect(p.statusLabel.toLowerCase(), isNot(contains('null')));
-      expect(p.statusLabel.toLowerCase(), isNot(contains('exception')));
+
+      p.seedForUiTest(
+        student: assigned,
+        trip: const TripModel(
+          id: 't1',
+          busId: 'bus-1',
+          driverId: 'd1',
+          routeId: 'route-1',
+          status: 'ACTIVE',
+        ),
+      );
+      expect(p.statusLabel, "Waiting for the driver's location...");
+
+      p.seedForUiTest(
+        student: assigned,
+        trip: const TripModel(
+          id: 't1',
+          busId: 'bus-1',
+          driverId: 'd1',
+          routeId: 'route-1',
+          status: 'COMPLETED',
+        ),
+      );
+      expect(p.statusLabel, 'Trip ended');
+
+      for (final label in [
+        p.statusLabel,
+        'Select a route first',
+        'Bus is not currently active',
+        "Waiting for the driver's location...",
+        'Trip ended',
+        'Location delayed',
+        'Live',
+      ]) {
+        expect(label.toLowerCase(), isNot(contains('null')));
+        expect(label.toLowerCase(), isNot(contains('exception')));
+      }
     });
 
     testWidgets('student empty-state explains what to wait for', (tester) async {

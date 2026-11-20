@@ -163,6 +163,67 @@ void main() {
     });
   });
 
+  group('idsMatch / matchActiveTrip', () {
+    test('matches UOG-01 with uog-001 and separators', () {
+      expect(TripTrackingService.idsMatch('UOG-01', 'uog-001'), isTrue);
+      expect(TripTrackingService.idsMatch('UOG 01', 'uog001'), isTrue);
+      expect(TripTrackingService.idsMatch('UOG-01', 'UOG-02'), isFalse);
+      expect(TripTrackingService.idsMatch('', 'uog-001'), isFalse);
+    });
+
+    test('prefers routeId then bus then driver', () {
+      final trips = [
+        TripModel.fromMap({
+          'busId': 'other-bus',
+          'busNumber': 'UOG-99',
+          'driverId': 'd-match',
+          'routeId': 'r-other',
+          'status': 'ACTIVE',
+        }, 't-driver'),
+        TripModel.fromMap({
+          'busId': 'bus-doc-1',
+          'busNumber': 'UOG-01',
+          'driverId': 'd2',
+          'routeId': 'r-other',
+          'status': 'ACTIVE',
+        }, 't-bus'),
+        TripModel.fromMap({
+          'busId': 'x',
+          'busNumber': 'Z',
+          'driverId': 'd3',
+          'routeId': 'route-sarawan',
+          'status': 'ACTIVE',
+        }, 't-route'),
+      ];
+
+      expect(
+        TripTrackingService.matchActiveTrip(
+          trips,
+          routeId: 'route-sarawan',
+          busId: 'bus-doc-1',
+          busNumber: 'uog-001',
+          driverId: 'd-match',
+        )?.id,
+        't-route',
+      );
+      expect(
+        TripTrackingService.matchActiveTrip(
+          trips,
+          busNumber: 'uog-001',
+          driverId: 'd-match',
+        )?.id,
+        't-bus',
+      );
+      expect(
+        TripTrackingService.matchActiveTrip(
+          trips,
+          driverId: 'd-match',
+        )?.id,
+        't-driver',
+      );
+    });
+  });
+
   group('AuthRouteGuard admin live tracking', () {
     test('guards /admin-live-tracking for non-admins', () {
       expect(AuthRouteGuard.isAdminPath('/admin-live-tracking'), isTrue);

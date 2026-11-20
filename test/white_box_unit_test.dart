@@ -509,9 +509,9 @@ void main() {
   });
 
   group('WB-11 LiveTrackingProvider statusLabel branches', () {
-    test('idle provider reports inactive label', () {
+    test('idle provider reports select-route label', () {
       final p = LiveTrackingProvider();
-      expect(p.statusLabel, 'Bus is not currently active');
+      expect(p.statusLabel, 'Select a route first');
       expect(p.isBusLive, isFalse);
       expect(p.busNumber, '—');
     });

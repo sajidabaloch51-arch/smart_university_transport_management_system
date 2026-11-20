@@ -48,6 +48,16 @@ class _AdminLiveTrackingScreenState extends State<AdminLiveTrackingScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final trips = snap.data!;
+                if (_selected != null &&
+                    !trips.any((t) => t.id == _selected!.id)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      _selected = null;
+                      _route = null;
+                    });
+                  });
+                }
                 if (trips.isEmpty) {
                   return const Center(
                     child: Text('No active trips right now.'),

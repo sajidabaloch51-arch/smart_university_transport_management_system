@@ -133,7 +133,7 @@ void main() {
 
     test('live tracking status label is usable when idle', () {
       final p = LiveTrackingProvider();
-      expect(p.statusLabel, 'Bus is not currently active');
+      expect(p.statusLabel, 'Select a route first');
     });
   });
 

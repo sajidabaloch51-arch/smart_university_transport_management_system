@@ -229,49 +229,104 @@ class TripTrackingService {
     });
   }
 
+  /// Case-insensitive id / bus-number match (handles UOG-01 vs uog-001 text drift).
+  static bool idsMatch(String? a, String? b) {
+    final x = (a ?? '').trim().toLowerCase();
+    final y = (b ?? '').trim().toLowerCase();
+    if (x.isEmpty || y.isEmpty) return false;
+    if (x == y) return true;
+    // Soft normalize: strip separators so "uog-001" ≈ "uog001" ≈ "UOG 001"
+    String compact(String s) => s.replaceAll(RegExp(r'[\s\-_]+'), '');
+    final cx = compact(x);
+    final cy = compact(y);
+    if (cx == cy) return true;
+    // Bus plates: same letter prefix + same numeric value ("uog01" ≈ "uog001").
+    final plate = RegExp(r'^([a-z]+)0*(\d+)$');
+    final mx = plate.firstMatch(cx);
+    final my = plate.firstMatch(cy);
+    if (mx != null && my != null) {
+      return mx.group(1) == my.group(1) &&
+          int.tryParse(mx.group(2)!) == int.tryParse(my.group(2)!);
+    }
+    return false;
+  }
+
+  /// Pick the best ACTIVE trip for a student assignment without composite indexes.
+  /// Preference: routeId → busId/busNumber → driverId (case-insensitive).
+  static TripModel? matchActiveTrip(
+    List<TripModel> active, {
+    String? routeId,
+    String? busId,
+    String? busNumber,
+    String? driverId,
+  }) {
+    if (active.isEmpty) return null;
+    for (final t in active) {
+      if (idsMatch(t.routeId, routeId)) return t;
+    }
+    for (final t in active) {
+      if (idsMatch(t.busId, busId) ||
+          idsMatch(t.busId, busNumber) ||
+          idsMatch(t.busNumber, busId) ||
+          idsMatch(t.busNumber, busNumber)) {
+        return t;
+      }
+    }
+    for (final t in active) {
+      if (idsMatch(t.driverId, driverId)) return t;
+    }
+    return null;
+  }
+
+  /// Student/admin-safe: listen to all ACTIVE trips, filter in Dart.
+  Stream<TripModel?> watchActiveTripMatching({
+    String? routeId,
+    String? busId,
+    String? busNumber,
+    String? driverId,
+  }) {
+    final hasAny = (routeId ?? '').trim().isNotEmpty ||
+        (busId ?? '').trim().isNotEmpty ||
+        (busNumber ?? '').trim().isNotEmpty ||
+        (driverId ?? '').trim().isNotEmpty;
+    if (!hasAny) return Stream.value(null);
+    return watchActiveTrips().map(
+      (list) => matchActiveTrip(
+        list,
+        routeId: routeId,
+        busId: busId,
+        busNumber: busNumber,
+        driverId: driverId,
+      ),
+    );
+  }
+
   Stream<TripModel?> watchActiveTripForDriver(String driverId) {
-    final trips = _trips;
-    if (trips == null || driverId.isEmpty) return Stream.value(null);
-    return trips
-        .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'ACTIVE')
-        .limit(1)
-        .snapshots()
-        .map((snap) {
-      if (snap.docs.isEmpty) return null;
-      final d = snap.docs.first;
-      return TripModel.fromMap(d.data(), d.id);
-    });
+    return watchActiveTripMatching(driverId: driverId);
   }
 
   Stream<TripModel?> watchActiveTripForRoute(String routeId) {
-    final trips = _trips;
-    if (trips == null || routeId.isEmpty) return Stream.value(null);
-    return trips
-        .where('routeId', isEqualTo: routeId)
-        .where('status', isEqualTo: 'ACTIVE')
-        .limit(1)
-        .snapshots()
-        .map((snap) {
-      if (snap.docs.isEmpty) return null;
-      final d = snap.docs.first;
-      return TripModel.fromMap(d.data(), d.id);
-    });
+    return watchActiveTripMatching(routeId: routeId);
   }
 
   Stream<TripModel?> watchActiveTripForBus(String busId) {
+    return watchActiveTripMatching(busId: busId, busNumber: busId);
+  }
+
+  /// One-shot fetch of the driver's current ACTIVE trip (session recovery).
+  Future<TripModel?> fetchActiveTripForDriver(String driverId) async {
     final trips = _trips;
-    if (trips == null || busId.isEmpty) return Stream.value(null);
-    return trips
-        .where('busId', isEqualTo: busId)
-        .where('status', isEqualTo: 'ACTIVE')
-        .limit(1)
-        .snapshots()
-        .map((snap) {
-      if (snap.docs.isEmpty) return null;
-      final d = snap.docs.first;
-      return TripModel.fromMap(d.data(), d.id);
-    });
+    if (trips == null || driverId.isEmpty) return null;
+    try {
+      final snap = await trips.where('status', isEqualTo: 'ACTIVE').get();
+      final list = snap.docs
+          .map((d) => TripModel.fromMap(d.data(), d.id))
+          .toList();
+      return matchActiveTrip(list, driverId: driverId);
+    } catch (e) {
+      debugPrint('fetchActiveTripForDriver failed: $e');
+      return null;
+    }
   }
 
   Stream<GpsLocationModel?> watchTripGps(String tripId) {

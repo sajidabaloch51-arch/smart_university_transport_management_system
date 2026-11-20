@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../models/duty_model.dart';
 import '../../services/duty_service.dart';
+import '../../utils/karachi_time.dart';
 import '../../utils/map_marker_helper.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/custom_button.dart';
@@ -23,6 +24,7 @@ class _DutyScreenState extends State<DutyScreen> {
   final _dutyService = DutyService();
   Stream<List<DutyModel>>? _stream;
   String? _boundUid;
+  String? _boundDutyDate;
 
   @override
   void didChangeDependencies() {
@@ -36,8 +38,27 @@ class _DutyScreenState extends State<DutyScreen> {
     if (oldWidget.refreshToken != widget.refreshToken) {
       _stream = null;
       _boundUid = null;
+      _boundDutyDate = null;
       _bind();
     }
+  }
+
+  /// Prefer active → earliest non-completed → latest completed (one card).
+  static List<DutyModel> _singleTodayDuty(List<DutyModel> duties) {
+    if (duties.isEmpty) return const [];
+    final active = duties.where((d) => d.status == 'active').toList();
+    if (active.isNotEmpty) {
+      active.sort((a, b) => a.shiftStart.compareTo(b.shiftStart));
+      return [active.first];
+    }
+    final open = duties.where((d) => d.status != 'completed').toList();
+    if (open.isNotEmpty) {
+      open.sort((a, b) => a.shiftStart.compareTo(b.shiftStart));
+      return [open.first];
+    }
+    final completed = [...duties]
+      ..sort((a, b) => b.shiftStart.compareTo(a.shiftStart));
+    return [completed.first];
   }
 
   void _bind() {
@@ -55,15 +76,22 @@ class _DutyScreenState extends State<DutyScreen> {
       debugPrint('DutyScreen waiting for uid…');
       return;
     }
+    final today = KarachiTime.dateString();
     final key = ids.join('|');
-    if (_stream != null && _boundUid == key) return;
+    if (_stream != null && _boundUid == key && _boundDutyDate == today) {
+      return;
+    }
     _boundUid = key;
+    _boundDutyDate = today;
     final primary = ids.first;
-    debugPrint('DutyScreen binding stream ids=$ids');
-    _stream = _dutyService.streamDriverDuties(
-      primary,
-      alternateDriverIds: ids.skip(1).toList(),
-    );
+    debugPrint('DutyScreen binding today=$today ids=$ids');
+    _stream = _dutyService
+        .streamTodayDuties(
+          driverId: primary,
+          dutyDate: today,
+          alternateDriverIds: ids.skip(1).toList(),
+        )
+        .map(_singleTodayDuty);
     if (mounted) setState(() {});
   }
 
@@ -71,7 +99,8 @@ class _DutyScreenState extends State<DutyScreen> {
   Widget build(BuildContext context) {
     return Consumer<DriverProvider>(
       builder: (context, provider, child) {
-        if (_stream == null) {
+        if (_stream == null ||
+            _boundDutyDate != KarachiTime.dateString()) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _bind();
           });
@@ -123,15 +152,16 @@ class _DutyScreenState extends State<DutyScreen> {
                       : AsyncStateView<List<DutyModel>>(
                           stream: _stream!,
                           isEmpty: (duties) => duties.isEmpty,
-                          emptyMessage: 'No duties assigned yet.',
+                          emptyMessage: 'No duty assigned for today.',
                           emptySubtitle:
-                              'When Admin assigns a duty, it will show up here. '
+                              'When Admin assigns a duty for today, it will show up here. '
                               'You can still START TRIP if a bus and route are assigned.',
                           timeout: const Duration(seconds: 12),
                           onRetry: () {
                             setState(() {
                               _stream = null;
                               _boundUid = null;
+                              _boundDutyDate = null;
                             });
                             _bind();
                           },

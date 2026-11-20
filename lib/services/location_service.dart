@@ -10,15 +10,29 @@ class LocationService {
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return false;
+    if (!serviceEnabled) {
+      throw Exception(
+        kIsWeb
+            ? 'Browser location is off or blocked. Allow location for localhost/HTTPS.'
+            : 'Location services are disabled. Turn on GPS and try again.',
+      );
+    }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return false;
+      if (permission == LocationPermission.denied) {
+        throw Exception(
+          'Location permission denied. Allow location to share GPS.',
+        );
+      }
     }
 
-    if (permission == LocationPermission.deniedForever) return false;
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permission permanently denied. Enable it in system settings.',
+      );
+    }
 
     return true;
   }

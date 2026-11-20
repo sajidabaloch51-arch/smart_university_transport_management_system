@@ -9,6 +9,7 @@ import 'package:sutms/models/trip_model.dart';
 import 'package:sutms/providers/auth_provider.dart';
 import 'package:sutms/services/trip_tracking_service.dart';
 import 'package:sutms/utils/map_marker_helper.dart';
+import 'package:sutms/utils/route_clock_time.dart';
 
 /// Functional tests: feature-level behaviour of live bus tracking flows
 /// (START/END gate, trip/GPS contracts, role navigation, map geometry).
@@ -282,6 +283,71 @@ void main() {
         ),
         '/driver-dashboard',
       );
+    });
+  });
+
+  group('FT-06 Route Departure / Arrival clock fields', () {
+    test('parse keeps existing Firestore labels usable for the picker', () {
+      expect(RouteClockTime.parse('07:30 AM'), const TimeOfDay(hour: 7, minute: 30));
+      expect(RouteClockTime.parse('7:30 am'), const TimeOfDay(hour: 7, minute: 30));
+      expect(RouteClockTime.parse('12:00 PM'), const TimeOfDay(hour: 12, minute: 0));
+      expect(RouteClockTime.parse('12:15 AM'), const TimeOfDay(hour: 0, minute: 15));
+      expect(RouteClockTime.parse(''), isNull);
+      expect(RouteClockTime.parse('not-a-time'), isNull);
+    });
+
+    test('format writes the same seed / Firestore string shape', () {
+      expect(
+        RouteClockTime.format(const TimeOfDay(hour: 7, minute: 30)),
+        '07:30 AM',
+      );
+      expect(
+        RouteClockTime.format(const TimeOfDay(hour: 8, minute: 15)),
+        '08:15 AM',
+      );
+      expect(
+        RouteClockTime.format(const TimeOfDay(hour: 0, minute: 5)),
+        '12:05 AM',
+      );
+      expect(
+        RouteClockTime.format(const TimeOfDay(hour: 16, minute: 0)),
+        '04:00 PM',
+      );
+    });
+
+    test('round-trip parse → format preserves editable routes', () {
+      for (final label in ['07:30 AM', '08:15 AM', '04:00 PM']) {
+        final tod = RouteClockTime.parse(label);
+        expect(tod, isNotNull, reason: label);
+        expect(RouteClockTime.format(tod!), label);
+      }
+    });
+
+    test('arrival before departure is flagged for form validation', () {
+      expect(
+        RouteClockTime.arrivalBeforeDeparture('08:15 AM', '07:30 AM'),
+        isTrue,
+      );
+      expect(
+        RouteClockTime.arrivalBeforeDeparture('07:30 AM', '08:15 AM'),
+        isFalse,
+      );
+      expect(
+        RouteClockTime.arrivalBeforeDeparture('07:30 AM', '07:30 AM'),
+        isFalse,
+      );
+    });
+
+    test('RouteModel still surfaces departure/arrival for student cards', () {
+      final route = RouteModel.fromMap('r1', {
+        'routeName': 'Campus',
+        'departureTime': '07:30 AM',
+        'arrivalTime': '08:15 AM',
+        'estimatedTime': '45 min',
+      });
+      expect(route.cardDepartureTime, '07:30 AM');
+      expect(route.cardArrivalTime, '08:15 AM');
+      expect(route.cardDuration, '45 min');
     });
   });
 }

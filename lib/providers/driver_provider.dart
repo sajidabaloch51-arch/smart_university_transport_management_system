@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -259,8 +259,38 @@ class DriverProvider extends ChangeNotifier {
     // to the old notices composite-index query (it slows / fails cold start).
 
     if (_driver!.isOnDuty) {
+      // ignore: discarded_futures
+      _recoverActiveTripAndTrack();
+    }
+  }
+
+  /// After hot restart / re-login, isOnDuty may be true but trip id is lost.
+  /// Re-bind to the ACTIVE Firestore trip so GPS keeps publishing.
+  Future<void> _recoverActiveTripAndTrack() async {
+    try {
+      final existing = await _tripService.fetchActiveTripForDriver(
+        _authUidForTrip,
+      );
+      if (existing != null) {
+        _activeTripId = existing.id;
+        _tripService.resetDedupe();
+        debugPrint('Recovered ACTIVE trip $_activeTripId');
+      } else {
+        debugPrint(
+          'Driver isOnDuty but no ACTIVE trip for $_authUidForTrip; '
+          'GPS will not publish until START TRIP again.',
+        );
+        _error =
+            'Trip session was interrupted. Tap END TRIP, then START TRIP again '
+            'to share GPS.';
+      }
+    } catch (e) {
+      debugPrint('recoverActiveTrip failed: $e');
+    }
+    if (_driver?.isOnDuty == true) {
       _startLocationTracking();
       _startTimer();
+      notifyListeners();
     }
   }
 
@@ -367,9 +397,14 @@ class DriverProvider extends ChangeNotifier {
         // Prefer profile doc (may be seed id); fall back to Auth uid mirror.
         await _firestoreService.updateDriverStatus(_driver!.uid, true);
       } else {
-        final tripId = _activeTripId;
+        var tripId = _activeTripId;
         _stopLocationTracking();
         _stopTimer();
+        if (tripId == null || tripId.isEmpty) {
+          final existing =
+              await _tripService.fetchActiveTripForDriver(_authUidForTrip);
+          tripId = existing?.id;
+        }
         if (tripId != null && tripId.isNotEmpty) {
           await _tripService.endTrip(tripId, driverId: _authUidForTrip);
         }
@@ -382,7 +417,7 @@ class DriverProvider extends ChangeNotifier {
         await _firestoreService.updateDriverStatus(_driver!.uid, false);
       }
     } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
+      _error = _friendlyDutyError(e);
       debugPrint('toggleDuty/trip error: $e');
     } finally {
       _isLoading = false;
@@ -400,7 +435,13 @@ class DriverProvider extends ChangeNotifier {
       notifyListeners();
     }).catchError((e) {
       debugPrint('Initial GPS fix failed: $e');
-      _error = 'Could not get GPS fix. Move outdoors and retry.';
+      final friendly = _friendlyDutyError(e);
+      _error = friendly.contains('Location') ||
+              friendly.contains('Browser') ||
+              friendly.contains('GPS') ||
+              friendly.contains('permission')
+          ? friendly
+          : 'Could not get GPS fix. Allow location, move outdoors, and retry.';
       notifyListeners();
     });
 
@@ -412,15 +453,21 @@ class DriverProvider extends ChangeNotifier {
       notifyListeners();
     }, onError: (e) {
       debugPrint('GPS stream error: $e');
-      _error = 'Location stream failed: $e';
+      _error = _friendlyDutyError(e);
       notifyListeners();
     });
   }
 
   Future<void> _publishTripGps(Position pos) async {
     if (_driver == null) return;
-    final tripId = _activeTripId;
-    if (tripId == null || tripId.isEmpty) return;
+    var tripId = _activeTripId;
+    if (tripId == null || tripId.isEmpty) {
+      final existing =
+          await _tripService.fetchActiveTripForDriver(_authUidForTrip);
+      tripId = existing?.id;
+      _activeTripId = tripId;
+      if (tripId == null || tripId.isEmpty) return;
+    }
     final driverId = _authUidForTrip;
     if (driverId.isEmpty) return;
     try {
@@ -435,7 +482,36 @@ class DriverProvider extends ChangeNotifier {
       );
     } catch (e) {
       debugPrint('Firestore gps_locations upsert failed: $e');
+      _error = _friendlyDutyError(e);
+      notifyListeners();
     }
+  }
+
+  String _friendlyDutyError(Object e) {
+    final s = e.toString();
+    final lower = s.toLowerCase();
+    if ((lower.contains('permission') && lower.contains('denied')) ||
+        lower.contains('location permission')) {
+      return 'Location permission denied. Allow location (while using the app) '
+          'and try START TRIP again.';
+    }
+    if (lower.contains('location services') ||
+        lower.contains('disabled') ||
+        lower.contains('serviceenabled')) {
+      return 'Turn on device Location / GPS, then try again.';
+    }
+    if (kIsWeb &&
+        (lower.contains('geolocation') ||
+            lower.contains('user denied') ||
+            lower.contains('only secure origins'))) {
+      return 'Browser blocked location. Allow location for this site '
+          '(localhost or HTTPS) and retry START TRIP.';
+    }
+    if (lower.contains('permission-denied')) {
+      return "Can't write trip GPS (permission-denied). "
+          'Sign in as the approved driver and deploy Firestore rules.';
+    }
+    return s.replaceFirst('Exception: ', '');
   }
 
   void _stopLocationTracking() {

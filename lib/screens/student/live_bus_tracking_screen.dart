@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/student_model.dart';
@@ -80,11 +79,6 @@ class _LiveBusTrackingScreenState extends State<LiveBusTrackingScreen> {
 
     return Consumer<LiveTrackingProvider>(
       builder: (context, tracker, _) {
-        final last = tracker.gps?.updatedAt ?? tracker.trip?.updatedAt;
-        final lastLabel = last == null
-            ? '—'
-            : DateFormat('dd MMM, hh:mm a').format(last.toLocal());
-
         return Scaffold(
           appBar: AppBar(
             title: const Text('Live Bus Tracking'),
@@ -99,7 +93,7 @@ class _LiveBusTrackingScreenState extends State<LiveBusTrackingScreen> {
                 busNumber: tracker.busNumber,
                 routeName: tracker.routeName,
                 driverName: tracker.driverName,
-                lastUpdated: lastLabel,
+                lastUpdated: tracker.updatedAgoLabel,
                 start: tracker.route?.cardStartLabel ?? '—',
                 end: tracker.route?.cardEndLabel ?? '—',
               ),
@@ -115,35 +109,97 @@ class _LiveBusTrackingScreenState extends State<LiveBusTrackingScreen> {
                     ),
                   ),
                 ),
-              Expanded(
-                child: tracker.loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : tracker.trip == null
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                'Bus is not currently active.\n'
-                                'When the driver starts a trip, the live location will appear here.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 15),
-                              ),
-                            ),
-                          )
-                        : OsmMapView(
-                            busLocation: tracker.busLatLng,
-                            userLocation: tracker.studentLatLng,
-                            routePoints:
-                                MapMarkerHelper.routePolyline(tracker.route),
-                            stops: MapMarkerHelper.stopMarkers(tracker.route),
-                            busLabel: tracker.busNumber,
-                            followBus: tracker.isBusLive,
-                          ),
-              ),
+              Expanded(child: _mapBody(tracker)),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _mapBody(LiveTrackingProvider tracker) {
+    if (tracker.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (!tracker.hasAssignment) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Select a route first',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15),
+          ),
+        ),
+      );
+    }
+    if (tracker.trip == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Bus is not currently active.\n'
+            'When the driver starts a trip, the live location will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15),
+          ),
+        ),
+      );
+    }
+    if (tracker.busLatLng == null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          OsmMapView(
+            busLocation: null,
+            userLocation: tracker.studentLatLng,
+            routePoints: MapMarkerHelper.routePolyline(tracker.route),
+            stops: MapMarkerHelper.stopMarkers(tracker.route),
+            busLabel: tracker.busNumber,
+            followBus: false,
+          ),
+          const Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: Color(0xE6FFFFFF),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  "Waiting for the driver's location...",
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        OsmMapView(
+          busLocation: tracker.busLatLng,
+          userLocation: tracker.studentLatLng,
+          routePoints: MapMarkerHelper.routePolyline(tracker.route),
+          stops: MapMarkerHelper.stopMarkers(tracker.route),
+          busLabel: tracker.busNumber,
+          followBus: tracker.isBusLive,
+        ),
+        if (tracker.statusLabel == 'Location delayed')
+          const Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: Color(0xE6FFF8E1),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Location delayed — waiting for a fresher GPS update.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

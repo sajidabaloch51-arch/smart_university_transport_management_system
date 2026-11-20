@@ -26,10 +26,10 @@ class GpsLocationModel {
   bool get hasValidCoords =>
       latitude.abs() > 0.0001 || longitude.abs() > 0.0001;
 
-  /// Fresh if updated within the last 3 minutes.
+  /// Fresh if updated within the last 2 minutes.
   bool get isLive {
     if (!isActive || !hasValidCoords || updatedAt == null) return false;
-    return DateTime.now().toUtc().difference(updatedAt!.toUtc()).inMinutes < 3;
+    return DateTime.now().toUtc().difference(updatedAt!.toUtc()).inMinutes < 2;
   }
 
   factory GpsLocationModel.fromMap(Map<String, dynamic> map, String tripId) {

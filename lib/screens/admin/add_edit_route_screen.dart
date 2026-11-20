@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/route_model.dart';
 import '../../providers/route_provider.dart';
+import '../../theme/app_colors.dart';
+import '../../utils/route_clock_time.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../widgets/osm_map_view.dart';
@@ -105,6 +107,36 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
 
   void _addStop() {
     setState(() => _stops.add(_StopEditors()));
+  }
+
+  Future<void> _pickClockTime({
+    required TextEditingController controller,
+    required TimeOfDay fallback,
+  }) async {
+    final initial = RouteClockTime.parse(controller.text) ?? fallback;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: Theme(
+            data: theme.copyWith(
+              colorScheme: theme.colorScheme.copyWith(
+                primary: AppColors.primary,
+              ),
+            ),
+            child: child!,
+          ),
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      controller.text = RouteClockTime.format(picked);
+    });
+    _formKey.currentState?.validate();
   }
 
   void _onMapTap(LatLng point) {
@@ -303,6 +335,14 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                     child: CustomTextField(
                       controller: _depController,
                       labelText: 'Departure (e.g. 07:30 AM)',
+                      readOnly: true,
+                      suffixIcon: const Icon(Icons.access_time),
+                      onTap: () => _pickClockTime(
+                        controller: _depController,
+                        fallback: const TimeOfDay(hour: 7, minute: 30),
+                      ),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Required' : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -310,6 +350,22 @@ class _AddEditRouteScreenState extends State<AddEditRouteScreen> {
                     child: CustomTextField(
                       controller: _arrController,
                       labelText: 'Arrival (e.g. 08:15 AM)',
+                      readOnly: true,
+                      suffixIcon: const Icon(Icons.access_time),
+                      onTap: () => _pickClockTime(
+                        controller: _arrController,
+                        fallback: const TimeOfDay(hour: 8, minute: 15),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Required';
+                        if (RouteClockTime.arrivalBeforeDeparture(
+                          _depController.text,
+                          v,
+                        )) {
+                          return 'Arrival must be after departure';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                 ],
